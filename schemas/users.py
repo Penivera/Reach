@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 from typing import Optional
 
 class BaseUser(BaseModel):
@@ -10,18 +10,30 @@ class BaseUser(BaseModel):
 
 
 class UserCreate(BaseUser):
-    password: str
+    password: str = Field(min_length=6)
+    confirm_password: str = Field(min_length=6)
+
+    @field_validator("confirm_password")
+    async def password_match(cls, value, info):
+        password = info.data.get("password")
+        
+        if password and value != password:
+            raise ValueError("passwords do not match")
+        
+        return value
 
 
 class UserLogin(BaseModel):
     username: str
     password: str
 
-class UserUpdate(BaseModel):
-    pass
 
 class UserResponse(BaseModel):
     id: int
     username: str
     email: EmailStr
+
+    model_config = ConfigDict(from_attributes = True)
+
+
 
