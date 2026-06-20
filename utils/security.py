@@ -1,10 +1,10 @@
-from passlib.context import CryptoContext
+from passlib.context import CryptContext
 import hashlib
 from datetime import datetime, timedelta
 from jose import jwt, JWTError
 from core import ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES, SECRET_KEY
 
-pwd_context = CryptoContext(schemes=["bcrypt"], deprecated="auto")
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 async def hash_password(password: str) -> str:
 

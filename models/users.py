@@ -1,9 +1,10 @@
-from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, Float, Boolean
+from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, Float, Boolean, func
 from DB.database import Base
 from schemas.enums import UserRole, VerificationStatus
-from sqlalchemy.orm import func, relationship, Mapped, mapped_column
+from sqlalchemy.orm import relationship, Mapped, mapped_column
 from DB.database import Base
 from datetime import datetime
+from schemas import UserRole
 
 class User(Base):
     __tablename__ = "users"
@@ -53,10 +54,10 @@ class User(Base):
         default=False
     )
 
-    role: Mapped[UserRole]
+    role: Mapped[UserRole] = mapped_column(default=UserRole.USER)
 
-    verification_status: Mapped[VerificationStatus]
+    verification_status: Mapped[VerificationStatus] = mapped_column(default=VerificationStatus.PENDING)
 
-    jobs = relationship("job", back_populates="owner")
+    jobs = relationship("Job", back_populates="owner")
     services = relationship("Service", back_populates="owner")
 

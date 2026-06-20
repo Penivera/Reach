@@ -7,7 +7,7 @@ app = FastAPI(title="Work Near API", description="Rent People To Do Work For You
 
 @app.on_event("startup")
 async def on_startup():
-    async with engine.begine() as conn:
+    async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
 

@@ -1,12 +1,14 @@
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 from typing import Optional
 
+
 class BaseUser(BaseModel):
     first_name: str
     last_name: str
     email: EmailStr
     username: str
-    phone: str
+    phone_number: str
+    
 
 
 class UserCreate(BaseUser):

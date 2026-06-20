@@ -15,7 +15,7 @@ class Media(Base):
     media_type: Mapped[MediaType]
 
     uploaded_by: Mapped[int] = mapped_column(
-        ForeignKey("user.id"),
+        ForeignKey("users.id"),
         
     )
 

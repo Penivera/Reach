@@ -30,8 +30,8 @@ class Message(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
 
-    conversation_id = Mapped[int] = mapped_column(
-        ForeignKey 
+    conversation_id: Mapped[int] = mapped_column(
+        ForeignKey("conversations.id")
     )
 
     sender_id: Mapped[int] = mapped_column(

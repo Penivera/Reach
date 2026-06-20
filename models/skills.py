@@ -3,7 +3,7 @@ from sqlalchemy import String, Integer, ForeignKey
 from DB.database import Base
 
 class Skill(Base):
-    __tablename__ = "skill"
+    __tablename__ = "skills"
 
     id: Mapped[int] = mapped_column(primary_key=True)
 
@@ -17,7 +17,6 @@ class Skill(Base):
 class UserSkill(Base):
     __tablename__ = "user_skills"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
 
     user_id: Mapped[int] = mapped_column(
         ForeignKey("users.id"),
