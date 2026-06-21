@@ -1,0 +1,20 @@
+from sqlalchemy import String, Integer, ForeignKey
+from sqlalchemy.orm import Mapped, mapped_column
+from backend.DB.database import Base
+
+class Report(Base):
+    __tablename__ = "reports"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    reporter_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id"),
+    )
+
+    reported_user_id: Mapped[int | None]
+
+    reported_job_id: Mapped[int | None]
+
+    reason: Mapped[str]
+
+    status: Mapped[str]
