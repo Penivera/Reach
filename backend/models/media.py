@@ -1,11 +1,12 @@
 from sqlalchemy import String, Integer, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column
 from backend.DB.database import Base
-
 from backend.schemas import MediaType
+from .mixins import TimeStampMixin
 
 
-class Media(Base):
+
+class Media(Base, TimeStampMixin):
     __tablename__ = "media"
 
     id: Mapped[int] = mapped_column(primary_key=True)

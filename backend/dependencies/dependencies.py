@@ -1,5 +1,5 @@
 from backend.DB import AsyncSessionLocal
-from backend.core import SECRET_KEY, ALGORITHM
+from backend.core import SECRET_KEY, ALGORITHM, settings
 from fastapi import HTTPException, status, Depends
 from jose import jwt, JWTError
 from fastapi.security import OAuth2PasswordBearer
@@ -22,7 +22,7 @@ async def get_current_user(token:str=Depends(oauth2_scheme),
     )
 
     try: 
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
 
         user_id = int(payload.get("sub"))
 

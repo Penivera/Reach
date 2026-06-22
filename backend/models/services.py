@@ -2,8 +2,9 @@ from sqlalchemy import String, Integer, ForeignKey, Float
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from backend.DB.database import Base
 from backend.schemas import ServiceStatus, ServiceRequestStatus
+from .mixins import TimeStampMixin
 
-class Service(Base):
+class Service(Base, TimeStampMixin):
     __tablename__ = "services"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -29,7 +30,7 @@ class Service(Base):
     )
 
 
-class ServiceRequest(Base):
+class ServiceRequest(Base, TimeStampMixin):
     __tablename__ = "service_requests"
 
     id: Mapped[int] = mapped_column(primary_key=True)

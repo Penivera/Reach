@@ -2,8 +2,9 @@ from sqlalchemy import String, Integer, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column
 from backend.DB.database import Base
 from backend.schemas import NotificationType
+from .mixins import TimeStampMixin
 
-class Notification(Base):
+class Notification(Base, TimeStampMixin):
     __tablename__ = "notifications"
 
     id: Mapped[int] = mapped_column(primary_key=True)

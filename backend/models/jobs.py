@@ -2,12 +2,14 @@ from sqlalchemy import String, Integer, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from backend.DB.database import Base
 from backend.schemas import ApplicationStatus
+from schemas import ApplicationStatus
+from .mixins import TimeStampMixin
 
-class Job(Base):
+class Job(Base, TimeStampMixin):
     __tablename__ = "jobs"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-
+    
     owner_id: Mapped[int] = mapped_column(
         ForeignKey("users.id"),
         index=True
@@ -33,7 +35,7 @@ class Job(Base):
     )
 
 
-class JobApplication(Base):
+class JobApplication(Base, TimeStampMixin):
     __tablename__ = "job_applications"
 
     id: Mapped[int] = mapped_column(primary_key=True)

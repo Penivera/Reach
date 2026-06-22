@@ -1,8 +1,9 @@
 from sqlalchemy import String, Integer, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column
 from backend.DB.database import Base
+from .mixins import TimeStampMixin
 
-class Coversation(Base):
+class Coversation(Base, TimeStampMixin):
     __tablename__ = "conversations"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -10,7 +11,7 @@ class Coversation(Base):
 
 
 
-class ConversationParticipant(Base):
+class ConversationParticipant(Base, TimeStampMixin):
     __tablename__ = "conversation_participants"
 
     conversation_id: Mapped[int] = mapped_column(
@@ -25,7 +26,7 @@ class ConversationParticipant(Base):
 
 
     
-class Message(Base):
+class Message(Base, TimeStampMixin):
     __tablename__ = "messages"
 
     id: Mapped[int] = mapped_column(primary_key=True)

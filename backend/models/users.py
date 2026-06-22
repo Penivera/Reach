@@ -1,12 +1,15 @@
 from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, Float, Boolean, func
 from backend.DB.database import Base
 from backend.schemas.enums import UserRole, VerificationStatus
+from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, Float, Boolean, func, Enum
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 from backend.DB.database import Base
 from datetime import datetime
 from backend.schemas import UserRole
+from .mixins import TimeStampMixin
 
-class User(Base):
+
+class User(Base, TimeStampMixin):
     __tablename__ = "users"
 
     id : Mapped[int] = mapped_column(primary_key=True)
@@ -23,19 +26,19 @@ class User(Base):
         index = True
     )
 
-    password: Mapped[str]
+    hashed_password: Mapped[str] = mapped_column(String(255))
 
-    first_name: Mapped[str | None]
+    first_name: Mapped[str | None] = mapped_column(String(100))
 
-    last_name: Mapped[str | None]
+    last_name: Mapped[str | None] = mapped_column(String(100))
 
-    bio: Mapped[str | None]
+    bio: Mapped[str | None] = mapped_column(String(500))
 
-    phone_number: Mapped[str | None]
+    phone_number: Mapped[str | None] = mapped_column(String(20))
 
-    location: Mapped[str | None]
+    location: Mapped[str | None] = mapped_column(String(255))
 
-    profile_image: Mapped[str | None]
+    profile_image: Mapped[str | None] = mapped_column(String(500))
 
     average_rating: Mapped[float] = mapped_column(
         Float,
@@ -54,10 +57,13 @@ class User(Base):
         default=False
     )
 
-    role: Mapped[UserRole] = mapped_column(default=UserRole.USER)
+    role: Mapped[UserRole] = mapped_column(Enum(UserRole), default=UserRole.USER)
 
-    verification_status: Mapped[VerificationStatus] = mapped_column(default=VerificationStatus.PENDING)
+    verification_status: Mapped[VerificationStatus] = mapped_column(Enum(VerificationStatus), default=VerificationStatus.PENDING)
 
     jobs = relationship("Job", back_populates="owner")
     services = relationship("Service", back_populates="owner")
+    verification_tokens = relationship("EmailVerificationToken", back_populates="user", cascade="all, delete-orphan")
+
+    password_reset_tokens = relationship("PasswordResetToken", back_populates="user", cascade="all, delete-orphan")
 

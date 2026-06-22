@@ -1,1 +1,1 @@
-from .configs import ACCESS_TOKEN_EXPIRE_MINUTES, SECRET_KEY, ALGORITHM, DATABASE_URL
+from .configs import settings

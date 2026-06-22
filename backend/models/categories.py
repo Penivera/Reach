@@ -1,8 +1,9 @@
 from sqlalchemy import String, Integer, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column
 from backend.DB.database import Base
+from .mixins import TimeStampMixin
 
-class Category(Base):
+class Category(Base, TimeStampMixin):
     __tablename__ = "categories"
 
     id: Mapped[int] = mapped_column(primary_key=True)

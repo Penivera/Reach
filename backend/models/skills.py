@@ -1,8 +1,9 @@
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy import String, Integer, ForeignKey
 from backend.DB.database import Base
+from .mixins import TimeStampMixin
 
-class Skill(Base):
+class Skill(Base, TimeStampMixin):
     __tablename__ = "skills"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -14,7 +15,7 @@ class Skill(Base):
 
 
 
-class UserSkill(Base):
+class UserSkill(Base, TimeStampMixin):
     __tablename__ = "user_skills"
 
 

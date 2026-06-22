@@ -2,7 +2,8 @@ from passlib.context import CryptContext
 import hashlib
 from datetime import datetime, timedelta
 from jose import jwt, JWTError
-from backend.core import ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES, SECRET_KEY
+from backend.core import ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES, SECRET_KEY, settings
+
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -23,12 +24,12 @@ async def verify_password(plain_password : str, hashed_password : str) -> bool:
 def create_access_token(data: dict):
     to_encode = data.copy()
 
-    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    expire = datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
 
     #update the data dictionary to include expire or add iat time stamp
     to_encode.update({"exp": expire})
 
     #Generate jwt signed token
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     
     return encoded_jwt
