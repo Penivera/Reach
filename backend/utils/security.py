@@ -2,7 +2,7 @@ from passlib.context import CryptContext
 import hashlib
 from datetime import datetime, timedelta
 from jose import jwt, JWTError
-from backend.core import ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES, SECRET_KEY, settings
+from core import settings
 
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")

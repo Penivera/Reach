@@ -1,6 +1,6 @@
 from sqlalchemy import String, Integer, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column
-from backend.DB.database import Base
+from DB.database import Base
 from .mixins import TimeStampMixin
 
 class Report(Base, TimeStampMixin):

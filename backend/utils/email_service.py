@@ -1,6 +1,6 @@
 import resend
 
-from backend.core import settings
+from core import settings
 
 resend.api_key = settings.RESEND_API_KEY
 

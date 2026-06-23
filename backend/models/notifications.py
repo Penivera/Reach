@@ -1,7 +1,7 @@
 from sqlalchemy import String, Integer, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column
-from backend.DB.database import Base
-from backend.schemas import NotificationType
+from DB.database import Base
+from schemas import NotificationType
 from .mixins import TimeStampMixin
 
 class Notification(Base, TimeStampMixin):

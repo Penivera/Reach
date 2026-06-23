@@ -1,7 +1,7 @@
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from backend.models import User
+from models import User
 
 async def get_user_by_id(user_id:int, db: AsyncSession):
     result = await db.execute(select(User).where(User.id == id))

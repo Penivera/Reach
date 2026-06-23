@@ -1,8 +1,8 @@
 from fastapi import APIRouter, HTTPException, status, Depends
-from backend.models import User
-from backend.schemas import UserCreate, UserResponse
-from backend.utils import hash_password, verify_password, create_access_token, generate_token, send_verification_email
-from backend.dependencies import get_db, get_current_user
+from models import User, EmailVerificationToken
+from schemas import UserCreate, UserResponse, EmailVerificationRequest
+from utils import hash_password, verify_password, create_access_token, generate_token, send_verification_email
+from dependencies import get_db, get_current_user
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi.security import OAuth2PasswordRequestForm

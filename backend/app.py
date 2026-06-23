@@ -1,6 +1,6 @@
 from fastapi import FastAPI
-from backend.routers import auth_router
-from backend.DB.database import Base, engine
+from routers import auth_router
+from DB.database import Base, engine
 
 
 app = FastAPI(title="Work Near API", description="Rent People To Do Work For You")

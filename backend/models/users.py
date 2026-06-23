@@ -1,11 +1,11 @@
 from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, Float, Boolean, func
-from backend.DB.database import Base
-from backend.schemas.enums import UserRole, VerificationStatus
+from DB.database import Base
+from schemas.enums import UserRole, VerificationStatus
 from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, Float, Boolean, func, Enum
 from sqlalchemy.orm import relationship, Mapped, mapped_column
-from backend.DB.database import Base
+from DB.database import Base
 from datetime import datetime
-from backend.schemas import UserRole
+from schemas import UserRole
 from .mixins import TimeStampMixin
 
 

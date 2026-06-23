@@ -1,7 +1,7 @@
 from sqlalchemy import String, Integer, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from backend.DB.database import Base
-from backend.schemas import ApplicationStatus
+from DB.database import Base
+from schemas import ApplicationStatus
 from schemas import ApplicationStatus
 from .mixins import TimeStampMixin
 

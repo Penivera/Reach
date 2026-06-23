@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy import String, Integer, ForeignKey
-from backend.DB.database import Base
+from DB.database import Base
 from .mixins import TimeStampMixin
 
 class Skill(Base, TimeStampMixin):

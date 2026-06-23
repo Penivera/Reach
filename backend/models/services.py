@@ -1,7 +1,7 @@
 from sqlalchemy import String, Integer, ForeignKey, Float
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from backend.DB.database import Base
-from backend.schemas import ServiceStatus, ServiceRequestStatus
+from DB.database import Base
+from schemas import ServiceStatus, ServiceRequestStatus
 from .mixins import TimeStampMixin
 
 class Service(Base, TimeStampMixin):
