@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi import APIRouter, HTTPException, status, Depends, Response
 from models import User, EmailVerificationToken
 from schemas import UserCreate, UserResponse, EmailVerificationRequest
 from utils import hash_password, verify_password, create_access_token, generate_token, send_verification_email
@@ -84,7 +84,7 @@ async def resend_verification(email: EmailStr, db: AsyncSession = Depends(get_db
     pass
 
 @router.post("/login")
-async def login_user(form_data: OAuth2PasswordRequestForm=Depends(), db: AsyncSession=Depends(get_db)):
+async def login_user(response: Response, form_data: OAuth2PasswordRequestForm=Depends(), db: AsyncSession=Depends(get_db)):
     result = await db.execute(select(User).where(User.username == form_data.username))
 
     db_user = result.scalar_one_or_none()
@@ -97,7 +97,26 @@ async def login_user(form_data: OAuth2PasswordRequestForm=Depends(), db: AsyncSe
     
     token = create_access_token(data={"sub": str(db_user.id)})
 
-    return {"access_token": token, "token_type": "bearer"}
+    response.set_cookie(
+    key="access_token",
+    value=token,
+    httponly=True,
+    secure=True,
+    samesite="lax",
+    max_age=60 * 15
+    )
+
+    return {"message": "Logged in"}
+
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+async def logout(response: Response):
+    response.delete_cookie(
+        key="access_token",
+        httponly=True,
+        secure=True,      # Match however you set it
+        samesite="lax",
+        path="/",
+    )
 
 
 @router.post("/forgot-password")
