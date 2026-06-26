@@ -12,8 +12,7 @@ export default function VerifyEmailPage() {
   
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
   const [message, setMessage] = useState("Verifying your email address...");
-  const hasCalled = useRef(false); // Prevents React StrictMode double-triggering the token API
-
+  const hasCalled = useRef(false);
   useEffect(() => {
     if (!token) {
       setStatus("error");

@@ -16,10 +16,10 @@ export default async function AuthPage({ params }: AuthPageProps) {
   const isSignIn = mode === "signin";
 
   return (
-<div className="relative min-h-screen text-foreground flex items-center justify-center p-4">
+<div className="relative min-h-screen text-foreground flex items-center justify-center p-6">
 
       <div id="auth-bg" aria-hidden="true" />
-      <div className="w-full max-w-md border border-foreground bg-background p-6 rounded-lg space-y-6 shadow-md">
+      <div className="w-full max-w-md md:max-w-lg border border-foreground bg-background p-6 rounded-lg space-y-6 shadow-md">
         
         <div className="space-y-1 text-center">
           <h2 className="text-2xl font-bold tracking-tight">
