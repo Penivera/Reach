@@ -19,7 +19,7 @@ export default function Button({
   // Styles shared by both anchors and buttons
   const baseStyles = `
     inline-flex items-center justify-center
-    rounded-lg font-medium text-sm text-center
+    rounded-lg font-semibold text-sm text-center
     transition-all duration-300 ease-in-out
     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50
     disabled:opacity-50 disabled:pointer-events-none
