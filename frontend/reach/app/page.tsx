@@ -5,7 +5,7 @@ export default function Home() {
     <div className="text-foreground min-h-screen flex flex-col items-center justify-center bg-background px-4">
       <div className="text-center space-y-6 max-w-md w-full">
         <h1 className="text-5xl md:text-6xl font-extrabold tracking-tight">
-          Pricepoint
+          Reach
         </h1>
         
         <div className="flex justify-center pt-2">

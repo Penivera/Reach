@@ -27,8 +27,8 @@ export default async function AuthPage({ params }: AuthPageProps) {
           </h2>
           <p className="text-xs font-semibold text-muted-foreground">
             {isSignIn 
-              ? "Log into your Pricepoint account" 
-              : "Get started with Pricepoint today"}
+              ? "Log into your Reach account" 
+              : "Get started with Reach today"}
           </p>
         </div>
 
