@@ -1,36 +1,116 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Reach
 
-## Getting Started
+Reach is the frontend for a local marketplace app built around everyday help and everyday needs. The idea is simple: people can compare prices, find nearby help for common tasks, and post requests for services they need done.
 
-First, run the development server:
+Think of it as a place where users can quickly answer questions like:
+
+- How much does this cost?
+- How much would it take to hire someone for this?
+- Who nearby can help with this task right now?
+
+## What Reach does
+
+Reach is designed for everyday tasks and services such as:
+
+- plumbing
+- hairdressing
+- picking something up for someone
+- simple home help
+- local service requests
+- small jobs that people want completed nearby
+
+The platform is meant to support two core experiences:
+
+1. People looking for help
+2. People offering services or completing tasks
+
+## Current frontend scope
+
+The current frontend includes:
+
+- a landing page
+- sign-in and sign-up flows
+- authentication UI connected to the backend API
+- reusable UI components for forms and buttons
+- API helpers for auth-related endpoints
+
+Planned or expected product areas include:
+
+- comparing prices for services and goods
+- posting services for hire
+- posting tasks that need to be completed
+- user dashboards and profile flows
+- richer listings and booking experiences
+
+## Tech stack
+
+Reach is built with:
+
+- Next.js
+- React
+- TypeScript
+- Tailwind CSS
+- ESLint
+
+## Getting started
+
+### Prerequisites
+
+- Node.js (latest stable version recommended)
+- pnpm
+
+### Install dependencies
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Run the development server
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+pnpm dev
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Then open http://localhost:3000 in your browser.
 
-## Learn More
+## Environment variables
 
-To learn more about Next.js, take a look at the following resources:
+The app uses the following environment variable:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- NEXT_PUBLIC_API_URL
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+If it is not provided, the app defaults to:
 
-## Deploy on Vercel
+```bash
+http://localhost:8000
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Project structure
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+A quick overview of the frontend structure:
+
+- app/ - routes and page components
+- components/ - shared UI and layout components
+- lib/ - API and auth helper modules
+- public/ - static assets
+
+## Backend note
+
+The backend is expected to be run from the full repository. If you are working in the monorepo, follow the backend README for setup and start instructions.
+
+## Development notes
+
+This frontend is already wired for authentication flows and uses the backend API through a small shared API layer. The product experience is still expanding, so expect additional routes and features as the marketplace evolves.
+
+## Contributing
+
+If you want to contribute:
+
+1. Create a feature branch
+2. Make your changes
+3. Run the app locally
+4. Open a pull request with a clear summary
+
+## Status
+
+Reach is currently in an early but active stage, with authentication and core frontend structure in place and the broader marketplace experience still being built out.
