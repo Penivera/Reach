@@ -2,8 +2,8 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import Input from "./Input";
-import Button from "./Button";
+import Input from "../ui/Input";
+import Button from "../ui/Button";
 import { signup } from "@/lib/auth"; 
 
 export default function SignUpForm() {

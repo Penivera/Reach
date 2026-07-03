@@ -3,8 +3,8 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import Input from "./Input";
-import Button from "./Button";
+import Input from "../ui/Input";
+import Button from "../ui/Button";
 import { login } from "@/lib/auth";
 
 export default function SignInForm() {

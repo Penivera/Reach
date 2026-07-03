@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
-import SignInForm from "@/components/SignInForm";
-import SignUpForm from "@/components/SignUpForm";
+import SignInForm from "@/components/layout/SignInForm";
+import SignUpForm from "@/components/layout/SignUpForm";
 
 interface AuthPageProps {
   params: Promise<{ mode: string }>;
@@ -16,7 +16,7 @@ export default async function AuthPage({ params }: AuthPageProps) {
   const isSignIn = mode === "signin";
 
   return (
-<div className="relative min-h-screen text-foreground flex items-center justify-center p-6">
+  <div className="relative min-h-screen text-foreground flex items-center justify-center p-6">
 
       <div id="auth-bg" aria-hidden="true" />
       <div className="w-full max-w-lg md:max-w-lg border border-foreground bg-background p-6 rounded-lg space-y-6 shadow-md">
@@ -32,7 +32,6 @@ export default async function AuthPage({ params }: AuthPageProps) {
           </p>
         </div>
 
-        {/* Dynamic Form Render */}
         {isSignIn ? <SignInForm /> : <SignUpForm />}
 
       </div>
