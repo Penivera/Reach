@@ -25,3 +25,27 @@ async def send_verification_email(email: str, token: str) -> str:
             """
         }
     )
+
+
+async def send_reset_password_email(email: str, token: str) -> str:
+    verification_link = (f"{settings.BACKEND_URL}/auth/reset-password?token={token}")
+
+    resend.Emails.send(
+        {
+            "from": "onboarding@resend.dev",
+            "to": email,
+            "subject": "Reset Your Password",
+            "html": f"""
+                <h2>Welcome to WorkNear</h2>
+
+                <p>
+                    Click the link below to reset your password:
+                </p>
+
+                <a href="{verification_link}">
+                    Reset Password
+                </a>
+            """
+            
+        }
+    )

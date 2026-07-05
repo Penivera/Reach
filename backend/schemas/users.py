@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 from typing import Optional
 
 
@@ -14,14 +14,11 @@ class UserCreate(BaseUser):
     hashed_password: str = Field(min_length=6)
     confirm_password: str = Field(min_length=6)
 
-    @field_validator("confirm_password")
-    def password_match(cls, value, info):
-        password = info.data.get("password")
-        
-        if password and value != password:
-            raise ValueError("passwords do not match")
-        
-        return value
+    @model_validator(mode="after")
+    def password_match(self):
+        if self.hashed_password != self.confirm_password:
+            raise ValueError("Password do not match")
+        return self
 
 
 class UserLogin(BaseModel):
@@ -37,4 +34,13 @@ class UserResponse(BaseModel):
     model_config = ConfigDict(from_attributes = True)
 
 
+class ChangePasswordRequest(BaseModel):
+    old_password: str
+    new_password: str = Field(min_length=6)
+    confirm_password: str = Field(min_length=6)
 
+    @model_validator(mode="after")
+    def password_match(self):
+        if self.new_password != self.confirm_password:
+            raise ValueError("Password do not match")
+        return self

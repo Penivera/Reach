@@ -1,39 +1,46 @@
-from fastapi import APIRouter, HTTPException, status, Depends, Response
-from models import User, EmailVerificationToken
-from schemas import UserCreate, UserResponse, EmailVerificationRequest
-from utils import hash_password, verify_password, create_access_token, generate_token, send_verification_email
+from fastapi import APIRouter, HTTPException, status, Depends
+from models import User, EmailVerificationToken, PasswordResetToken
+from schemas import (UserCreate, UserResponse, EmailVerificationRequest, 
+                     ForgotPasswordRequest, ResetPasswordRequest, ChangePasswordRequest, ResendEmailVerificationRequest)
+from utils import hash_password, verify_password, create_access_token, generate_token, send_verification_email, send_reset_password_email
 from dependencies import get_db, get_current_user
-from sqlalchemy import select
+from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi.security import OAuth2PasswordRequestForm
 from datetime import timedelta, datetime
-from pydantic import EmailStr
+
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 @router.post("/create-user", response_model=UserResponse)
 async def create_user(user_data: UserCreate, db: AsyncSession =Depends(get_db)):
     
+    result = await db.execute(select(User).where(User.username == user_data.username))
+
+    user_exist = result.scalar_one_or_none()
+
+    if user_exist:
+        raise HTTPException(status_code=400, detail="Username is taken")
+
+
+    result = await db.execute(select(User).where(User.email == user_data.email))
+
+    email_exist = result.scalar_one_or_none()
+
+    if email_exist:
+        raise HTTPException(status_code=400, detail="Email already has an account")
+    
+    data = user_data.model_dump()
+    data.pop("confirm_password")
+
+    data["hashed_password"] = await hash_password(data["hashed_password"])
+
+    new_user = User(**data)
+    
     try:
-        result = await db.execute(select(User).where(User.username == user_data.username))
-
-        user_exist = result.scalar_one_or_none()
-
-        if user_exist:
-            raise HTTPException(status_code=400, detail="Username is taken")
-
-        
-        data = user_data.model_dump()
-        data.pop("confirm_password")
-
-        data["hashed_password"] = await hash_password(data["hashed_password"])
-
-        new_user = User(**data)
-
         db.add(new_user)
 
-        await db.commit()
-        await db.refresh(new_user)
+        await db.flush()
 
         token = await generate_token()
 
@@ -47,25 +54,23 @@ async def create_user(user_data: UserCreate, db: AsyncSession =Depends(get_db)):
         db.add(verification_token)
         await db.commit()
 
-        await send_verification_email(new_user.email, token)
-
-        return new_user
-
-        
-    
     except Exception:
         await db.rollback()
         raise
 
+    await send_verification_email(new_user.email, token)
+
+    return new_user
+
 @router.post("/verify-email")
 async def verify_email(data: EmailVerificationRequest, db: AsyncSession = Depends(get_db)):
+
     result = await db.execute(select(EmailVerificationToken).where(EmailVerificationToken.token == data.token))
 
     verification_token = result.scalar_one_or_none()
 
     if not verification_token:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid verification token")
-    
 
     if verification_token.expires_at < datetime.utcnow():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Expired verification token")
@@ -75,13 +80,55 @@ async def verify_email(data: EmailVerificationRequest, db: AsyncSession = Depend
     user.is_email_verified = True
 
     await db.delete(verification_token)
-    await db.commit()
+
+    try:
+    
+        await db.commit()
+
+    except Exception:
+        await db.rollback()
+        raise
 
     return {"message": "email verified successful"}
 
+
 @router.post("/resend-verification")
-async def resend_verification(email: EmailStr, db: AsyncSession = Depends(get_db)):
-    pass
+async def resend_verification(data: ResendEmailVerificationRequest, db: AsyncSession = Depends(get_db)):
+
+
+    result = await db.execute(select(User).where(User.email == data.email))
+
+    user = result.scalar_one_or_none()
+
+    if not user:
+        return {"message": "check your email for verification link"}
+    
+    if user.is_email_verified:
+        raise HTTPException(status_code=400, detail="email is already verified")
+    
+    await db.execute(delete(EmailVerificationToken).where(EmailVerificationToken.user_id == user.id))
+
+
+
+    token = await generate_token()
+
+    verification_token = EmailVerificationToken(user_id = user.id,
+                                                token = token,
+                                                expires_at = datetime.utcnow() + timedelta(hours=20))
+    
+    db.add(verification_token)
+    
+    try:
+
+        await db.commit()
+    
+    except Exception:
+        await db.rollback()
+        raise
+
+    await send_verification_email(user.email, token)
+
+    return {"message": "check your email for verification link"}
 
 @router.post("/login")
 async def login_user(response: Response, form_data: OAuth2PasswordRequestForm=Depends(), db: AsyncSession=Depends(get_db)):
@@ -120,14 +167,98 @@ async def logout(response: Response):
 
 
 @router.post("/forgot-password")
-async def forgot_password(email: EmailStr, db: AsyncSession = Depends(get_db)):
-    pass
+async def forgot_password(data: ForgotPasswordRequest, db: AsyncSession = Depends(get_db)):
+
+    result = await db.execute(select(User).where(User.email == data.email))
+
+    user_exist = result.scalar_one_or_none()
+
+    if not user_exist:
+        return {"message": "password reset link has been sent to your email"}
+    
+    await db.execute(delete(PasswordResetToken).where(PasswordResetToken.user_id == user_exist.id))
+
+
+    token = await generate_token()
+
+    password_reset_token = PasswordResetToken(user_id = user_exist.id,
+                                                token = token,
+                                            expires_at = datetime.utcnow() + timedelta(minutes=20))
+
+    db.add(password_reset_token)
+
+    try:
+        await db.commit()
+    
+    except Exception:
+        await db.rollback()
+        raise
+
+    await send_reset_password_email(user_exist.email, token)
+
+    return {"message": "password reset link has been sent to your email"}
 
 @router.post("/reset-password")
-async def reset_password(token: str, new_password: str, db: AsyncSession = Depends(get_db)):
-    pass
+async def reset_password(data: ResetPasswordRequest, db: AsyncSession = Depends(get_db)):
+    
+    result = await db.execute(select(PasswordResetToken).where(PasswordResetToken.token == data.token))
+
+    reset_token = result.scalar_one_or_none()
+
+    if not reset_token:
+        raise HTTPException(status_code = 400, detail="Invalid password reset token")
+    
+    if reset_token.expires_at < datetime.utcnow():
+        raise HTTPException(status_code = 400, detail="Expired password reset token")
+    
+    user = await db.get(User, reset_token.user_id)
+
+    if not user:
+        raise HTTPException(status_code = 404, detail="User doesn't exist")
+    
+
+    hashed_password = await hash_password(data.new_password)
+
+    user.hashed_password = hashed_password
+
+    await db.delete(reset_token)
+
+    try:
+        await db.commit()
+    
+    except Exception:
+        await db.rollback()
+        raise
+
+    return {"message": "password reset successfully"}
 
 @router.post("/change-password")
-async def change_password(current_user=Depends(get_current_user)):
-    pass
+async def change_password(data: ChangePasswordRequest,
+                           db: AsyncSession=Depends(get_db),
+                          current_user=Depends(get_current_user)):
+    
+    db_user = current_user
+
+    if not db_user:
+        raise HTTPException(status_code=404, detail="user not found!")
+    
+    if not await verify_password(data.old_password, db_user.hashed_password):
+        raise HTTPException(status_code=400, detail="incorrect password")
+    
+    if await verify_password(data.new_password, db_user.hashed_password):
+        raise HTTPException(status_code=400, detail="New password must be different from the current password")
+    
+    hashed_password = await hash_password(data.new_password)
+
+    db_user.hashed_password = hashed_password
+
+    try:
+
+        await db.commit()
+    
+    except Exception:
+        await db.rollback()    
+        raise
+
+    return {"message": "password changed successfully"}
 
