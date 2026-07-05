@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi import APIRouter, HTTPException, status, Depends, Response
 from models import User, EmailVerificationToken, PasswordResetToken
 from schemas import (UserCreate, UserResponse, EmailVerificationRequest, 
                      ForgotPasswordRequest, ResetPasswordRequest, ChangePasswordRequest, ResendEmailVerificationRequest)
