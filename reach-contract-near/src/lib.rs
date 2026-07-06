@@ -55,9 +55,9 @@ impl ReachContract {
             
         };
         contract.admins.insert(env::predecessor_account_id());
-        let _ = supported_stables.into_iter().map(
-            | stable_coin | contract.supported_stables.insert(stable_coin)
-        );
+        for stable_coin in supported_stables {
+            contract.supported_stables.insert(stable_coin);
+        }
         contract
     }
 
