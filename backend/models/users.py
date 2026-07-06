@@ -70,5 +70,9 @@ class User(Base, TimeStampMixin):
     services = relationship("Service", back_populates="owner")
     verification_tokens = relationship("EmailVerificationToken", back_populates="user", cascade="all, delete-orphan")
 
+    user_skills = relationship("UserSkill", back_populates="user", cascade="all, delete-orphan")
+
     password_reset_tokens = relationship("PasswordResetToken", back_populates="user", cascade="all, delete-orphan")
+
+    
 
