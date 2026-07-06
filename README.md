@@ -1,2 +1,2 @@
 # Reach
-```Do More From Your Home```
+```Reach More From Your Device```
