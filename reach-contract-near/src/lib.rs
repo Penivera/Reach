@@ -79,7 +79,7 @@ impl ReachContract {
         self.application_count += 1;
     }
 
-    pub fn accept_application(&mut self, application_id: u64) {
+    pub fn accept_application(&mut self, application_id: u64) -> near_sdk::PromiseOrValue<()> {
         let caller = env::predecessor_account_id();
         let app = self.applications.get_mut(&application_id).expect("App not found");
         
@@ -102,6 +102,7 @@ impl ReachContract {
 
         if task.terms.required_provider_collateral.is_some() {
             task.status = TaskStatus::AwaitingEscrow;
+            near_sdk::PromiseOrValue::Value(())
         } else {
             task.status = TaskStatus::InProgress;
             
@@ -114,10 +115,34 @@ impl ReachContract {
                     
                 let callback = Self::ext(env::current_account_id())
                     .with_static_gas(near_sdk::Gas::from_tgas(20))
-                    .ft_transfer_callback(task_id, U128(0));
+                    .accept_application_callback(task_id, application_id);
                     
-                let _ = promise.then(callback);
+                near_sdk::PromiseOrValue::Promise(promise.then(callback))
+            } else {
+                near_sdk::PromiseOrValue::Value(())
             }
+        }
+    }
+
+    #[private]
+    pub fn accept_application_callback(&mut self, task_id: u64, application_id: u64) {
+        if near_sdk::is_promise_success() {
+            let task = self.tasks.get_mut(&task_id).unwrap();
+            task.escrow.advance_disbursed = true;
+        } else {
+            let task = self.tasks.get_mut(&task_id).unwrap();
+            task.provider_id = None;
+            task.status = TaskStatus::Pending;
+            
+            for (_, other_app) in self.applications.iter_mut() {
+                if other_app.task_id == task_id && other_app.status == ProviderApplicationStatus::Rejected {
+                    other_app.status = ProviderApplicationStatus::Pending;
+                }
+            }
+            let app = self.applications.get_mut(&application_id).unwrap();
+            app.status = ProviderApplicationStatus::Pending;
+
+            panic!("Advance payment failed");
         }
     }
 
@@ -131,7 +156,7 @@ impl ReachContract {
         task.status = TaskStatus::Completed;
     }
 
-    pub fn approve_work(&mut self, task_id: u64) {
+    pub fn approve_work(&mut self, task_id: u64) -> near_sdk::PromiseOrValue<()> {
         let caller = env::predecessor_account_id();
         let task = self.tasks.get_mut(&task_id).expect("Task not found");
         require!(task.creator_id == caller, "Only creator can approve work");
@@ -153,15 +178,31 @@ impl ReachContract {
             total_to_send += col.0;
         }
 
+        task.status = TaskStatus::Completed;
+
         if total_to_send > 0 {
-            let _ = ft_contract::ext(task.stablecoin.clone())
+            let promise = ft_contract::ext(task.stablecoin.clone())
                 .with_attached_deposit(near_sdk::NearToken::from_yoctonear(1))
                 .with_static_gas(near_sdk::Gas::from_tgas(20))
                 .ft_transfer(provider_id, U128(total_to_send));
+                
+            let callback = Self::ext(env::current_account_id())
+                .with_static_gas(near_sdk::Gas::from_tgas(20))
+                .approve_work_callback(task_id);
+                
+            near_sdk::PromiseOrValue::Promise(promise.then(callback))
+        } else {
+            near_sdk::PromiseOrValue::Value(())
         }
+    }
 
-        task.status = TaskStatus::Completed;
-        // Decrease locked balances... omitted for brevity
+    #[private]
+    pub fn approve_work_callback(&mut self, task_id: u64) {
+        if !near_sdk::is_promise_success() {
+            let task = self.tasks.get_mut(&task_id).unwrap();
+            task.status = TaskStatus::InProgress;
+            panic!("Payment failed");
+        }
     }
 
     pub fn raise_dispute(&mut self, task_id: u64) {
@@ -171,7 +212,7 @@ impl ReachContract {
         task.status = TaskStatus::Disputed;
     }
 
-    pub fn resolve_dispute(&mut self, task_id: u64, creator_refund_pct: u8, provider_payment_pct: u8) {
+    pub fn resolve_dispute(&mut self, task_id: u64, creator_refund_pct: u8, provider_payment_pct: u8) -> near_sdk::PromiseOrValue<()> {
         require!(creator_refund_pct + provider_payment_pct == 100, "Percentages must sum to 100");
         let caller = env::predecessor_account_id();
         require!(self.admins.contains(&caller), "Only admins can resolve disputes");
@@ -184,35 +225,63 @@ impl ReachContract {
         let creator_refund = (total_creator_funds * creator_refund_pct as u128) / 100;
         let provider_payment = (total_creator_funds * provider_payment_pct as u128) / 100;
 
+        let mut promise: Option<near_sdk::Promise> = None;
+
         if creator_refund > 0 {
-            let _ = ft_contract::ext(task.stablecoin.clone())
+            let p = ft_contract::ext(task.stablecoin.clone())
                 .with_attached_deposit(near_sdk::NearToken::from_yoctonear(1))
                 .with_static_gas(near_sdk::Gas::from_tgas(20))
                 .ft_transfer(task.creator_id.clone(), U128(creator_refund));
+            promise = Some(p);
         }
 
         if provider_payment > 0 {
             let provider_id = task.provider_id.clone().unwrap();
-            let _ = ft_contract::ext(task.stablecoin.clone())
+            let p = ft_contract::ext(task.stablecoin.clone())
                 .with_attached_deposit(near_sdk::NearToken::from_yoctonear(1))
                 .with_static_gas(near_sdk::Gas::from_tgas(20))
                 .ft_transfer(provider_id, U128(provider_payment));
+            promise = match promise {
+                Some(prev) => Some(prev.and(p)),
+                None => Some(p),
+            };
         }
         
         if let Some(col) = task.escrow.provider_locked_balance {
-            // Give collateral back to provider or slash it?
-            // Usually, depends on dispute. Let's return it to provider proportionally
             let provider_id = task.provider_id.clone().unwrap();
             let collateral_refund = (col.0 * provider_payment_pct as u128) / 100;
             if collateral_refund > 0 {
-                let _ = ft_contract::ext(task.stablecoin.clone())
+                let p = ft_contract::ext(task.stablecoin.clone())
                     .with_attached_deposit(near_sdk::NearToken::from_yoctonear(1))
                     .with_static_gas(near_sdk::Gas::from_tgas(20))
                     .ft_transfer(provider_id, U128(collateral_refund));
+                promise = match promise {
+                    Some(prev) => Some(prev.and(p)),
+                    None => Some(p),
+                };
             }
         }
 
-        task.status = if creator_refund_pct > 50 { TaskStatus::Refunded } else { TaskStatus::Completed };
+        let new_status = if creator_refund_pct > 50 { TaskStatus::Refunded } else { TaskStatus::Completed };
+        task.status = new_status;
+
+        if let Some(p) = promise {
+            let callback = Self::ext(env::current_account_id())
+                .with_static_gas(near_sdk::Gas::from_tgas(20))
+                .resolve_dispute_callback(task_id);
+            near_sdk::PromiseOrValue::Promise(p.then(callback))
+        } else {
+            near_sdk::PromiseOrValue::Value(())
+        }
+    }
+
+    #[private]
+    pub fn resolve_dispute_callback(&mut self, task_id: u64) {
+        if !near_sdk::is_promise_success() {
+            let task = self.tasks.get_mut(&task_id).unwrap();
+            task.status = TaskStatus::Disputed;
+            panic!("Payment failed");
+        }
     }
 
     // --- FT Receive Methods ---
@@ -248,5 +317,12 @@ impl ReachContract {
             // effectively refunding the collateral to the user.
             panic!("Advance payment failed, refunding collateral");
         }
+    }
+
+    // Dummy method for testing mock FT callbacks in tests
+    #[payable]
+    #[allow(unused_variables)]
+    pub fn ft_transfer(&mut self, receiver_id: AccountId, amount: U128, memo: Option<String>) {
+        // Do nothing
     }
 }

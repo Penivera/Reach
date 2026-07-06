@@ -23,6 +23,20 @@ async fn test_basics_on(contract_wasm: Vec<u8>) -> testresult::TestResult<()> {
 
     // We initialize the contract with creator as a supported stablecoin
     // This allows creator to call ft_on_transfer directly acting as the FT contract itself
+    // Deploy to creator to mock the FT contract
+    near_api::Contract::deploy(creator.account_id().clone())
+        .use_code(contract_wasm.clone())
+        .with_init_call(
+            "init",
+            json!({
+                "supported_stables": [creator.account_id().to_string()]
+            }),
+        )?
+        .with_signer(signer.clone())
+        .send_to(&sandbox_network)
+        .await?
+        .assert_success();
+
     near_api::Contract::deploy(contract.account_id().clone())
         .use_code(contract_wasm)
         .with_init_call(
