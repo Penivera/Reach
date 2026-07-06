@@ -128,13 +128,6 @@ impl ReachContract {
         require!(task.provider_id.as_ref() == Some(&caller), "Only provider can complete task");
         require!(matches!(task.status, TaskStatus::InProgress), "Task not in progress");
         
-        // Temporarily using AwaitingEscrow as a placeholder, let's just keep it InProgress but wait for creator to approve,
-        // or actually let's update it to AwaitingEscrow since it's the closest we have in the enum without adding a new state,
-        // Actually, we can just leave it as InProgress and rely on approve_work or just add a new state if needed. 
-        // For now, let's keep it simple: no state change here, just an event/offchain signal, or they just call approve_work.
-        // Wait, the plan says "changes status to something like Completed (or AwaitingReview)". 
-        // We only have: Pending, InProgress, AwaitingEscrow, Completed, Disputed, Refunded.
-        // I will change it to `Completed` and `approve_work` actually releases the funds.
         task.status = TaskStatus::Completed;
     }
 
