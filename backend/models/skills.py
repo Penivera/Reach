@@ -1,4 +1,4 @@
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy import String, Integer, ForeignKey
 from DB.database import Base
 from .mixins import TimeStampMixin
@@ -12,6 +12,9 @@ class Skill(Base, TimeStampMixin):
         String(100),
         unique=True,
     )
+
+    user_skills = relationship("UserSkill", 
+                               back_populates="skill")
 
 
 
@@ -28,3 +31,12 @@ class UserSkill(Base, TimeStampMixin):
         ForeignKey("skills.id"),
         primary_key=True
     )
+
+    user = relationship(
+    "User",
+    back_populates="user_skills"
+)
+
+    skill = relationship(
+    "Skill",
+    back_populates="user_skills")

@@ -13,4 +13,6 @@ class Category(Base, TimeStampMixin):
         unique=True
     )
 
+    description: Mapped[str | None] = mapped_column(nullable=True)
+
     

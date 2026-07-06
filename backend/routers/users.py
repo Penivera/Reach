@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, status, Depends
-from models import User
-from schemas import UserUpdate, UserPublicResponse, UserResponse
-from sqlalchemy import select, delete
+from models import User, Skill, UserSkill
+from schemas import UserUpdate, UserPublicResponse, UserResponse, UserSkillUpdate, SkillResponse
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from dependencies import get_current_user, get_db
 
@@ -52,6 +52,40 @@ async def get_users(db: AsyncSession=Depends(get_db)):
     users = result.scalars().all()
 
     return users
+
+@router.get("/me/skills", response_model=list[SkillResponse])
+async def get_my_skills(db:AsyncSession=Depends(get_db), current_user=Depends(get_current_user)):
+    return [user_skill.skill for user_skill in current_user.user_skill]
+
+@router.put("/me/skills")
+async def update_my_skills(data: UserSkillUpdate, 
+                           db:AsyncSession=Depends(get_db), current_user=Depends(get_current_user)):
+    
+    result = await db.execute(select(Skill).where(Skill.id.in_(data.skill_ids)))
+
+    skills = result.scalars().all()
+
+    if len(skills) != len(set(data.skill_ids)):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail="One or more skill do not exist")
+    
+    current_user.skills.clear()
+
+    current_user.skills.extend(
+        UserSkill(skill=skill)
+        for skill in skills
+    )
+
+    try: 
+        await db.commit()
+
+        await db.refresh(current_user)
+    
+    except Exception:
+        await db.rollback()
+        raise
+
+    return {"message": "Skills updated successfully"}
 
 @router.delete("/me")
 async def delete_me(db:AsyncSession=Depends(get_db), current_user=Depends(get_current_user)):
