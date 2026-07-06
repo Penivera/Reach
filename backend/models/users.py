@@ -57,6 +57,11 @@ class User(Base, TimeStampMixin):
         default=False
     )
 
+    is_deleted: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False
+    )
+
     role: Mapped[UserRole] = mapped_column(Enum(UserRole), default=UserRole.USER)
 
     verification_status: Mapped[VerificationStatus] = mapped_column(Enum(VerificationStatus), default=VerificationStatus.PENDING)

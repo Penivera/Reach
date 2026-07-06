@@ -4,7 +4,7 @@ from sqlalchemy import select
 from models import User
 
 async def get_user_by_id(user_id:int, db: AsyncSession):
-    result = await db.execute(select(User).where(User.id == id))
+    result = await db.execute(select(User).where(User.id == id, User.is_deleted.is_(False)))
 
     db_user = result.scalar_one_or_none()
 

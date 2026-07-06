@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, status, Depends, Response
 from models import User, EmailVerificationToken, PasswordResetToken
 from schemas import (UserCreate, UserResponse, EmailVerificationRequest, 
-                     ForgotPasswordRequest, ResetPasswordRequest, ChangePasswordRequest, ResendEmailVerificationRequest)
+                     ForgotPasswordRequest, ResetPasswordRequest, ChangePasswordRequest, ResendEmailVerificationRequest, UserSignUpResponse)
 from utils import hash_password, verify_password, create_access_token, generate_token, send_verification_email, send_reset_password_email
 from dependencies import get_db, get_current_user
 from sqlalchemy import select, delete
@@ -12,7 +12,7 @@ from datetime import timedelta, datetime
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
-@router.post("/create-user", response_model=UserResponse)
+@router.post("/create-user", response_model=UserSignUpResponse)
 async def create_user(user_data: UserCreate, db: AsyncSession =Depends(get_db)):
     
     result = await db.execute(select(User).where(User.username == user_data.username))
@@ -75,7 +75,14 @@ async def verify_email(data: EmailVerificationRequest, db: AsyncSession = Depend
     if verification_token.expires_at < datetime.utcnow():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Expired verification token")
     
-    user = await db.get(User, verification_token.user_id)
+
+    result = await db.execute(select(User).where(User.id == verification_token.user_id, 
+                                                 User.is_deleted.is_(False)))
+    
+    user = result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(status_code = status.HTTP_404_NOT_FOUND, detail="User not found")
 
     user.is_email_verified = True
 
@@ -96,7 +103,8 @@ async def verify_email(data: EmailVerificationRequest, db: AsyncSession = Depend
 async def resend_verification(data: ResendEmailVerificationRequest, db: AsyncSession = Depends(get_db)):
 
 
-    result = await db.execute(select(User).where(User.email == data.email))
+    result = await db.execute(select(User).where(User.email == data.email, 
+                                                 User.is_deleted.is_(False)))
 
     user = result.scalar_one_or_none()
 
@@ -132,7 +140,8 @@ async def resend_verification(data: ResendEmailVerificationRequest, db: AsyncSes
 
 @router.post("/login")
 async def login_user(response: Response, form_data: OAuth2PasswordRequestForm=Depends(), db: AsyncSession=Depends(get_db)):
-    result = await db.execute(select(User).where(User.username == form_data.username))
+    result = await db.execute(select(User).where(User.username == form_data.username,
+                                                  User.is_deleted.is_(False)))
 
     db_user = result.scalar_one_or_none()
 
@@ -169,7 +178,8 @@ async def logout(response: Response):
 @router.post("/forgot-password")
 async def forgot_password(data: ForgotPasswordRequest, db: AsyncSession = Depends(get_db)):
 
-    result = await db.execute(select(User).where(User.email == data.email))
+    result = await db.execute(select(User).where(User.email == data.email,
+                                                  User.is_deleted.is_(False)))
 
     user_exist = result.scalar_one_or_none()
 
@@ -211,7 +221,11 @@ async def reset_password(data: ResetPasswordRequest, db: AsyncSession = Depends(
     if reset_token.expires_at < datetime.utcnow():
         raise HTTPException(status_code = 400, detail="Expired password reset token")
     
-    user = await db.get(User, reset_token.user_id)
+
+    result = await db.execute(select(User).where(User.id == reset_token.user_id,
+                                                 User.is_deleted.is_(False)))
+    
+    user = result.scalar_one_or_none()
 
     if not user:
         raise HTTPException(status_code = 404, detail="User doesn't exist")

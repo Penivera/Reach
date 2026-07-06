@@ -1,6 +1,6 @@
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 from typing import Optional
-
+from datetime import datetime
 
 class BaseUser(BaseModel):
     first_name: str
@@ -19,6 +19,13 @@ class UserCreate(BaseUser):
         if self.hashed_password != self.confirm_password:
             raise ValueError("Password do not match")
         return self
+    
+class UserUpdate(BaseModel):
+    first_name: str | None = None
+    last_name: str | None = None
+    bio: str | None = None
+    location: str | None = None
+    phone_number: str | None = None
 
 
 class UserLogin(BaseModel):
@@ -26,12 +33,34 @@ class UserLogin(BaseModel):
     password: str
 
 
-class UserResponse(BaseModel):
+class UserSignUpResponse(BaseModel):
     id: int
     username: str
     email: EmailStr
 
     model_config = ConfigDict(from_attributes = True)
+
+
+class UserResponse(BaseModel):
+
+    id: int
+    username: str
+    email: EmailStr
+
+    first_name: str | None = None
+    last_name: str | None = None
+
+    bio: str | None = None
+    phone_number: str | None = None
+    location: str | None = None
+
+    profile_picture: str | None = None
+
+    is_email_verified: bool
+
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ChangePasswordRequest(BaseModel):
@@ -44,3 +73,22 @@ class ChangePasswordRequest(BaseModel):
         if self.new_password != self.confirm_password:
             raise ValueError("Password do not match")
         return self
+    
+
+class UserPublicResponse(BaseModel):
+
+    id: int
+
+    username: str
+
+    first_name: str | None = None
+
+    last_name: str | None = None
+
+    bio: str | None = None
+
+    location: str | None = None
+
+    profile_picture: str | None = None
+
+    model_config = ConfigDict(from_attributes=True)

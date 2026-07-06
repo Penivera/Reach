@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from routers import auth_router
+from routers import auth_router, users_router
 from fastapi.middleware.cors import CORSMiddleware
 from DB.database import Base, engine
 
@@ -25,7 +25,7 @@ app.add_middleware(
 
 
 app.include_router(auth_router)
-
+app.include_router(users_router)
 
 @app.get("/")
 async def index():
