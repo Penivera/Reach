@@ -7,6 +7,7 @@ class BaseUser(BaseModel):
     last_name: str
     email: EmailStr
     username: str
+    location: Optional[str] = None
     phone_number: str
     
 
