@@ -2,6 +2,7 @@ pub mod models;
 pub mod internal;
 pub mod ext;
 pub mod admin;
+pub mod views;
 // Find NEAR documentation at https://docs.near.org
 use near_sdk::json_types::U128;
 use near_sdk::{
@@ -33,6 +34,22 @@ pub struct ReachContract {
     pub task_count: u64,
     pub stables_balances: IterableMap<AccountId,u128>,
     pub application_count:u64,
+    pub cancellation_fee_pct: u16, // out of 1000 (e.g. 50 = 5%)
+    pub creation_fee_pct: u16,     // out of 1000 (e.g. 25 = 2.5%)
+}
+
+#[near(serializers=[borsh])]
+pub struct OldReachContract {
+    pub owner_id: AccountId,
+    pub owner_proposal: Option<AccountId>,
+    pub owner_votes: IterableSet<AccountId>,
+    pub tasks: IterableMap<u64, Task>,
+    pub applications: IterableMap<u64,ProviderApplication>,
+    pub supported_stables: IterableSet<AccountId>,
+    pub admins: IterableSet<AccountId>,
+    pub task_count: u64,
+    pub stables_balances: IterableMap<AccountId,u128>,
+    pub application_count:u64,
 }
 
 // Implement the contract functions
@@ -52,6 +69,8 @@ impl ReachContract {
             task_count: 0,
             stables_balances: IterableMap::new(b"b"),
             application_count: 0,
+            cancellation_fee_pct: 50, // 5% default
+            creation_fee_pct: 25,     // 2.5% default
             
         };
         contract.admins.insert(env::predecessor_account_id());
@@ -59,6 +78,26 @@ impl ReachContract {
             contract.supported_stables.insert(stable_coin);
         }
         contract
+    }
+
+    #[private]
+    #[init(ignore_state)]
+    pub fn migrate() -> Self {
+        let old_state: OldReachContract = env::state_read().expect("Failed to read old state");
+        Self {
+            owner_id: old_state.owner_id,
+            owner_proposal: old_state.owner_proposal,
+            owner_votes: old_state.owner_votes,
+            tasks: old_state.tasks,
+            applications: old_state.applications,
+            supported_stables: old_state.supported_stables,
+            admins: old_state.admins,
+            task_count: old_state.task_count,
+            stables_balances: old_state.stables_balances,
+            application_count: old_state.application_count,
+            cancellation_fee_pct: 50, // 5%
+            creation_fee_pct: 25, // 2.5%
+        }
     }
 
     // --- Provider Applications ---
@@ -146,7 +185,174 @@ impl ReachContract {
         }
     }
 
+    pub fn withdraw_application(&mut self, application_id: u64) {
+        let caller = env::predecessor_account_id();
+        let app = self.applications.get_mut(&application_id).expect("Application not found");
+        require!(app.provider_id == caller, "Only the applicant can withdraw");
+        require!(matches!(app.status, ProviderApplicationStatus::Pending), "Can only withdraw pending applications");
+        app.status = ProviderApplicationStatus::Rejected;
+    }
+
     // --- Task Lifecycle & Resolution ---
+    pub fn cancel_task(&mut self, task_id: u64) -> near_sdk::PromiseOrValue<()> {
+        let caller = env::predecessor_account_id();
+        let task = self.tasks.get_mut(&task_id).expect("Task not found");
+        require!(task.creator_id == caller, "Only creator can cancel task");
+        require!(
+            matches!(task.status, TaskStatus::Pending) ||
+            matches!(task.status, TaskStatus::AwaitingEscrow) ||
+            matches!(task.status, TaskStatus::InProgress),
+            "Task cannot be cancelled in this state"
+        );
+
+        let previous_status = task.status.clone();
+        let mut promise: Option<near_sdk::Promise> = None;
+
+        // Calculate 5% cancellation fee
+        let required_escrow: u128 = task.terms.labor_fee.0 + task.terms.material_cost.0;
+        let cancel_fee = (required_escrow * self.cancellation_fee_pct as u128) / 1000;
+
+        // Add fee to protocol balance
+        let mut current_balance = self.stables_balances.get(&task.stablecoin).copied().unwrap_or(0);
+        current_balance += cancel_fee;
+        self.stables_balances.insert(task.stablecoin.clone(), current_balance);
+
+        // Refund creator
+        let mut creator_refund = task.escrow.creator_locked_balance.0;
+        if task.escrow.advance_disbursed {
+            let upfront = (task.terms.upfront_release_pct as u128 / 100) * task.terms.material_cost.0;
+            creator_refund = creator_refund.saturating_sub(upfront);
+        }
+        creator_refund = creator_refund.saturating_sub(cancel_fee);
+
+        if creator_refund > 0 {
+            let p = ft_contract::ext(task.stablecoin.clone())
+                .with_attached_deposit(near_sdk::NearToken::from_yoctonear(1))
+                .with_static_gas(near_sdk::Gas::from_tgas(20))
+                .ft_transfer(task.creator_id.clone(), U128(creator_refund));
+            promise = Some(p);
+        }
+
+        // Refund provider collateral if any
+        if let Some(col) = task.escrow.provider_locked_balance {
+            if col.0 > 0 {
+                let provider_id = task.provider_id.clone().unwrap();
+                let p = ft_contract::ext(task.stablecoin.clone())
+                    .with_attached_deposit(near_sdk::NearToken::from_yoctonear(1))
+                    .with_static_gas(near_sdk::Gas::from_tgas(20))
+                    .ft_transfer(provider_id, col);
+                promise = match promise {
+                    Some(prev) => Some(prev.and(p)),
+                    None => Some(p),
+                };
+            }
+        }
+
+        task.status = TaskStatus::Refunded;
+
+        if let Some(p) = promise {
+            let callback = Self::ext(env::current_account_id())
+                .with_static_gas(near_sdk::Gas::from_tgas(20))
+                .cancel_task_callback(task_id, previous_status);
+            near_sdk::PromiseOrValue::Promise(p.then(callback))
+        } else {
+            near_sdk::PromiseOrValue::Value(())
+        }
+    }
+
+    pub fn abandon_task(&mut self, task_id: u64) -> near_sdk::PromiseOrValue<()> {
+        let caller = env::predecessor_account_id();
+        let task = self.tasks.get_mut(&task_id).expect("Task not found");
+        require!(task.provider_id.as_ref() == Some(&caller), "Only provider can abandon task");
+        require!(
+            matches!(task.status, TaskStatus::InProgress) || matches!(task.status, TaskStatus::AwaitingEscrow),
+            "Task cannot be abandoned in this state"
+        );
+
+        let previous_status = task.status.clone();
+        let mut promise: Option<near_sdk::Promise> = None;
+
+        // Calculate 5% cancellation fee
+        let required_escrow: u128 = task.terms.labor_fee.0 + task.terms.material_cost.0;
+        let cancel_fee = (required_escrow * self.cancellation_fee_pct as u128) / 1000;
+
+        let upfront = if task.escrow.advance_disbursed {
+            (task.terms.upfront_release_pct as u128 / 100) * task.terms.material_cost.0
+        } else {
+            0
+        };
+
+        // Provider pays the fee and returns the advance out of their collateral
+        let provider_refund;
+        let amount_recovered_from_collateral;
+        
+        let total_deduction = upfront + cancel_fee;
+        let col_amount = task.escrow.provider_locked_balance.unwrap_or(U128(0)).0;
+        
+        let mut actual_fee_collected = cancel_fee;
+        if col_amount >= total_deduction {
+            provider_refund = col_amount - total_deduction;
+            amount_recovered_from_collateral = upfront;
+        } else {
+            provider_refund = 0;
+            amount_recovered_from_collateral = col_amount.min(upfront);
+            actual_fee_collected = col_amount.saturating_sub(upfront);
+        }
+
+        // Add actual fee to protocol balance
+        if actual_fee_collected > 0 {
+            let mut current_balance = self.stables_balances.get(&task.stablecoin).copied().unwrap_or(0);
+            current_balance += actual_fee_collected;
+            self.stables_balances.insert(task.stablecoin.clone(), current_balance);
+        }
+
+        if provider_refund > 0 {
+            let p = ft_contract::ext(task.stablecoin.clone())
+                .with_attached_deposit(near_sdk::NearToken::from_yoctonear(1))
+                .with_static_gas(near_sdk::Gas::from_tgas(20))
+                .ft_transfer(caller.clone(), U128(provider_refund));
+            promise = Some(p);
+        }
+
+        // Creator refund
+        let mut creator_refund = task.escrow.creator_locked_balance.0;
+        if task.escrow.advance_disbursed {
+            // Creator lost the upfront, but we recovered some/all of it from collateral
+            creator_refund = creator_refund.saturating_sub(upfront) + amount_recovered_from_collateral;
+        }
+
+        if creator_refund > 0 {
+            let p = ft_contract::ext(task.stablecoin.clone())
+                .with_attached_deposit(near_sdk::NearToken::from_yoctonear(1))
+                .with_static_gas(near_sdk::Gas::from_tgas(20))
+                .ft_transfer(task.creator_id.clone(), U128(creator_refund));
+            promise = match promise {
+                Some(prev) => Some(prev.and(p)),
+                None => Some(p),
+            };
+        }
+
+        task.status = TaskStatus::Refunded;
+
+        if let Some(p) = promise {
+            let callback = Self::ext(env::current_account_id())
+                .with_static_gas(near_sdk::Gas::from_tgas(20))
+                .cancel_task_callback(task_id, previous_status);
+            near_sdk::PromiseOrValue::Promise(p.then(callback))
+        } else {
+            near_sdk::PromiseOrValue::Value(())
+        }
+    }
+
+    #[private]
+    pub fn cancel_task_callback(&mut self, task_id: u64, previous_status: TaskStatus) {
+        if !near_sdk::is_promise_success() {
+            let task = self.tasks.get_mut(&task_id).unwrap();
+            task.status = previous_status;
+            panic!("Refund failed");
+        }
+    }
+
     pub fn complete_task(&mut self, task_id: u64) {
         let caller = env::predecessor_account_id();
         let task = self.tasks.get_mut(&task_id).expect("Task not found");

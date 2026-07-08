@@ -2,6 +2,7 @@ use near_sdk::{AccountId, Timestamp, near};
 use near_sdk::json_types::U128;
 
 
+#[derive(Clone, Debug, PartialEq)]
 #[near(serializers=[borsh, json])]
 pub enum TaskStatus {
     Pending,     // Awaiting provider assignment
@@ -12,7 +13,7 @@ pub enum TaskStatus {
     Refunded,    // Cancelled or ruled in favor of creator
 }
 
-#[derive(PartialEq)] 
+#[derive(Clone, Debug, PartialEq)] 
 #[near(serializers=[borsh, json])]
 pub enum ProviderApplicationStatus {
     Pending,
@@ -21,6 +22,7 @@ pub enum ProviderApplicationStatus {
 }
 
 
+#[derive(Clone)]
 #[near(serializers=[borsh, json])]
 pub struct FinancialTerms {
     pub labor_fee: U128,             // Payment for the provider's time/effort
@@ -30,6 +32,7 @@ pub struct FinancialTerms {
 }
 
 
+#[derive(Clone)]
 #[near(serializers=[borsh, json])]
 pub struct EscrowState {
     pub creator_locked_balance: U128,  // Total currently held from the creator
@@ -37,6 +40,7 @@ pub struct EscrowState {
     pub advance_disbursed: bool,       // Tracks if the upfront_release_pct was already paid out
 }
 
+#[derive(Clone)]
 #[near(serializers=[borsh, json])]
 pub struct Task {
     pub creator_id: AccountId,
@@ -68,6 +72,7 @@ pub enum TransferAction {
     }
 }
 
+#[derive(Clone)]
 #[near(serializers=[borsh, json])]
 pub struct ProviderApplication{
     pub provider_id: AccountId,

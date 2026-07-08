@@ -11,8 +11,7 @@ impl ReachContract {
         terms: FinancialTerms,
     ) -> near_sdk::PromiseOrValue<U128> {
         let required_escrow: u128 = terms.labor_fee.0 + terms.material_cost.0;
-        // 2.5% = 25 / 1000
-        let internal_fee = (required_escrow * 25) / 1000;
+        let internal_fee = (required_escrow * self.creation_fee_pct as u128) / 1000;
         let total_required_escrow = required_escrow + internal_fee;
         
         require!(
