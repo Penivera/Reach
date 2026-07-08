@@ -7,7 +7,6 @@ class BaseUser(BaseModel):
     last_name: str
     email: EmailStr
     username: str
-    location: Optional[str] = None
     phone_number: str
     
 class BaseLocation(BaseModel):
@@ -76,7 +75,6 @@ class UserResponse(BaseModel):
 
     bio: str | None = None
     phone_number: str | None = None
-    location: str | None = None
 
     profile_picture: str | None = None
 
@@ -110,8 +108,6 @@ class UserPublicResponse(BaseModel):
     last_name: str | None = None
 
     bio: str | None = None
-
-    location: str | None = None
 
     profile_picture: str | None = None
 

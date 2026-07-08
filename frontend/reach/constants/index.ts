@@ -1,0 +1,1 @@
+export const NOMINATIM_EMAIL = process.env.TEST_EMAIL || undefined;

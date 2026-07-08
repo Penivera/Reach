@@ -5,6 +5,7 @@ import Link from "next/link";
 import Input from "../ui/Input";
 import Button from "../ui/Button";
 import { signup } from "@/lib/auth"; 
+import Spinner from "../ui/Spinner";
 
 export default function SignUpForm() {
   const [formData, setFormData] = useState({
@@ -31,7 +32,6 @@ export default function SignUpForm() {
     e.preventDefault();
     setErrors({});
 
-    // Client-side quick validation matching schema constraints
     if (formData.password !== formData.confirm_password) {
       setErrors({ confirm_password: "Passwords do not match." });
       return;
@@ -45,7 +45,7 @@ export default function SignUpForm() {
         email: formData.email,
         username: formData.username,
         phone_number: formData.phone_number,
-        hashed_password: formData.password, // Server handles the raw string conversion
+        hashed_password: formData.password,
         confirm_password: formData.confirm_password,
       });
 
@@ -90,7 +90,7 @@ export default function SignUpForm() {
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Input id="first_name" label="First Name" value={formData.first_name} onChange={handleInputChange} placeholder="Your First Name" required />
         <Input id="last_name" label="Last Name" value={formData.last_name} onChange={handleInputChange} placeholder="Your Last Name" required />
       </div>
@@ -103,7 +103,7 @@ export default function SignUpForm() {
       <Input id="confirm_password" label="Confirm Password" type="password" value={formData.confirm_password} onChange={handleInputChange} placeholder="Confirm your password" error={errors.confirm_password} required />
       
       <Button type="submit" intent="form" variant="primary" className="mt-2" disabled={loading}>
-        {loading ? "Creating Account..." : "Create Account"}
+        {loading ? <Spinner /> : "Create Account"}
       </Button>
 
 

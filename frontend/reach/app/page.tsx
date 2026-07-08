@@ -25,23 +25,24 @@ export default function Home() {
   </div>
 
         {/* Content */}
-    <div className="w-full md:w-1/2 flex flex-col items-center md:items-start text-center md:text-left gap-4 md:justify-center">
-          <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight text-foreground leading-snug">
+    <div className="w-full md:w-1/2 flex flex-col items-start text-left gap-4 md:justify-center">
+          <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight text-foreground p-0 m-0 leading-none">
             Find anything,
-            <br />
+            </h1>
+            <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight text-foreground p-0 m-0 leading-none">
             close to home.
           </h1>
           <p className="text-base text-muted-foreground leading-relaxed max-w-xs md:max-w-none">
             From a bag of rice to a plumber who can come now — it&apos;s all a
             tap away.
           </p>
-          <div className="flex flex-col items-center md:items-start gap-3 pt-2">
-            <Button href="/auth/signup" intent="action" variant="primary" className="text-base">
+          <div className="w-full flex flex-col gap-3 pt-2">
+            <Button href="/auth/location" intent="action" variant="primary" className="text-base">
               Get started
             </Button>
             <Link
               href="/auth/signin"
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors duration-200 font-semibold"
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors duration-200 font-semibold text-center md:text-left md:pl-2"
             >
               I already have an account
             </Link>
