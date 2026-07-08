@@ -1,6 +1,6 @@
 from passlib.context import CryptContext
 import hashlib
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from jose import jwt, JWTError
 from core import settings
 
@@ -24,7 +24,7 @@ async def verify_password(plain_password : str, hashed_password : str) -> bool:
 def create_access_token(data: dict):
     to_encode = data.copy()
 
-    expire = datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    expire = datetime.now(timezone.utc) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
 
     #update the data dictionary to include expire or add iat time stamp
     to_encode.update({"exp": expire})

@@ -10,8 +10,28 @@ class BaseUser(BaseModel):
     location: Optional[str] = None
     phone_number: str
     
+class BaseLocation(BaseModel):
+    latitude: float | None = None
+    longitude: float | None = None
+    location_name: str | None = None
 
-class UserCreate(BaseUser):
+    @field_validator("latitude")
+    @classmethod
+    def validate_latitude(cls, value):
+        if value is not None and not -90 <= value <= 90:
+            raise ValueError("Invalid latitude")
+        return value
+    
+    
+    @field_validator("longitude")
+    @classmethod
+    def validate_longitude(cls, value):
+        if value is not None and not -180 <= value <= 180:
+            raise ValueError("Invalid longitude")
+        
+        return value
+
+class UserCreate(BaseUser, BaseLocation):
     hashed_password: str = Field(min_length=6)
     confirm_password: str = Field(min_length=6)
 
@@ -21,13 +41,16 @@ class UserCreate(BaseUser):
             raise ValueError("Password do not match")
         return self
     
+    
 class UserUpdate(BaseModel):
     first_name: str | None = None
     last_name: str | None = None
     bio: str | None = None
-    location: str | None = None
     phone_number: str | None = None
 
+    
+class LocationUpdate(BaseLocation):
+    pass
 
 class UserLogin(BaseModel):
     username: str

@@ -36,7 +36,13 @@ class User(Base, TimeStampMixin):
 
     phone_number: Mapped[str | None] = mapped_column(String(20))
 
-    location: Mapped[str | None] = mapped_column(String(255))
+    latitude = mapped_column(Float, nullable=True)
+
+    longitude = mapped_column(Float, nullable=True)
+
+    location_name = mapped_column(String(255), nullable=True)
+
+    location_updated_at = mapped_column(DateTime(timezone=True), nullable=True)
 
     profile_image: Mapped[str | None] = mapped_column(String(500))
 

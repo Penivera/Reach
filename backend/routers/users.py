@@ -1,7 +1,8 @@
 from fastapi import APIRouter, HTTPException, status, Depends
 from models import User, Skill, UserSkill
-from schemas import UserUpdate, UserPublicResponse, UserResponse, UserSkillUpdate, SkillResponse
+from schemas import UserUpdate, UserPublicResponse, UserResponse, UserSkillUpdate, SkillResponse, LocationUpdate
 from sqlalchemy import select
+from datetime import datetime, timedelta, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from dependencies import get_current_user, get_db
 
@@ -86,6 +87,27 @@ async def update_my_skills(data: UserSkillUpdate,
         raise
 
     return {"message": "Skills updated successfully"}
+
+@router.put("/me/location")
+async def update_location(data: LocationUpdate,
+                          db:AsyncSession=Depends(get_db), current_user=Depends(get_current_user)):
+    current_user.latitude = data.latitude
+    current_user.longitude = data.longitude
+    current_user.location_name = data.location_name
+    current_user.location_updated_at = datetime.now(timezone.utc)
+
+    try:
+        await db.commit()
+
+        await db.refresh(current_user)
+    
+    except Exception:
+        await db.rollback()
+        raise
+
+    return {"message": "Location updated successfully"}
+
+
 
 @router.delete("/me")
 async def delete_me(db:AsyncSession=Depends(get_db), current_user=Depends(get_current_user)):
