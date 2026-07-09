@@ -1,6 +1,6 @@
-use anchor_lang::prelude::*;
-use crate::state::*;
 use crate::constants::*;
+use crate::state::*;
+use anchor_lang::prelude::*;
 
 #[derive(Accounts)]
 pub struct Initialize<'info> {
@@ -16,7 +16,7 @@ pub struct Initialize<'info> {
     )]
     pub reach_state: Account<'info, ReachState>,
 
-    pub system_program: Program<'info, System>,    
+    pub system_program: Program<'info, System>,
 }
 
 pub fn handler(ctx: Context<Initialize>, owner_name: String) -> Result<()> {
@@ -25,7 +25,11 @@ pub fn handler(ctx: Context<Initialize>, owner_name: String) -> Result<()> {
     state.task_count = 0;
     state.application_count = 0;
     state.admins = Vec::new();
-    state.admins.push(Admin { name: owner_name, address: ctx.accounts.owner.key(), active: true });
-    
+    state.admins.push(Admin {
+        name: owner_name,
+        address: ctx.accounts.owner.key(),
+        active: true,
+    });
+
     Ok(())
 }

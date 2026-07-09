@@ -2,7 +2,7 @@ use anchor_lang::prelude::*;
 
 #[derive(Debug, Clone, PartialEq, AnchorSerialize, AnchorDeserialize, InitSpace)]
 pub enum TaskStatus {
-    Open,        // Awaiting provider assignment
+    Open,           // Awaiting provider assignment
     InProgress,     // Escrow locked, work started
     AwaitingEscrow, // An application accepted but waiting on escrow
     Completed,      // Work confirmed, escrow released
@@ -14,6 +14,8 @@ pub enum TaskStatus {
 pub enum ProviderApplicationStatus {
     Pending,
     Accepted,
+    AcceptedPendingCollateral,
+    AcceptedAndCollateralProvided,
     Rejected,
 }
 
@@ -22,7 +24,7 @@ pub struct FinancialTerms {
     pub labor_fee: u64,
     pub material_cost: u64,
     pub upfront_release_pct: u8, //% of material cost to release upfront to provider
-    pub required_provider_collateral: u128, //0 if no collateral is required
+    pub required_provider_collateral: u64, //0 if no collateral is required
 }
 
 #[derive(Debug, Clone, PartialEq, AnchorSerialize, AnchorDeserialize, InitSpace)]
@@ -79,9 +81,9 @@ pub struct ReachState {
 
 #[account]
 #[derive(InitSpace)]
-pub struct ProviderApplication{
+pub struct ProviderApplication {
     pub provider: Pubkey,
-    pub task_id:u64,
+    pub task_id: u64,
     pub status: ProviderApplicationStatus,
     pub created_at: i64, // Unix timestamp
     pub expires_at: i64, // Unix timestamp

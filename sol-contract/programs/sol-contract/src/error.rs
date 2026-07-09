@@ -2,8 +2,14 @@ use anchor_lang::prelude::*;
 
 #[error_code]
 pub enum ErrorCode {
-    #[msg("Only the counter authority can update this counter")]
-    Unauthorized,
-    #[msg("Counter has reached the maximum value")]
-    CounterOverflow,
+    #[msg("Cannot Provide Collateral Until Application is Accepted")]
+    ApplicationNotAccepted,
+    #[msg("Must Be An Admin")]
+    NotAnAdmin,
+}
+
+#[error_code]
+pub enum TaskError {
+    #[msg("Task does not require collateral lock")]
+    NoCollateralRequired,
 }

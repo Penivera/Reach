@@ -1,7 +1,8 @@
-use anchor_lang::prelude::*;
-use crate::state::*;
-use anchor_spl::token::Mint;
 use crate::constants::*;
+use crate::error::ErrorCode;
+use crate::state::*;
+use anchor_lang::prelude::*;
+use anchor_spl::token::Mint;
 
 #[derive(Accounts)]
 pub struct AddSupportedStable<'info> {
@@ -13,6 +14,7 @@ pub struct AddSupportedStable<'info> {
         seeds = [REACH_STATE_SEED],
         bump,
         constraint = reach_state.admins.iter().any(|admin| admin.address == caller.key())
+        @ErrorCode::NotAnAdmin
     )]
     pub reach_state: Account<'info, ReachState>,
 
@@ -35,7 +37,6 @@ pub fn add_supported_stable(ctx: Context<AddSupportedStable>, stable_name: Strin
     supported_token.mint = ctx.accounts.stable_coin_mint.key();
     supported_token.name = stable_name;
     supported_token.bump = ctx.bumps.supported_token;
-    
+
     Ok(())
 }
-
