@@ -5,6 +5,7 @@ pub enum TaskStatus {
     Open,           // Awaiting provider assignment
     InProgress,     // Escrow locked, work started
     AwaitingEscrow, // An application accepted but waiting on escrow
+    AwaitingApproval, // Provider completed task, waiting for creator approval
     Completed,      // Work confirmed, escrow released
     Disputed,       // Raised for admin review
     Refunded,       // Cancelled or ruled in favor of creator
@@ -17,6 +18,7 @@ pub enum ProviderApplicationStatus {
     AcceptedPendingCollateral,
     AcceptedAndCollateralProvided,
     Rejected,
+    CancelledWithDebt,
 }
 
 #[derive(Debug, Clone, PartialEq, AnchorSerialize, AnchorDeserialize, InitSpace)]
@@ -56,7 +58,6 @@ pub struct Task {
 #[derive(InitSpace)]
 pub struct SupportedStable {
     pub mint: Pubkey,
-    pub bump: u8,
     #[max_len(10)]
     pub name: String,
 }
@@ -75,6 +76,11 @@ pub struct ReachState {
     pub owner: Pubkey,
     pub task_count: u64,
     pub application_count: u64,
+    pub creation_fee_pct: u16,
+    pub cancellation_fee_pct: u16,
+    pub owner_proposal: Option<Pubkey>,
+    #[max_len(10)]
+    pub owner_votes: Vec<Pubkey>,
     #[max_len(10)]
     pub admins: Vec<Admin>,
 }
@@ -87,4 +93,11 @@ pub struct ProviderApplication {
     pub status: ProviderApplicationStatus,
     pub created_at: i64, // Unix timestamp
     pub expires_at: i64, // Unix timestamp
+}
+
+#[account]
+#[derive(InitSpace)]
+pub struct ProviderDebt {
+    pub provider: Pubkey,
+    pub has_debt: bool,
 }

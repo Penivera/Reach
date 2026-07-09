@@ -18,7 +18,8 @@ pub enum TaskStatus {
 pub enum ProviderApplicationStatus {
     Pending,
     Accepted,
-    Rejected
+    Rejected,
+    CancelledWithDebt
 }
 
 
@@ -69,6 +70,9 @@ pub enum TransferAction {
     ProvideCollateral{
         task_id: u64,
         application_id: u64
+    },
+    CancelApprovedApplication{
+        task_id: u64,
     }
 }
 

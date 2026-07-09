@@ -7,10 +7,10 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-sol_contract = "FYLQ37BMWhdhqDpieatcdrujk9ZVW6GfujxeAhCy4WZv"
+sol_contract = "io7dEJAJCAQBSJjGVzMkX8vxFrbzDLqt6ZhDjqqJfy4"
 
 [provider]
-cluster = "localnet"
+cluster = "devnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]

@@ -7,29 +7,6 @@
   "body": {
     "functions": [
       {
-        "name": "abandon_task",
-        "kind": "call",
-        "params": {
-          "serialization_type": "json",
-          "args": [
-            {
-              "name": "task_id",
-              "type_schema": {
-                "type": "integer",
-                "format": "uint64",
-                "minimum": 0.0
-              }
-            }
-          ]
-        },
-        "result": {
-          "serialization_type": "json",
-          "type_schema": {
-            "$ref": "#/definitions/PromiseOrValueNull"
-          }
-        }
-      },
-      {
         "name": "accept_application",
         "kind": "call",
         "params": {
@@ -83,9 +60,6 @@
       {
         "name": "add_admin",
         "kind": "call",
-        "modifiers": [
-          "private"
-        ],
         "params": {
           "serialization_type": "json",
           "args": [
@@ -153,6 +127,68 @@
                 "type": "integer",
                 "format": "uint64",
                 "minimum": 0.0
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "cancel_approved_application",
+        "kind": "call",
+        "params": {
+          "serialization_type": "json",
+          "args": [
+            {
+              "name": "task_id",
+              "type_schema": {
+                "type": "integer",
+                "format": "uint64",
+                "minimum": 0.0
+              }
+            }
+          ]
+        },
+        "result": {
+          "serialization_type": "json",
+          "type_schema": {
+            "$ref": "#/definitions/PromiseOrValueNull"
+          }
+        }
+      },
+      {
+        "name": "cancel_approved_application_callback",
+        "kind": "call",
+        "modifiers": [
+          "private"
+        ],
+        "params": {
+          "serialization_type": "json",
+          "args": [
+            {
+              "name": "task_id",
+              "type_schema": {
+                "type": "integer",
+                "format": "uint64",
+                "minimum": 0.0
+              }
+            },
+            {
+              "name": "provider_id",
+              "type_schema": {
+                "description": "NEAR Account Identifier.\n\nThis is a unique, syntactically valid, human-readable account identifier on the NEAR network.\n\n[See the crate-level docs for information about validation.](index.html#account-id-rules)\n\nAlso see [Error kind precedence](AccountId#error-kind-precedence).\n\n## Examples\n\n``` use near_account_id::AccountId;\n\nlet alice: AccountId = \"alice.near\".parse().unwrap();\n\nassert!(\"ƒelicia.near\".parse::<AccountId>().is_err()); // (ƒ is not f) ```",
+                "type": "string"
+              }
+            },
+            {
+              "name": "collateral",
+              "type_schema": {
+                "type": "string"
+              }
+            },
+            {
+              "name": "previous_status",
+              "type_schema": {
+                "$ref": "#/definitions/TaskStatus"
               }
             }
           ]
@@ -906,9 +942,6 @@
       {
         "name": "remove_admin",
         "kind": "call",
-        "modifiers": [
-          "private"
-        ],
         "params": {
           "serialization_type": "json",
           "args": [
@@ -1212,7 +1245,8 @@
           "enum": [
             "Pending",
             "Accepted",
-            "Rejected"
+            "Rejected",
+            "CancelledWithDebt"
           ]
         },
         "Task": {

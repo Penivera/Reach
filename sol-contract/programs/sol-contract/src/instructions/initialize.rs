@@ -24,6 +24,10 @@ pub fn handler(ctx: Context<Initialize>, owner_name: String) -> Result<()> {
     state.owner = ctx.accounts.owner.key();
     state.task_count = 0;
     state.application_count = 0;
+    state.creation_fee_pct = 0;
+    state.cancellation_fee_pct = 1000;
+    state.owner_proposal = None;
+    state.owner_votes = Vec::new();
     state.admins = Vec::new();
     state.admins.push(Admin {
         name: owner_name,

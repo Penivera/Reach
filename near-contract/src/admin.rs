@@ -3,13 +3,15 @@ use crate::*;
 #[near]
 impl ReachContract {
     // --- Admin & Owner Methods ---
-    #[private]
     pub fn add_admin(&mut self, admin_id: AccountId) {
+        let caller = env::predecessor_account_id();
+        require!(caller == self.owner_id, "Only owner can add admins");
         self.admins.insert(admin_id);
     }
 
-    #[private]
     pub fn remove_admin(&mut self, admin_id: AccountId) {
+        let caller = env::predecessor_account_id();
+        require!(caller == self.owner_id, "Only owner can remove admins");
         self.admins.remove(&admin_id);
     }
 
@@ -38,14 +40,14 @@ impl ReachContract {
     pub fn update_cancellation_fee_pct(&mut self, fee_pct: u16) {
         let caller = env::predecessor_account_id();
         require!(self.admins.contains(&caller), "Only admins can update fee");
-        require!(fee_pct <= 1000, "Fee percentage cannot exceed 100%");
+        require!(fee_pct <= 10000, "Fee percentage cannot exceed 100%");
         self.cancellation_fee_pct = fee_pct;
     }
 
     pub fn update_creation_fee_pct(&mut self, fee_pct: u16) {
         let caller = env::predecessor_account_id();
         require!(self.admins.contains(&caller), "Only admins can update fee");
-        require!(fee_pct <= 1000, "Fee percentage cannot exceed 100%");
+        require!(fee_pct <= 10000, "Fee percentage cannot exceed 100%");
         self.creation_fee_pct = fee_pct;
     }
 
