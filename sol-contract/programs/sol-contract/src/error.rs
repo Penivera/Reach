@@ -12,4 +12,6 @@ pub enum ErrorCode {
 pub enum TaskError {
     #[msg("Task does not require collateral lock")]
     NoCollateralRequired,
+    #[msg("Task is not awaiting escrow")]
+    NotAwaitingEscrow,
 }

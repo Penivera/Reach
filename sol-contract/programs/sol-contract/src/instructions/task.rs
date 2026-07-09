@@ -92,3 +92,38 @@ pub fn create_task(
 
     Ok(())
 }
+
+#[derive(Accounts)]
+#[instruction(task_id:u64,provider:Pubkey)]
+pub struct AcceptApplication<'info> {
+    pub owner: Signer<'info>,
+
+    #[account(
+        mut,
+        seeds = [TASK_SEED, task_id.to_le_bytes().as_ref()],
+        bump
+    )]
+    pub task: Account<'info, Task>,
+
+    #[account(
+        mut,
+        seeds = [APPLICATION_SEED, provider.as_ref(), task.key().as_ref()],
+        bump
+    )]
+    pub application: Account<'info, ProviderApplication>,
+}
+
+#[allow(unused_variables)]
+pub fn accept_application(ctx: Context<AcceptApplication>, task_id: u64, provider: Pubkey) -> Result<()> {
+    let application = &mut ctx.accounts.application;
+    let task = &mut ctx.accounts.task;
+    task.provider = Some(provider);
+    
+    if task.terms.required_provider_collateral > 0 {
+        application.status = ProviderApplicationStatus::AcceptedPendingCollateral;
+    }else{
+        application.status = ProviderApplicationStatus::Accepted;
+    }
+    Ok(())
+}
+

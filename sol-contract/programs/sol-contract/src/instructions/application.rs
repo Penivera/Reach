@@ -53,7 +53,7 @@ pub struct CreateApplication<'info> {
         init,
         payer = provider,
         space = 8 + ProviderApplication::INIT_SPACE,
-        seeds = [APPLICATION_SEED,provider.key().as_ref()],
+        seeds = [APPLICATION_SEED,provider.key().as_ref(),task.key().as_ref()],
         bump
     )]
     pub application: Account<'info, ProviderApplication>,
@@ -85,6 +85,7 @@ pub fn provide_collateral(
     let application = &mut ctx.accounts.application;
 
     require!(task.terms.required_provider_collateral > 0,TaskError::NoCollateralRequired);
+    require!(task.status == TaskStatus::AwaitingEscrow,TaskError::NotAwaitingEscrow);
 
     let collateral_amount = task.terms.required_provider_collateral;
     
