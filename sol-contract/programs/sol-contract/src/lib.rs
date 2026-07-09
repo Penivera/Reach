@@ -12,6 +12,20 @@ pub use state::*;
 
 declare_id!("5iCtrxFDsPQf6qyR2nfjkDgUJyuH7oxoA5Lf1qQiDfwY");
 
+#[cfg(not(feature = "no-entrypoint"))]
+use solana_security_txt::security_txt;
+
+#[cfg(not(feature = "no-entrypoint"))]
+security_txt! {
+    name: "Reach",
+    project_url: "https://reach.io",
+    contacts: "email:penivera655@gmail.com",
+    policy: "github.com/Penivera",
+    preferred_languages: "en",
+    source_code: "https://github.com/penivera/reach",
+    auditors: "None"
+}
+
 #[program]
 pub mod sol_contract {
     use super::*;
