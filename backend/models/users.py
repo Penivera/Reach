@@ -7,6 +7,8 @@ from DB.database import Base
 from datetime import datetime
 from schemas import UserRole
 from .mixins import TimeStampMixin
+from geoalchemy2 import Geography
+from geoalchemy2.elements import WKBElement
 
 
 class User(Base, TimeStampMixin):
@@ -36,7 +38,15 @@ class User(Base, TimeStampMixin):
 
     phone_number: Mapped[str | None] = mapped_column(String(20))
 
-    location: Mapped[str | None] = mapped_column(String(255))
+    location: Mapped[WKBElement | None] = mapped_column(
+    Geography(geometry_type="POINT", srid=4326, spatial_index=False),
+    nullable=True)
+
+
+
+    location_name = mapped_column(String(255), nullable=True)
+
+    location_updated_at = mapped_column(DateTime(timezone=True), nullable=True)
 
     profile_image: Mapped[str | None] = mapped_column(String(500))
 

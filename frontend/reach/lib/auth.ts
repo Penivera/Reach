@@ -6,6 +6,9 @@ export function signup(data: {
   email: string;
   username: string;
   phone_number: string;
+  latitude?: number;
+  longitude?: number;
+  location_name?: string;
   hashed_password: string;
   confirm_password: string;
 }) {

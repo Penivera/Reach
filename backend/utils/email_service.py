@@ -1,51 +1,87 @@
-import resend
-
+import aiosmtplib
+from email.message import EmailMessage
 from core import settings
 
-resend.api_key = settings.RESEND_API_KEY
+class EmailService:
+    
+    async def send_email(self, to_email:str, subject:str, html:str):
+        
+        message = EmailMessage()
 
-async def send_verification_email(email: str, token: str) -> str:
-    verification_link = (f"{settings.BACKEND_URL}/auth/verify-email?token={token}")
+        message["From"] = f"{settings.SMTP_FROM_NAME} <{settings.SMTP_FROM_EMAIL}>"
 
-    resend.Emails.send(
-        {
-            "from": "onboarding@resend.dev",
-            "to": email,
-            "subject": "Verify your WorkNear account",
-            "html": f"""
-                <h2>Welcome to WorkNear</h2>
+        message["To"] = to_email
 
-                <p>
-                    Click the link below to verify your email:
-                </p>
+        message["subject"] = subject
 
-                <a href="{verification_link}">
-                    Verify Email
-                </a>
-            """
-        }
+        message.set_content("Please use an HTML email client to view this message.")
+
+        message.add_alternative(html, subtype="html")
+
+        await aiosmtplib.send(
+            message,
+            hostname=settings.SMTP_HOST,
+            port=settings.SMTP_PORT,
+            username=settings.SMTP_USERNAME,
+            password=settings.SMTP_PASSWORD,
+            start_tls=True,
+        )
+        
+
+email_service = EmailService()
+
+async def send_verification_email(
+    email: str,
+    token: str,
+) -> None:
+
+    verification_link = (
+        f"{settings.BACKEND_URL}/auth/verify-email?token={token}"
+    )
+
+    html = f"""
+    <h2>Welcome to WorkNear</h2>
+
+    <p>
+        Click the link below to verify your email.
+    </p>
+
+    <a href="{verification_link}">
+        Verify Email
+    </a>
+    """
+
+    await email_service.send_email(
+        to_email=email,
+        subject="Verify your WorkNear account",
+        html=html,
     )
 
 
-async def send_reset_password_email(email: str, token: str) -> str:
-    verification_link = (f"{settings.BACKEND_URL}/auth/reset-password?token={token}")
 
-    resend.Emails.send(
-        {
-            "from": "onboarding@resend.dev",
-            "to": email,
-            "subject": "Reset Your Password",
-            "html": f"""
-                <h2>Welcome to WorkNear</h2>
+async def send_reset_password_email(
+    email: str,
+    token: str,
+) -> None:
 
-                <p>
-                    Click the link below to reset your password:
-                </p>
+    reset_link = (
+        f"{settings.BACKEND_URL}/auth/reset-password?token={token}"
+    )
 
-                <a href="{verification_link}">
-                    Reset Password
-                </a>
-            """
-            
-        }
+    html = f"""
+    <h2>Password Reset</h2>
+
+    <p>
+        Click the link below to reset your password.
+    </p>
+
+    <a href="{reset_link}">
+        Reset Password
+    </a>
+    """
+
+    await email_service.send_email(
+        to_email=email,
+        subject="Reset Your Password",
+        html=html,
     )

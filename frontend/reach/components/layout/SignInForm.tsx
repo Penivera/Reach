@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import Input from "../ui/Input";
 import Button from "../ui/Button";
 import { login } from "@/lib/auth";
+import Spinner from "../ui/Spinner";
 
 export default function SignInForm() {
   const router = useRouter();
@@ -67,7 +68,7 @@ export default function SignInForm() {
       </div>
 
       <Button type="submit" intent="form" variant="primary" className="mt-2" disabled={loading}>
-        {loading ? "Signing in..." : "Sign In"}
+        {loading ? <Spinner /> : "Sign In"}
       </Button>
 
         <Link href="/auth/signup" className="hover:underline font-semibold">

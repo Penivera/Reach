@@ -1,0 +1,41 @@
+// for switchback to regular stuff
+    if (!("geolocation" in navigator)) {
+      setStatus("error");
+      setErrorMsg("Geolocation isn't supported on this device.");
+      return;
+    }
+
+    setStatus("loading");
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const coords = {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        };
+
+        try {
+          sessionStorage.setItem("reach:location", JSON.stringify(coords));
+        } catch {
+          // ignore storage errors
+        }
+        router.push("/auth/signup");
+      },
+      (error) => {
+        setStatus("error");
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            setErrorMsg("Location access was denied. You can enter it manually instead.");
+            break;
+          case error.POSITION_UNAVAILABLE:
+            setErrorMsg("We couldn't determine your location. Try entering it manually.");
+            break;
+          case error.TIMEOUT:
+            setErrorMsg("Location request timed out. Please try again.");
+            break;
+          default:
+            setErrorMsg("Something went wrong getting your location.");
+        }
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
