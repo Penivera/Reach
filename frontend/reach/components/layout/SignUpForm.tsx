@@ -38,6 +38,18 @@ export default function SignUpForm() {
     }
 
     setLoading(true);
+    
+    // Retrieve location from sessionStorage
+    let location = { latitude: undefined, longitude: undefined, displayName: undefined };
+    try {
+      const locationData = sessionStorage.getItem("reach:location");
+      if (locationData) {
+        location = JSON.parse(locationData);
+      }
+    } catch {
+      // If parsing fails, continue without location
+    }
+
     try {
       await signup({
         first_name: formData.first_name,
@@ -45,6 +57,9 @@ export default function SignUpForm() {
         email: formData.email,
         username: formData.username,
         phone_number: formData.phone_number,
+        latitude: location.latitude,
+        longitude: location.longitude,
+        location_name: location.displayName,
         hashed_password: formData.password,
         confirm_password: formData.confirm_password,
       });
