@@ -8,6 +8,7 @@ from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi.security import OAuth2PasswordRequestForm
 from datetime import timedelta, datetime
+from geoalchemy2.functions import ST_GeogFromText
 
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -30,10 +31,19 @@ async def create_user(user_data: UserCreate, db: AsyncSession =Depends(get_db)):
     if email_exist:
         raise HTTPException(status_code=400, detail="Email already has an account")
     
+    point = None
+
+    if user_data.longitude is not None and user_data.latitude is not None:
+
+        point = ST_GeogFromText(f"POINT({user_data.longitude} {user_data.latitude})")
+
     data = user_data.model_dump()
     data.pop("confirm_password")
+    data.pop("latitude")
+    data.pop("longitude")
 
     data["hashed_password"] = await hash_password(data["hashed_password"])
+    data["location"] = point
 
     new_user = User(**data)
     
