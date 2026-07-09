@@ -1,5 +1,8 @@
 pub mod initialize;
-pub mod increment;
-
+pub mod stable_coin;
+pub mod task;
+pub mod application;
 pub use initialize::*;
-pub use increment::*;
+pub use stable_coin::*;
+pub use task::*;
+pub use application::*;

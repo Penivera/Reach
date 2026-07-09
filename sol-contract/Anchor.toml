@@ -7,7 +7,7 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-sol_contract = "4y1ViT1Uc7aaj5Kw7bca22DahqbmvSMeMUh6qNVrv7YV"
+sol_contract = "FYLQ37BMWhdhqDpieatcdrujk9ZVW6GfujxeAhCy4WZv"
 
 [provider]
 cluster = "localnet"

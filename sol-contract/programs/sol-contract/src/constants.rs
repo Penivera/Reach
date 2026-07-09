@@ -1,10 +1,13 @@
 use anchor_lang::prelude::*;
 
 #[constant]
-pub const COUNTER_SEED: &[u8] = b"counter";
+pub const TASK_SEED: &[u8] = b"task";
 
 #[constant]
-pub const HELLO_WORLD_LAMPORTS: u64 = 1;
+pub const APPLICATION_SEED: &[u8] = b"application";
 
 #[constant]
-pub const MAX_COUNT: u64 = 10;
+pub const STABLE_COIN_SEED:&[u8] = b"supported_stable";
+
+#[constant]
+pub const REACH_STATE_SEED: &[u8] = b"reach_state";
