@@ -53,7 +53,7 @@ class JobApplication(Base, TimeStampMixin):
 
     proposed_price: Mapped[float]
 
-    status: Mapped[ApplicationStatus]
+    status: Mapped[ApplicationStatus] = mapped_column(default=ApplicationStatus.PENDING)
 
     job = relationship(
         "Job",
