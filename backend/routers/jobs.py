@@ -5,12 +5,23 @@ from models import Job, JobApplication
 from dependencies import get_db, get_current_user
 from schemas import (JobCreate, JobUpdate, JobResponse, JobApplicationCreate, 
                      JobApplicationStatusUpdate, JobApplicationUpdate, JobAppplicationResponse, JobStatus, ApplicationStatus)
+from geoalchemy2.functions import ST_GeogFromText
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
 @router.post("", response_model=JobResponse)
-async def create_job(data:JobCreate, db:AsyncSession=Depends(get_db), current_user = Depends(get_current_user)):
-    new_job = Job(**data.model_dump(), owner_id=current_user.id)
+async def create_job(job_data:JobCreate, db:AsyncSession=Depends(get_db), current_user = Depends(get_current_user)):
+    
+    point = ST_GeogFromText(f"POINT({job_data.longitude} {job_data.latitude})")
+    
+    data = job_data.model_dump()
+
+    data.pop("latitude")
+    data.pop("longitude")
+    data["location"] = point
+
+    new_job = Job(**data, owner_id=current_user.id)
+    
 
     db.add(new_job)
     try:
@@ -51,7 +62,7 @@ async def get_job(job_id:int, db:AsyncSession=Depends(get_db), current_user=Depe
     return job
 
 @router.put("/{job_id}", response_model=JobResponse)
-async def update_job(job_id:int, data:JobUpdate, db:AsyncSession=Depends(get_db), current_user=Depends(get_current_user)):
+async def update_job(job_id:int, job_data:JobUpdate, db:AsyncSession=Depends(get_db), current_user=Depends(get_current_user)):
     result = await db.execute(select(Job).where(Job.id == job_id))
 
     job = result.scalar_one_or_none()
@@ -62,9 +73,16 @@ async def update_job(job_id:int, data:JobUpdate, db:AsyncSession=Depends(get_db)
     if job.owner_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You are not allowed to update this job")
     
-    job_data = data.model_dump(exclude_unset=True)
+    point = ST_GeogFromText(f"POINT({job_data.longitude} {job_data.latitude})")
 
-    for field, value in job_data.items():
+    data = job_data.model_dump(exclude_unset=True)
+
+    data.pop("longitude")
+    data.pop("latitude")
+
+    data["location"] = point
+
+    for field, value in data.items():
         setattr(job,field, value)
 
     try:

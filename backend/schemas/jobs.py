@@ -1,18 +1,57 @@
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from datetime import datetime
 from .enums import ApplicationStatus
 
-class JobCreate(BaseModel):
+class LocationBase(BaseModel):
+    latitude: float
+    longitude: float
+    location_name: str
+
+    @field_validator("latitude")
+    @classmethod
+    def validate_latitude(cls, value):
+        if not -90 <= value <= 90:
+            raise ValueError("Invalid latitude")
+        return value
+        
+    @field_validator("longitude")
+    @classmethod
+    def validate_longitude(cls, value):
+        if not -180 <= value <= 180:
+            raise ValueError("Invalide Longitude")
+        return value
+
+
+class JobCreate(LocationBase):
     category_id: int
     title: str 
     description: str
     budget: float = Field(...,gt=0)
 
 
+
 class JobUpdate(BaseModel):
     title: str | None = None
     description: str | None = None
     budget: float | None = Field(None, gt=0)
+
+    latitude: float | None = None
+    longitude: float | None = None
+    location_name: str | None = None
+
+    @field_validator("latitude")
+    @classmethod
+    def validate_latitude(cls, value):
+        if value is not None and not -90 <= value <= 90:
+            raise ValueError("Invalid latitude")
+        return value
+        
+    @field_validator("longitude")
+    @classmethod
+    def validate_longitude(cls, value):
+        if value is not None and not -180 <= value <= 180:
+            raise ValueError("Invalide Longitude")
+        return value
 
 class JobResponse(BaseModel):
     id: int
@@ -23,6 +62,10 @@ class JobResponse(BaseModel):
 
     category_id: int
     posted_by: int
+
+    latitude: float
+    longitude: float
+    location_name: str
 
     created_at: datetime
     updated_at: datetime

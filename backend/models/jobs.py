@@ -4,6 +4,8 @@ from DB.database import Base
 from schemas import ApplicationStatus
 from schemas import ApplicationStatus
 from .mixins import TimeStampMixin
+from geoalchemy2 import Geography
+from geoalchemy2.elements import WKBElement
 
 class Job(Base, TimeStampMixin):
     __tablename__ = "jobs"
@@ -24,6 +26,10 @@ class Job(Base, TimeStampMixin):
 
     description: Mapped[str]
 
+    location: Mapped[WKBElement] = mapped_column(Geography(geometry_type="POINT", srid=4326, spatial_index=False, nullable=False))
+
+    location_name: Mapped[str]
+    
     owner = relationship(
         "User",
         back_populates="jobs"
