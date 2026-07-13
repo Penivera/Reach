@@ -10,7 +10,6 @@ class Settings(BaseSettings):
     SMTP_FROM_EMAIL:str
     ACCESS_TOKEN_EXPIRE_MINUTES: int
     SMTP_HOST:str
-    RESEND_API_KEY: str
     BACKEND_URL: str
     SMTP_FROM_NAME:str
 
