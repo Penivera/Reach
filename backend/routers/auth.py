@@ -72,11 +72,11 @@ async def create_user(user_data: UserCreate, db: AsyncSession =Depends(get_db)):
 
     return new_user
 
-@router.post("/verify-email")
-async def verify_email(data: EmailVerificationRequest, db: AsyncSession = Depends(get_db)):
-
-    result = await db.execute(select(EmailVerificationToken).where(EmailVerificationToken.token == data.token))
-
+@router.get("/verify-email")
+async def verify_email(token: str, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(EmailVerificationToken).where(EmailVerificationToken.token == token)
+    )
     verification_token = result.scalar_one_or_none()
 
     if not verification_token:
@@ -84,30 +84,25 @@ async def verify_email(data: EmailVerificationRequest, db: AsyncSession = Depend
 
     if verification_token.expires_at < datetime.utcnow():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Expired verification token")
-    
 
-    result = await db.execute(select(User).where(User.id == verification_token.user_id, 
-                                                 User.is_deleted.is_(False)))
-    
+    result = await db.execute(
+        select(User).where(User.id == verification_token.user_id, User.is_deleted.is_(False))
+    )
     user = result.scalar_one_or_none()
 
     if not user:
-        raise HTTPException(status_code = status.HTTP_404_NOT_FOUND, detail="User not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
     user.is_email_verified = True
-
     await db.delete(verification_token)
 
     try:
-    
         await db.commit()
-
     except Exception:
         await db.rollback()
         raise
 
-    return {"message": "email verified successful"}
-
+    return {"message": "email verified successfully"}
 
 @router.post("/resend-verification")
 async def resend_verification(data: ResendEmailVerificationRequest, db: AsyncSession = Depends(get_db)):
@@ -167,7 +162,6 @@ async def login_user(response: Response, form_data: OAuth2PasswordRequestForm=De
     key="access_token",
     value=token,
     httponly=True,
-    secure=True,
     samesite="lax",
     max_age=60 * 15
     )
@@ -179,7 +173,6 @@ async def logout(response: Response):
     response.delete_cookie(
         key="access_token",
         httponly=True,
-        secure=True,      # Match however you set it
         samesite="lax",
         path="/",
     )

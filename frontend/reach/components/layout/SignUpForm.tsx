@@ -51,6 +51,7 @@ export default function SignUpForm() {
     }
 
     try {
+      console.log("Form data: ", formData);
       await signup({
         first_name: formData.first_name,
         last_name: formData.last_name,
@@ -66,7 +67,7 @@ export default function SignUpForm() {
 
       setIsRegistered(true);
     } catch (err: any) {
-      // Handles typical FastAPI detailed errors
+      
       const message = err?.detail || "An unexpected error occurred during registration.";
       setErrors({ global: message });
     } finally {

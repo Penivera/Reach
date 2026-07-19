@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Button from "@/components/ui/Button";
 import Image from "next/image";
@@ -38,6 +38,10 @@ export default function LocationPage() {
     }
   };
 
+  useEffect(() => {
+    console.log("nominatim email", NOMINATIM_EMAIL)
+  }, [NOMINATIM_EMAIL])
+
   const continueWithLocation = (coords: {
     latitude: number;
     longitude: number;
@@ -64,6 +68,7 @@ export default function LocationPage() {
             latitude: position.coords.latitude,
             longitude: position.coords.longitude,
           };
+          
 
           let displayName = DEFAULT_LOCATION.displayName;
 

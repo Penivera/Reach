@@ -2,14 +2,17 @@
 
 :root {
   --background: #FAFAFB;
-  --foreground: #1A1A1F;
+  --foreground: #111111;
   --card-foreground: #1A1A1F;
   --primary: #E2553B;
   --muted-foreground: #4A4A55;
   --muted: #f1f5f9;  
   --border: #e2e8f0;      
-  --input: #cbd5e1;     
+  --input: #cbd5e1;  
+  --stroke: #F4F4F6;   
+  --shade: #ffffff;  
   --destructive: #ef4444;   
+
 }
 
 @theme inline {
@@ -27,8 +30,15 @@
   
   --color-border: var(--border);
   --color-input: var(--input);
+  --color-stroke: var(--stroke);
+  --color-shade: var(--shade);
   --color-destructive: var(--destructive);
 
+  --tab-bg: var(--shade);               
+  --tab-inactive: var(--muted-foreground);
+  --tab-active: var(--foreground);
+  --tab-indicator: var(--primary);
+  --tab-border: var(--border); 
 }
 
 body {

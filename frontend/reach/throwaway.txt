@@ -39,3 +39,13 @@
       },
       { enableHighAccuracy: true, timeout: 10000 }
     );
+
+
+{ "name": "Food", "description": "Food orders, groceries, and deliveries" }
+json{ "name": "Fix", "description": "Home repairs and fixes" }
+json{ "name": "Move", "description": "Moving and delivery help" }
+json{ "name": "Beauty", "description": "Beauty and grooming services" }
+json{ "name": "Tutor", "description": "Tutoring and lessons" }
+json{ "name": "Clean", "description": "Cleaning services" }
+json{ "name": "Trade", "description": "Skilled trade work" }
+json{ "name": "More", "description": "Anything else" }

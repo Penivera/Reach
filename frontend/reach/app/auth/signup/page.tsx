@@ -12,7 +12,7 @@ export default function SignUpPage() {
         <div className="space-y-1 text-left">
           <h2 className="text-3xl font-bold tracking-tight">Create an account</h2>
           <p className="text-sm text-muted-foreground">
-            Find local sellers and service provoders near you, or list your own service to start earning.
+            Find local sellers and service providers near you, or list your own service to start earning.
           </p>
         </div>
         <SignUpForm />

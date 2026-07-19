@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
+import Providers from "@/providers/Providers";
 
 const jakarta = Plus_Jakarta_Sans({
   subsets: ["latin"],
@@ -19,7 +20,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`min-h-full flex flex-col ${jakarta.className}`}>
-        {children}
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

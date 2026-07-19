@@ -30,3 +30,33 @@ export interface NominatimReverseResult {
   };
   boundingbox: [string, string, string, string];
 }
+
+export interface FeedItem {
+  id: string;
+  title: string;
+  subtitle: string;
+  price: string;
+  imageSrc: string;
+}
+
+export type IconWeight =
+  | "thin"
+  | "light"
+  | "regular"
+  | "bold"
+  | "fill"
+  | "duotone";
+
+
+export type User = {
+  id: number;
+  username: string;
+  email: string;
+  first_name: string | null;
+  last_name: string | null;
+  bio: string | null;
+  phone_number: string | null;
+  profile_picture: string | null;
+  is_email_verified: boolean;
+  created_at: string;
+};

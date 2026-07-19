@@ -22,16 +22,13 @@ export default function SignInForm() {
 
     try {
       await login(username, password);
-      router.push("/dashboard"); 
-      router.refresh();
+      window.location.href = "/home";
     } catch (err: any) {
       const message = err?.detail || "Invalid username or password configuration.";
       setError(message);
-    } finally {
       setLoading(false);
     }
   };
-
   return (
     <form className="space-y-4" onSubmit={handleSubmit}>
       {error && (
