@@ -97,3 +97,11 @@ class JobAppplicationResponse(BaseModel):
     updaated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class NearbyJobQuery(BaseModel):
+    latitude: float = Field(..., ge=-90, le=90)
+    longitude: float = Field(..., ge=-180, le=180)
+    radius: float = Field(10, gt=0)
+
+    category_id: int | None = None

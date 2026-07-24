@@ -68,8 +68,6 @@ async def create_user(user_data: UserCreate, db: AsyncSession =Depends(get_db)):
         await db.rollback()
         raise
 
-    await send_verification_email(new_user.email, token)
-
     return new_user
 
 @router.get("/verify-email")

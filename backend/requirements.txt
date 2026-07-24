@@ -24,3 +24,4 @@ geoalchemy2
 redis>=5.0.0
 resend
 aiosmtplib
+firebase-admin

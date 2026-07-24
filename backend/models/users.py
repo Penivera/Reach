@@ -1,10 +1,8 @@
-from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, Float, Boolean, func
 from DB.database import Base
 from schemas.enums import UserRole, VerificationStatus
-from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, Float, Boolean, func, Enum
+from sqlalchemy import String, DateTime, ForeignKey, Float, Boolean, func, Enum
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 from DB.database import Base
-from datetime import datetime
 from schemas import UserRole
 from .mixins import TimeStampMixin
 from geoalchemy2 import Geography
@@ -43,10 +41,12 @@ class User(Base, TimeStampMixin):
     nullable=True)
 
 
-
     location_name = mapped_column(String(255), nullable=True)
 
     location_updated_at = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+    fcm_token: Mapped[str | None] = mapped_column(String, nullable=True)
 
     profile_image: Mapped[str | None] = mapped_column(String(500))
 

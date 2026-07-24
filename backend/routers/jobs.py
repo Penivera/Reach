@@ -1,16 +1,20 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete
-from models import Job, JobApplication
+from sqlalchemy import select, func
+from models import Job, JobApplication, User
+from utils import send_job_notification
 from dependencies import get_db, get_current_user
 from schemas import (JobCreate, JobUpdate, JobResponse, JobApplicationCreate, 
-                     JobApplicationStatusUpdate, JobApplicationUpdate, JobAppplicationResponse, JobStatus, ApplicationStatus)
-from geoalchemy2.functions import ST_GeogFromText
+                     JobApplicationStatusUpdate, JobApplicationUpdate, JobAppplicationResponse,
+                       JobStatus, ApplicationStatus, NearbyJobQuery)
+from fastapi import BackgroundTasks
+from geoalchemy2.functions import ST_GeogFromText, ST_DWithin, ST_Distance
+
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
 @router.post("", response_model=JobResponse)
-async def create_job(job_data:JobCreate, db:AsyncSession=Depends(get_db), current_user = Depends(get_current_user)):
+async def create_job(job_data:JobCreate, background_tasks: BackgroundTasks, db:AsyncSession=Depends(get_db), current_user = Depends(get_current_user)):
     
     point = ST_GeogFromText(f"POINT({job_data.longitude} {job_data.latitude})")
     
@@ -31,6 +35,26 @@ async def create_job(job_data:JobCreate, db:AsyncSession=Depends(get_db), curren
     except Exception:
         await db.rollback()
         raise
+
+    
+
+    #Find users nearby
+
+
+    radius = 30000 #30km
+    result = await db.execute(select(User).where(
+        ST_DWithin(User.location, point, radius),
+        User.id != current_user.id,
+        User.location.is_not(None)))
+
+    nearby_users = result.scalars().all()
+
+    for user in nearby_users:
+        if user.fcm_token:
+            send_job_notification(user.fcm_token,
+                                  new_job.title,
+                                  new_job.location_name,
+                                  new_job.id)
 
     return new_job
 
@@ -162,6 +186,22 @@ async def create_job_application(job_id:int, data: JobApplicationCreate, db:Asyn
 
     return application
 
+@router.get("/nearby", response_model=list[JobResponse])
+async def get_nearby_jobs(data:NearbyJobQuery=Depends(), db:AsyncSession=Depends(get_db)):
+    search_point = func.ST_GeogFromText(f"POINT({data.longitude} {data.latitude})")
+
+    query = select(Job).where(ST_DWithin(Job.location, search_point, data.radius*1000))
+
+    if data.category_id is not None:
+        query = query.where(Job.category_id == data.category_id).order_by(ST_Distance(Job.location, search_point))
+
+    query = query.order_by(ST_Distance(Job.location, search_point))
+
+    result = await db.execute(query)
+    
+    jobs = result.scalars().all()
+
+    return jobs
 
 
 @router.get("/{job_id}/applications", response_model=list[JobAppplicationResponse])
@@ -280,3 +320,4 @@ async def update_application_status(id:int, data: JobApplicationStatusUpdate,
         raise
 
     return application
+

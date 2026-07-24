@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, status, Depends
 from models import User, Skill, UserSkill
-from schemas import UserUpdate, UserPublicResponse, UserResponse, UserSkillUpdate, SkillResponse, LocationUpdate
+from schemas import UserUpdate, UserPublicResponse, UserResponse, UserSkillUpdate, SkillResponse, LocationUpdate, FCMTokenUpdate
 from sqlalchemy import select
 from datetime import datetime, timedelta, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -109,6 +109,17 @@ async def update_location(data: LocationUpdate,
     return {"message": "Location updated successfully"}
 
 
+@router.put("/me/fcm-token")
+async def update_fcm_token(data: FCMTokenUpdate, db:AsyncSession=Depends(get_db), current_user=Depends(get_current_user)):
+    
+    current_user.fcm_token = data.fcm_token
+
+    try:
+        await db.commit()
+        await db.refresh(current_user)
+    except Exception:
+        await db.rollback()
+        raise
 
 @router.delete("/me")
 async def delete_me(db:AsyncSession=Depends(get_db), current_user=Depends(get_current_user)):
