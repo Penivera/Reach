@@ -14,7 +14,7 @@ from geoalchemy2.functions import ST_GeogFromText, ST_DWithin, ST_Distance
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
 @router.post("", response_model=JobResponse)
-async def create_job(job_data:JobCreate, background_tasks: BackgroundTasks, db:AsyncSession=Depends(get_db), current_user = Depends(get_current_user)):
+async def create_job(job_data:JobCreate, db:AsyncSession=Depends(get_db), current_user = Depends(get_current_user)):
     
     point = ST_GeogFromText(f"POINT({job_data.longitude} {job_data.latitude})")
     
@@ -39,7 +39,6 @@ async def create_job(job_data:JobCreate, background_tasks: BackgroundTasks, db:A
     
 
     #Find users nearby
-
 
     radius = 30000 #30km
     result = await db.execute(select(User).where(

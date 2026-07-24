@@ -84,5 +84,7 @@ class User(Base, TimeStampMixin):
 
     password_reset_tokens = relationship("PasswordResetToken", back_populates="user", cascade="all, delete-orphan")
 
-    
+    service_requests = relationship("ServiceRequest",foreign_keys="ServiceRequest.requester_id", back_populates="requester")
+
+    received_service_requests = relationship("ServiceRequest",foreign_keys="ServiceRequest.provider_id",back_populates="provider")
 

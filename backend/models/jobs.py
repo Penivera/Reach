@@ -1,4 +1,4 @@
-from sqlalchemy import String, Integer, ForeignKey
+from sqlalchemy import String, Integer, ForeignKey, Enum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from DB.database import Base
 from schemas import ApplicationStatus
@@ -40,6 +40,10 @@ class Job(Base, TimeStampMixin):
         back_populates="job"
     )
 
+    category = relationship(
+    "Category", 
+    back_populates="jobs")
+
 
 class JobApplication(Base, TimeStampMixin):
     __tablename__ = "job_applications"
@@ -59,7 +63,7 @@ class JobApplication(Base, TimeStampMixin):
 
     proposed_price: Mapped[float]
 
-    status: Mapped[ApplicationStatus] = mapped_column(default=ApplicationStatus.PENDING)
+    status: Mapped[ApplicationStatus] = mapped_column(Enum(ApplicationStatus), nullable=False, default=ApplicationStatus.PENDING)
 
     job = relationship(
         "Job",

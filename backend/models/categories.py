@@ -1,5 +1,5 @@
 from sqlalchemy import String, Integer, ForeignKey
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from DB.database import Base
 from .mixins import TimeStampMixin
 
@@ -15,4 +15,13 @@ class Category(Base, TimeStampMixin):
 
     description: Mapped[str | None] = mapped_column(nullable=True)
 
+    jobs = relationship(
+    "Job", 
+    back_populates="category"
+    )
+    
+    services = relationship(
+    "Service",
+    back_populates="category"
+)
     
