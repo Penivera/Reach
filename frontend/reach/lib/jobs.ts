@@ -81,7 +81,7 @@ export function getMyJobs() {
   });
 }
 
-export function getJob(jobId: number) {
+export function getJob(jobId: number): Promise<Job> {
   return api(`/jobs/${jobId}`, {
     method: "GET",
   });
@@ -100,14 +100,14 @@ export function deleteJob(jobId: number) {
   });
 }
 
-export function applyToJob(jobId: number, data: CreateJobApplicationInput) {
+export function applyToJob(jobId: number, data: CreateJobApplicationInput): Promise<JobApplication> {
   return api(`/jobs/${jobId}/apply`, {
     method: "POST",
     body: JSON.stringify(data),
   });
 }
 
-export function getJobApplications(jobId: number) {
+export function getJobApplications(jobId: number) : Promise<JobApplication[]> {
   return api(`/jobs/${jobId}/applications`, {
     method: "GET",
   });
@@ -132,7 +132,10 @@ export function deleteApplication(id: number) {
   });
 }
 
-export function updateApplicationStatus(id: number, data: UpdateApplicationStatusInput) {
+export function updateApplicationStatus(
+  id: number,
+  data: UpdateApplicationStatusInput
+): Promise<JobApplication> {
   return api(`/jobs/applications/${id}/status`, {
     method: "PATCH",
     body: JSON.stringify(data),

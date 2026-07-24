@@ -1,4 +1,6 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+import { toast } from "./toast";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 export class ApiError extends Error {
   constructor(
@@ -9,22 +11,29 @@ export class ApiError extends Error {
   }
 }
 
+function getErrorMessage(e: unknown): string {
+  if (e instanceof ApiError) {
+    const data = e.data as { message?: string; detail?: string } | null;
+    return data?.message || data?.detail || `Request failed (${e.status})`;
+  }
+  if (e instanceof TypeError) {
+    return "Network error — check your connection";
+  }
+  return "Something went wrong";
+}
+
 export async function api<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-  const response = await fetch(`${API_URL}${endpoint}`, {
-    credentials: "include",
+  try {
+    const response = await fetch(`${API_URL}${endpoint}`, {
+      credentials: "include",
       headers: {
-        ...(options.body instanceof FormData
-          ? {}
-        : {
-              "Content-Type": "application/json",
-            }),
+        ...(options.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
         ...options.headers,
       },
-    ...options,
-  });  
+      ...options,
+    });
 
-  let data;
-
+    let data;
     try {
       data = await response.json();
     } catch {
@@ -36,4 +45,8 @@ export async function api<T>(endpoint: string, options: RequestInit = {}): Promi
     }
 
     return data;
+  } catch (e) {
+    toast.error(getErrorMessage(e))
+    throw e;
   }
+}

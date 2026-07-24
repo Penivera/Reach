@@ -1,16 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { ArrowLeftIcon, ImageSquareIcon } from "@phosphor-icons/react";
 import Button from "@/components/ui/Button";
-
-const CATEGORIES = [
-  { value: "fixes", label: "🛠️ Home Fixes & Repairs" },
-  { value: "delivery", label: "🚚 Move / Delivery" },
-  { value: "tutoring", label: "📚 Tutoring" },
-  { value: "cleaning", label: "🧹 Cleaning" },
-  { value: "other", label: "📦 Other" },
-];
+import { useCategories } from "@/context/CategoriesContext";
+import { createJob } from "@/lib/jobs";
 
 const URGENCY_OPTIONS = [
   { value: "asap", label: "Asap / Today" },
@@ -18,6 +13,7 @@ const URGENCY_OPTIONS = [
   { value: "flexible", label: "Flexible" },
 ];
 
+// Styles
 const FIELD =
   "w-full rounded-xl border border-stroke bg-shade px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40";
 
@@ -27,36 +23,48 @@ function pillClass(active: boolean) {
   }`;
 }
 
-function BackIcon(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
-      <path d="M15 18l-6-6 6-6" />
-    </svg>
-  );
-}
-
-function CameraIcon(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" {...props}>
-      <path d="M4 8a2 2 0 0 1 2-2h1.2l.9-1.5A2 2 0 0 1 9.8 3.5h4.4a2 2 0 0 1 1.7 1L17 6h1a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8Z" />
-      <circle cx="12" cy="13" r="3.2" />
-    </svg>
-  );
-}
-
 export default function PostRequestPage() {
   const router = useRouter();
 
   const [title, setTitle] = useState("");
-  const [category, setCategory] = useState(CATEGORIES[0].value);
+  const { categories, loading: categoriesLoading } = useCategories();
+  const [category, setCategory] = useState<number | null>(null);
   const [budget, setBudget] = useState("");
   const [negotiable, setNegotiable] = useState(true);
   const [urgency, setUrgency] = useState(URGENCY_OPTIONS[0].value);
   const [details, setDetails] = useState("");
   const [photo, setPhoto] = useState<File | null>(null);
-  const handleSubmit = (e: React.FormEvent) => {
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!category && categories.length > 0) setCategory(categories[0].id);
+  }, [categories, category]);
+
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    router.push("/requests");
+    if (!category) return;
+
+    setSubmitting(true);
+    setSubmitError(null);
+
+    try {
+      await createJob({
+        title,
+        description: details,
+        budget: Number(budget),
+        category_id: category,
+        latitude: 5.0377,
+        longitude: 7.9128,
+        location_name: "",
+      });
+      router.push("/requests");
+    } catch (err: any) {
+      setSubmitError(err?.detail || "Couldn't post your request. Try again.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -72,7 +80,7 @@ export default function PostRequestPage() {
             aria-label="Go back"
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-foreground hover:bg-shade transition-colors"
           >
-            <BackIcon className="h-4 w-4" />
+            <ArrowLeftIcon size={16} weight="bold" />
           </button>
           <div className="space-y-1 text-left">
             <h1 className="text-3xl font-bold tracking-tight">Post a Request</h1>
@@ -93,13 +101,19 @@ export default function PostRequestPage() {
 
           <div>
             <label className="mb-1.5 block text-sm font-semibold text-foreground">Category</label>
-            <select value={category} onChange={(e) => setCategory(e.target.value)} className={FIELD}>
-              {CATEGORIES.map((c) => (
-                <option key={c.value} value={c.value}>
-                  {c.label}
-                </option>
-              ))}
-            </select>
+          <select
+            value={category ?? ""}
+            onChange={(e) => setCategory(Number(e.target.value))}
+            disabled={categoriesLoading}
+            className={FIELD}
+          >
+            {categoriesLoading && <option>Loading categories…</option>}
+            {categories.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
           </div>
 
           <div>
@@ -153,16 +167,17 @@ export default function PostRequestPage() {
           <div>
             <label className="mb-1.5 block text-sm font-semibold text-foreground">Add photo of the issue (optional)</label>
             <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-stroke bg-shade/50 px-4 py-10 text-center hover:bg-shade transition-colors">
-              <CameraIcon className="h-6 w-6 text-muted-foreground" />
+              <ImageSquareIcon size={24} className="text-muted-foreground" />
               <span className="text-sm font-medium text-foreground">{photo ? photo.name : "Upload a reference photo"}</span>
               <input type="file" accept="image/*" className="hidden" onChange={(e) => setPhoto(e.target.files?.[0] ?? null)} />
             </label>
           </div>
         </div>
 
-        <Button intent="form" type="submit" className="w-full">
-          Publish Request Post
-        </Button>
+        {submitError && <p className="text-xs font-medium text-destructive">{submitError}</p>}
+      <Button intent="form" type="submit" className="w-full" loading={submitting}>
+        Publish Request Post
+      </Button>
       </form>
     </div>
   );

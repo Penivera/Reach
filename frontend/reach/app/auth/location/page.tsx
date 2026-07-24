@@ -169,13 +169,9 @@ export default function LocationPage() {
               variant="primary"
               className="text-base"
               onClick={handleGetLocation}
-              disabled={status === "loading"}
+              loading={status === "loading"}
             >
-              {status === "loading" ? (
-                <Spinner variant="white" size="sm" />
-              ) : (
-                "Allow location access"
-              )}
+              Allow location access
             </Button>
 
             {status === "error" && (

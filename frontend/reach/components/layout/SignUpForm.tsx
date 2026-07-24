@@ -5,7 +5,6 @@ import Link from "next/link";
 import Input from "../ui/Input";
 import Button from "../ui/Button";
 import { signup } from "@/lib/auth"; 
-import Spinner from "../ui/Spinner";
 
 export default function SignUpForm() {
   const [formData, setFormData] = useState({
@@ -28,7 +27,7 @@ export default function SignUpForm() {
     if (errors[id]) setErrors((prev) => ({ ...prev, [id]: "" }));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
     setErrors({});
 
@@ -118,8 +117,8 @@ export default function SignUpForm() {
       <Input id="password" label="Password" type="password" value={formData.password} onChange={handleInputChange} placeholder="Set a password" required />
       <Input id="confirm_password" label="Confirm Password" type="password" value={formData.confirm_password} onChange={handleInputChange} placeholder="Confirm your password" error={errors.confirm_password} required />
       
-      <Button type="submit" intent="form" variant="primary" className="mt-2" disabled={loading}>
-        {loading ? <Spinner /> : "Create Account"}
+      <Button type="submit" intent="form" variant="primary" className="mt-2" loading={loading}>
+        Create Account
       </Button>
 
 

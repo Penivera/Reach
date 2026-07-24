@@ -2,35 +2,19 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChatIcon, UsersIcon } from "@phosphor-icons/react";
-import { Job } from "@/lib/jobs";
+import ApplyJobModal from "./ApplyJobModal";
+import NestedButton from "@/components/ui/NestedButton";
+import { Job, JobApplication } from "@/lib/jobs";
 import { getUser } from "@/lib/users";
-import { type User } from "@/types";
+import type { User } from "@/types";
+import { getInitials, getDisplayName, formatPostedAt } from "@/utils";
 
-function getInitials(user: User | null): string {
-  if (!user) return "?";
-  const first = user.first_name?.[0] ?? "";
-  const last = user.last_name?.[0] ?? "";
-  return (first + last).toUpperCase() || user.username[0]?.toUpperCase() || "?";
-}
-
-function getDisplayName(user: User | null): string {
-  if (!user) return "Loading...";
-  const name = [user.first_name, user.last_name].filter(Boolean).join(" ");
-  return name || user.username;
-}
-
-function formatPostedAt(createdAt: string): string {
-  const diffMins = Math.floor((Date.now() - new Date(createdAt).getTime()) / 60000);
-  if (diffMins < 60) return `${diffMins}m ago`;
-  const diffHours = Math.floor(diffMins / 60);
-  if (diffHours < 24) return `${diffHours}h ago`;
-  return `${Math.floor(diffHours / 24)}d ago`;
-}
 
 export function RequestCard({ request }: { request: Job }) {
   const router = useRouter();
   const [interested, setInterested] = useState(false);
   const [poster, setPoster] = useState<User | null>(null);
+  const [applyOpen, setApplyOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -85,34 +69,41 @@ export function RequestCard({ request }: { request: Job }) {
         </div>
 
         <div className="flex items-center gap-2">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              router.push(`/chat/${request.posted_by}`);
-            }}
-            aria-label="Message"
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-stroke bg-background text-foreground"
-          >
-            <ChatIcon className="h-4 w-4" />
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setInterested((v) => !v);
-            }}
-            className={`shrink-0 rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors ${
-              interested ? "bg-emerald-50 text-emerald-700" : "bg-primary text-primary-foreground"
-            }`}
-          >
-            {interested ? "Interested ✓" : "I can do this"}
-          </button>
+        <NestedButton
+          onClick={(e) => {
+            e.stopPropagation();
+            // router.push(`/chat/${request.posted_by}`);
+          }}
+          variant="secondary"
+          aria-label="Message"
+        >
+          <ChatIcon className="h-4 w-4" />
+        </NestedButton>
+        <NestedButton
+          onClick={(e) => {
+            e.stopPropagation();
+            setApplyOpen(true);
+          }}
+          variant={interested ? "secondary" : "primary"}
+          className={interested ? "bg-emerald-50! !border-emerald-200! text-emerald-700!" : ""}
+        >
+          {interested ? "Interested ✓" : "I can do this"}
+        </NestedButton>
         </div>
       </div>
 
-      <p className="mt-2 text-xs text-muted-foreground flex items-center gap-2">
+      {/* <p className="mt-2 text-xs text-muted-foreground flex items-center gap-2">
         <UsersIcon size={16} weight="regular" className="shrink-0" />
         <span>{interested ? 1 : 0} people interested</span>
-      </p>
+      </p> */}
+
+      <ApplyJobModal
+        isOpen={applyOpen}
+        jobId={request.id}
+        budget={request.budget}
+        onClose={() => setApplyOpen(false)}
+        onSuccess={(_application: JobApplication) => setInterested(true)}
+      />
     </div>
   );
 }

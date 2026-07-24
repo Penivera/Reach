@@ -1,10 +1,12 @@
 import React from "react";
 import Link from "next/link";
+import Spinner from "./Spinner";
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: "primary" | "secondary";
   intent?: "form" | "action";
   href?: string;
+  loading?: boolean;
   children: React.ReactNode;
 }
 
@@ -12,11 +14,13 @@ export default function Button({
   variant = "primary",
   intent = "action",
   href,
+  loading = false,
   children,
   className = "",
   ...props
 }: ButtonProps) {
-  const baseStyles = `
+const baseStyles = `
+    relative
     inline-flex items-center justify-center
     min-h-11 min-w-11
     rounded-lg font-semibold text-sm text-center
@@ -45,10 +49,14 @@ export default function Button({
     );
   }
 
-
   return (
-    <button className={combinedClasses} {...props}>
-      {children}
+    <button className={combinedClasses} disabled={props.disabled || loading} {...props}>
+      <span className={loading ? "invisible" : ""}>{children}</span>
+      {loading && (
+        <span className="absolute inset-0 flex items-center justify-center">
+          <Spinner size="sm" variant="dark" />
+        </span>
+      )}
     </button>
   );
 }

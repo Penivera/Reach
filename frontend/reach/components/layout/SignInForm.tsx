@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import Input from "../ui/Input";
 import Button from "../ui/Button";
 import { login } from "@/lib/auth";
-import Spinner from "../ui/Spinner";
+
 
 export default function SignInForm() {
   const router = useRouter();
@@ -15,7 +15,7 @@ export default function SignInForm() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError("");
     setLoading(true);
@@ -64,8 +64,8 @@ export default function SignInForm() {
         </div>
       </div>
 
-      <Button type="submit" intent="form" variant="primary" className="mt-2" disabled={loading}>
-        {loading ? <Spinner /> : "Sign In"}
+      <Button type="submit" intent="form" variant="primary" className="mt-2" loading={loading}>
+        Sign In
       </Button>
 
         <Link href="/auth/signup" className="hover:underline font-semibold">
