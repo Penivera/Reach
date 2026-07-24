@@ -36,3 +36,6 @@ logs/
 # Temporary files
 *.tmp
 *.temp
+
+# Firebase
+secrets/firebase-service-account.json
