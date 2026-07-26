@@ -286,29 +286,63 @@ async def delete(id:int, db:AsyncSession=Depends(get_db), current_user=Depends(g
     return {"message": "application deleted successfully"}
 
 @router.patch("/applications/{id}/status", response_model=JobAppplicationResponse)
-async def update_application_status(id:int, data: JobApplicationStatusUpdate,
-                                    db:AsyncSession=Depends(get_db), current_user=Depends(get_current_user)):
+async def update_application_status(id: int,data: JobApplicationStatusUpdate, 
+                                    db: AsyncSession = Depends(get_db), current_user=Depends(get_current_user)):
+    
+    # Get application
     result = await db.execute(select(JobApplication).where(JobApplication.id == id))
 
     application = result.scalar_one_or_none()
 
     if not application:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="application not found")
-    
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="Application not found")
+
+    # Get job
     result = await db.execute(select(Job).where(Job.id == application.job_id))
 
     job = result.scalar_one_or_none()
 
     if not job:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="job not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
 
+    #Only the job owner can change application status
     if job.owner_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="only job owner can change status" )
-    
-    update_data = data.model_dump(exclude_unset=True)
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the job owner can change application status")
 
-    for field, value in update_data.items():
-        setattr(application, field, value)
+    # Accepting an applicant
+    if data.status == ApplicationStatus.ACCEPTED:
+
+        # Prevent accepting another applicant if one is already accepted
+        result = await db.execute(select(JobApplication).where(JobApplication.job_id == job.id, JobApplication.status == ApplicationStatus.ACCEPTED, JobApplication.id != application.id))
+        
+        existing_accepted = result.scalar_one_or_none()
+
+        if existing_accepted:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="This job already has an accepted applicant.")
+
+        # Accept this application
+        application.status = ApplicationStatus.ACCEPTED
+
+        # Reject every other pending application
+        result = await db.execute(select(JobApplication).where(
+                                JobApplication.job_id == job.id,
+                                JobApplication.id != application.id,
+                                JobApplication.status == ApplicationStatus.PENDING))
+
+        pending_applications = result.scalars().all()
+
+        for pending_application in pending_applications:
+            pending_application.status = ApplicationStatus.REJECTED
+
+        # Update job status
+        job.status = JobStatus.IN_PROGRESS
+
+    # Rejecting an applicant
+    elif data.status == ApplicationStatus.REJECTED:
+        application.status = ApplicationStatus.REJECTED
+
+    else:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid application status.")
 
     try:
         await db.commit()
@@ -320,3 +354,24 @@ async def update_application_status(id:int, data: JobApplicationStatusUpdate,
 
     return application
 
+
+@router.get("/{job_id}/accepted-application", response_model=JobAppplicationResponse)
+async def get_accepted_application(job_id:int, db:AsyncSession=Depends(get_db), current_user=Depends(get_current_user)):
+    result = await db.execute(select(Job).where(Job.id == job_id))
+
+    job = result.scalar_one_or_none()
+
+    if not job:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="job not found")
+    
+    if job.owner_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                             detail="only job owners can view accepted applicants")
+
+    result = await db.execute(select(JobApplication).where(JobApplication.job_id == job.id,
+                                                            JobApplication.status == ApplicationStatus.ACCEPTED))
+
+    accepted_applicant = result.scalar_one_or_none()
+
+    return accepted_applicant
+    

@@ -105,3 +105,4 @@ class NearbyJobQuery(BaseModel):
     radius: float = Field(10, gt=0)
 
     category_id: int | None = None
+
