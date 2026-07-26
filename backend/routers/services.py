@@ -31,7 +31,7 @@ async def create_service(data: ServiceCreate, db: AsyncSession=Depends(get_db), 
     return new_service
 
 
-@router.patch("/{service_id}")
+@router.patch("/{service_id}", response_model=ServiceResponse)
 async def update_service(service_id: int, data: ServiceUpdate, db:AsyncSession=Depends(get_db), current_user=Depends(get_current_user)):
     result = await db.execute(select(Service).where(Service.id == service_id))
     
@@ -80,7 +80,7 @@ async def get_services(db:AsyncSession=Depends(get_db), current_user=Depends(get
 
     return services
 
-@router.get("/{service_id}")
+@router.get("/{service_id}", response_model=ServiceResponse)
 async def get_service(service_id: int, db:AsyncSession=Depends(get_db), current_user=Depends(get_current_user)):
     result = await db.execute(select(Service).where(Service.id == service_id))
     service = result.scalar_one_or_none()
@@ -91,7 +91,7 @@ async def get_service(service_id: int, db:AsyncSession=Depends(get_db), current_
     return service
 
 @router.delete("/{service_id}")
-async def get_services(service_id:int, db:AsyncSession=Depends(get_db), current_user=Depends(get_current_user)):
+async def archive_service(service_id:int, db:AsyncSession=Depends(get_db), current_user=Depends(get_current_user)):
     result = await db.execute(select(Service).where(Service.id == service_id))
 
     service = result.scalar_one_or_none()
@@ -113,4 +113,4 @@ async def get_services(service_id:int, db:AsyncSession=Depends(get_db), current_
         await db.rollback()
         raise
 
-    return {"message" "service archieved successfully"}
+    return {"message" "service archived successfully"}
