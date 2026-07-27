@@ -1,9 +1,10 @@
 from fastapi import APIRouter, HTTPException, Depends, status
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from dependencies import get_db, get_current_user
-from schemas import ServiceCreate, ServiceResponse, ServiceUpdate, ServiceStatus
+from schemas import ServiceCreate, ServiceResponse, ServiceUpdate, ServiceStatus, NearbyServiceQuery
 from models import Category, Service, ServiceRequest
+from geoalchemy2.functions import ST_Distance, ST_DWithin, ST_GeogFromText
 
 router = APIRouter(prefix="/services", tags=["services"])
 
@@ -114,3 +115,15 @@ async def archive_service(service_id:int, db:AsyncSession=Depends(get_db), curre
         raise
 
     return {"message" "service archived successfully"}
+
+@router.get("/me", response_model=list[ServiceResponse])
+async def get_my_services(db:AsyncSession=Depends(get_db), current_user=Depends(get_current_user)):
+    result = await db.execute(select(Service).where(Service.owner_id == current_user.id, Service.status != ServiceStatus.ARCHIVED))
+
+    service = result.scalars().all()
+
+    return service
+
+@router.get("/nearby", response_model=list[ServiceResponse])
+async def get_services_nearby(data:NearbyServiceQuery=Depends(), db:AsyncSession=Depends(get_db), current_user=Depends(get_current_user)):
+    pass

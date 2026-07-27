@@ -1,4 +1,4 @@
-from sqlalchemy import String, Integer, ForeignKey, Enum
+from sqlalchemy import String, Integer, ForeignKey, Enum, Float
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from DB.database import Base
 from schemas import ApplicationStatus
@@ -25,6 +25,8 @@ class Job(Base, TimeStampMixin):
     title: Mapped[str]
 
     description: Mapped[str]
+
+    budget: Mapped[float] = mapped_column(Float, nullable=False)
 
     location: Mapped[WKBElement] = mapped_column(Geography(geometry_type="POINT", srid=4326, spatial_index=False, nullable=False))
 
