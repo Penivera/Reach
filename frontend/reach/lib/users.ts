@@ -2,7 +2,10 @@ import { api } from "./api";
 import { User } from "@/types";
 
 export async function getMyProfile(): Promise<User> {
-  const data : User = await api("/users/me");
+  const data : User = await api("/users/me", {
+    method: "GET",
+    silentStatuses: [401],
+  });
   console.log("/users/me response:", data);
   return data;
 }

@@ -141,3 +141,9 @@ export function updateApplicationStatus(
     body: JSON.stringify(data),
   });
 }
+
+export function getAcceptedApplication(jobId: number): Promise<JobApplication> {
+  return api(`/jobs/${jobId}/accepted-application`, {
+    method: "GET",
+  });
+}

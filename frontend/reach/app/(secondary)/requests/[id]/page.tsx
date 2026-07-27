@@ -11,6 +11,7 @@ import { useAuth } from "@/context/AuthContext";
 import ApplicantTile from "@/components/layout/ApplicantTile";
 import AcceptApplicationModal from "@/components/layout/AcceptApplicationModal";
 import { updateApplicationStatus } from "@/lib/jobs"; 
+import CompleteJobSheet from "@/components/layout/CompleteJobSheet";
 
 export default function RequestDetailPage() {
   const router = useRouter();
@@ -26,11 +27,15 @@ export default function RequestDetailPage() {
   const { user } = useAuth();
   const isPoster = !!user && !!job && user.id === job.posted_by;
   const [acceptingId, setAcceptingId] = useState<number | null>(null);
+  const [completeSheetOpen, setCompleteSheetOpen] = useState(false);
   const [acceptTarget, setAcceptTarget] = useState<{
     application: JobApplication;
     applicantName: string;
   } | null>(null);
   const [accepting, setAccepting] = useState(false);
+  const acceptedApplication = applications.find((a) => a.status === "accepted") ?? null;
+  const isAcceptedApplicant =
+  !!user && !!acceptedApplication && user.id === acceptedApplication.applicant_id;
 
   useEffect(() => {
     let cancelled = false;
@@ -133,10 +138,13 @@ export default function RequestDetailPage() {
       setApplications((prev) =>
         prev.map((a) => (a.id === updated.id ? updated : a))
       );
+      setJob((prev) => (prev ? { ...prev, status: "in_progress" } : prev));
     } finally {
       setAccepting(false);
     }
   };
+
+  const handleCompleteJob = () => {}
 
   return (
     <div className="min-h-screen bg-background pb-28">
@@ -215,16 +223,27 @@ export default function RequestDetailPage() {
 
         {/* People interested */}
         <div className="mt-3 flex flex-col gap-2">
-          {applications.map((app) => (
-            <ApplicantTile
-              key={app.id}
-              application={app}
-              applicant={applicants[app.applicant_id] ?? null}
-              isPoster={isPoster}
-              onAccept={() => openAcceptModal(app)}
-              accepting={accepting && acceptTarget?.application.id === app.id}
-            />
-          ))}
+          {job.status === "in_progress"
+            ? acceptedApplication &&
+              (isPoster || isAcceptedApplicant) && (
+                <ApplicantTile
+                  key={acceptedApplication.id}
+                  application={acceptedApplication}
+                  applicant={applicants[acceptedApplication.applicant_id] ?? null}
+                  isPoster={isPoster}
+                  accepted
+                />
+              )
+            : applications.map((app) => (
+                <ApplicantTile
+                  key={app.id}
+                  application={app}
+                  applicant={applicants[app.applicant_id] ?? null}
+                  isPoster={isPoster}
+                  onAccept={() => openAcceptModal(app)}
+                  accepting={accepting && acceptTarget?.application.id === app.id}
+                />
+              ))}
         </div>
       </div>
 
@@ -238,17 +257,34 @@ export default function RequestDetailPage() {
           >
             <ChatIcon className="h-4 w-4" />
           </button>
-          <button
-            disabled={!canApply}
-            onClick={() => setApplyModalOpen(true)}
-            className={`flex-1 rounded-lg px-4 py-3 text-sm font-semibold transition-colors ${
-              canApply
-                ? "bg-primary text-primary-foreground"
-                : "cursor-not-allowed bg-muted text-muted-foreground"
-            }`}
-          >
-            {canApply ? "👋 I can do this" : "No longer open"}
-          </button>
+          {!isPoster && job.status === "open" && (
+            <button onClick={() => setApplyModalOpen(true)} className="flex-1 rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground">
+              👋 I can do this
+            </button>
+          )}
+          {job.status === "in_progress" && isAcceptedApplicant && (
+            <button
+              onClick={() => setCompleteSheetOpen(true)}
+              className="flex-1 rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground"
+            >
+              ✅ Mark job complete
+            </button>
+          )}
+
+          {job.status === "in_progress" && isPoster && (
+            <button
+              onClick={() => setCompleteSheetOpen(true)}
+              className="flex-1 rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground"
+            >
+              ✅ Complete and sign off
+            </button>
+          )}
+
+          {!isPoster && job.status === "in_progress" && !isAcceptedApplicant && (
+            <button disabled className="flex-1 cursor-not-allowed rounded-lg bg-muted px-4 py-3 text-sm font-semibold text-muted-foreground">
+              No longer open
+            </button>
+          )}
         </div>
       </div>
 
@@ -266,6 +302,26 @@ export default function RequestDetailPage() {
         proposedPrice={acceptTarget?.application.proposed_price ?? 0}
         onClose={() => setAcceptTarget(null)}
         onConfirm={confirmAccept}
+      />
+
+      <CompleteJobSheet
+        isOpen={completeSheetOpen}
+        onClose={() => setCompleteSheetOpen(false)}
+        isPoster={isPoster}
+        jobId={jobId}
+        itemTitle={job.title}
+        amount={job.budget}
+        otherPartyName={
+          isPoster
+            ? getDisplayName(applicants[acceptedApplication?.applicant_id ?? -1] ?? null)
+            : getDisplayName(poster)
+        }
+        onComplete={() => {
+          setCompleteSheetOpen(false);
+        }}
+        onSignOff={() => {
+          setCompleteSheetOpen(false);
+        }}
       />
     </div>
   );

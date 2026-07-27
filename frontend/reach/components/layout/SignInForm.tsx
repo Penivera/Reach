@@ -13,11 +13,9 @@ export default function SignInForm() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
 
   const handleSubmit = async (e: React.SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setError("");
     setLoading(true);
 
     try {
@@ -25,18 +23,11 @@ export default function SignInForm() {
       window.location.href = "/home";
     } catch (err: any) {
       const message = err?.detail || "Invalid username or password configuration.";
-      setError(message);
       setLoading(false);
     }
   };
   return (
     <form className="space-y-4" onSubmit={handleSubmit}>
-      {error && (
-        <div className="p-3 text-xs rounded-lg bg-destructive/10 text-destructive font-medium border border-destructive/20">
-          {error}
-        </div>
-      )}
-
       <Input 
         id="username" 
         label="Username" 

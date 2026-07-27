@@ -29,12 +29,14 @@ export default function ApplicantTile({
   isPoster = false,
   onAccept,
   accepting = false,
+  accepted = false
 }: {
   application: JobApplication;
   applicant: User | null;
   isPoster?: boolean;
   onAccept?: (applicationId: number) => void;
   accepting?: boolean;
+  accepted?: boolean;
 }) {
   const isPending = application.status.toLowerCase() === "pending";
 
@@ -69,7 +71,7 @@ export default function ApplicantTile({
             onClick={() => onAccept(application.id)}
             disabled={accepting}
           >
-            {accepting ? "Accepting…" : "Accept"}
+            {accepted? "Accepted": accepting ? "Accepting…" : "Accept"}
           </NestedButton>
         </div>
       )}

@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import Input from "../ui/Input";
 import Button from "../ui/Button";
-import { signup } from "@/lib/auth"; 
+import { signup, resendVerification } from "@/lib/auth"; 
 
 export default function SignUpForm() {
   const [formData, setFormData] = useState({
@@ -20,6 +20,7 @@ export default function SignUpForm() {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isRegistered, setIsRegistered] = useState(false);
+  const [resendState, setResendState] = useState<"idle" | "sending" | "sent" | "error">("idle");
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target;
@@ -39,14 +40,13 @@ export default function SignUpForm() {
     setLoading(true);
     
     // Retrieve location from sessionStorage
-    let location = { latitude: undefined, longitude: undefined, displayName: undefined };
+    let location: { latitude?: number; longitude?: number; displayName?: string } = {};
     try {
       const locationData = sessionStorage.getItem("reach:location");
       if (locationData) {
         location = JSON.parse(locationData);
       }
     } catch {
-      // If parsing fails, continue without location
     }
 
     try {
@@ -74,6 +74,17 @@ export default function SignUpForm() {
     }
   };
 
+
+  async function handleResend() {
+    setResendState("sending");
+    try {
+      await resendVerification(formData.email);
+      setResendState("sent");
+    } catch {
+      setResendState("error");
+    }
+  }
+
   if (isRegistered) {
     return (
       <div className="text-center space-y-4 py-4 animate-in fade-in-50 duration-300">
@@ -92,18 +103,32 @@ export default function SignUpForm() {
           <Link href="/auth/signin" className="text-sm text-primary hover:underline font-medium">
             Return to sign in
           </Link>
+
+          <div className="pt-2 space-y-2">
+        <button
+          onClick={handleResend}
+          disabled={resendState === "sending" || resendState === "sent"}
+          className="text-sm text-primary hover:underline font-medium disabled:opacity-50 disabled:no-underline"
+        >
+          {resendState === "sending"
+            ? "Sending..."
+            : resendState === "sent"
+            ? "Verification email resent"
+            : "Didn't get it? Resend email"}
+        </button>
+        {resendState === "error" && (
+          <p className="text-xs text-red-500">Couldn't resend — try again in a moment.</p>
+        )}
+      </div>
         </div>
       </div>
     );
   }
 
+  
+
   return (
     <form className="space-y-4" onSubmit={handleSubmit}>
-      {errors.global && (
-        <div className="p-3 text-xs rounded-lg bg-destructive/10 text-destructive font-medium border border-destructive/20">
-          {errors.global}
-        </div>
-      )}
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Input id="first_name" label="First Name" value={formData.first_name} onChange={handleInputChange} placeholder="Your First Name" required />

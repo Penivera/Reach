@@ -13,8 +13,13 @@ export class ApiError extends Error {
 
 function getErrorMessage(e: unknown): string {
   if (e instanceof ApiError) {
-    const data = e.data as { message?: string; detail?: string } | null;
-    return data?.message || data?.detail || `Request failed (${e.status})`;
+    const data = e.data as { message?: string; detail?: string | { msg: string }[] } | null;
+
+    if (Array.isArray(data?.detail)) {
+      return data.detail.map((d) => d.msg).join(", ");
+    }
+
+    return data?.detail || data?.message || `Request failed (${e.status})`;
   }
   if (e instanceof TypeError) {
     return "Network error — check your connection";
@@ -22,15 +27,21 @@ function getErrorMessage(e: unknown): string {
   return "Something went wrong";
 }
 
-export async function api<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+type ApiOptions = RequestInit & {
+  silentStatuses?: number[];
+};
+
+export async function api<T>(endpoint: string, options: ApiOptions = {}): Promise<T> {
+  const { silentStatuses, ...fetchOptions } = options;
+
   try {
     const response = await fetch(`${API_URL}${endpoint}`, {
       credentials: "include",
       headers: {
-        ...(options.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
-        ...options.headers,
+        ...(fetchOptions.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
+        ...fetchOptions.headers,
       },
-      ...options,
+      ...fetchOptions,
     });
 
     let data;
@@ -46,7 +57,10 @@ export async function api<T>(endpoint: string, options: RequestInit = {}): Promi
 
     return data;
   } catch (e) {
-    toast.error(getErrorMessage(e))
+    const isSilent = e instanceof ApiError && silentStatuses?.includes(e.status);
+    if (!isSilent) {
+      toast.error(getErrorMessage(e));
+    }
     throw e;
   }
 }

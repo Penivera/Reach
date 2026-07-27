@@ -7,11 +7,12 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label?: string;
   error?: string;
   id: string;
+  startAdornment?: React.ReactNode;
 }
 
 const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
-  { label, error, id, type = "text", className = "", ...props },
-  ref) {
+{ label, error, id, type = "text", startAdornment, className = "", ...props },
+ref) {
   
   const [showPassword, setShowPassword] = useState(false);
   const isPassword = type === "password";
@@ -26,11 +27,17 @@ const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
         </label>
       )}
 
-      <div className="relative w-full">
+     <div className="relative w-full">
+      {startAdornment && (
+        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-muted-foreground pointer-events-none">
+          {startAdornment}
+        </span>
+      )}
         <input
           id={id}
           ref={ref}
           type={inputType}
+          
         className={`
           w-full px-3.5 py-2.5 rounded-md bg-transparent
           text-sm text-foreground placeholder:text-muted-foreground/50
@@ -43,6 +50,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
           transition-all duration-200
           disabled:opacity-50 disabled:cursor-not-allowed
           ${isPassword ? "pr-11" : ""}
+          ${startAdornment ? "pl-7" : ""}
           ${className}
         `}
           {...props}

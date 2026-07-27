@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { getMyProfile } from "@/lib/users";
 import { User } from "@/types";
+import { ApiError } from "@/lib/api";
 
 type AuthContextType = {
   user: User | null;
@@ -24,7 +25,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const me = await getMyProfile();
       setUser(me);
     } catch (err) {
-      setUser(null);
+      if (err instanceof ApiError && err.status === 401) {
+        setUser(null);
+        return;
+      }
+      throw err;
     } finally {
       setLoading(false);
     }

@@ -20,18 +20,16 @@ export function signup(data: {
 
 export function verifyEmail(token: string) {
   return api("/auth/verify-email", {
-    method: "POST",
+    method: "POST", 
     body: JSON.stringify({ token }),
   });
 }
 
 export function resendVerification(email: string) {
-  return api(
-    `/auth/resend-verification?email=${encodeURIComponent(email)}`,
-    {
-      method: "POST",
-    }
-  );
+  return api("/auth/resend-verification", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
 }
 
 export function login(
