@@ -6,7 +6,7 @@ import { ImageSquareIcon } from "@phosphor-icons/react";
 import Input from "../ui/Input";
 import Button from "../ui/Button";
 import { useCategories } from "@/context/CategoriesContext";
-import { createJob } from "@/lib/jobs";
+import { createJob, updateJob, Job } from "@/lib/jobs";
 
 const URGENCY_OPTIONS = [
   { value: "asap", label: "Asap / Today" },
@@ -35,16 +35,22 @@ function pillClass(active: boolean) {
   }`;
 }
 
-export default function PostRequestForm() {
+type PostRequestFormProps = {
+  mode?: "create" | "edit";
+  jobId?: number;
+  initialData?: Job;
+};
+
+export default function PostRequestForm({ mode = "create", jobId, initialData }: PostRequestFormProps) {
   const router = useRouter();
 
-  const [title, setTitle] = useState("");
+  const [title, setTitle] = useState(initialData?.title ?? "");
   const { categories, loading: categoriesLoading } = useCategories();
-  const [category, setCategory] = useState<number | null>(null);
-  const [budget, setBudget] = useState("");
+  const [category, setCategory] = useState<number | null>(initialData?.category_id ?? null);
+  const [budget, setBudget] = useState(initialData ? String(initialData.budget) : "");
   const [negotiable, setNegotiable] = useState(true);
   const [urgency, setUrgency] = useState(URGENCY_OPTIONS[0].value);
-  const [details, setDetails] = useState("");
+  const [details, setDetails] = useState(initialData?.description ?? "");
   const [photo, setPhoto] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -61,18 +67,30 @@ export default function PostRequestForm() {
     setSubmitError(null);
 
     try {
-      await createJob({
-        title,
-        description: details,
-        budget: Number(budget),
-        category_id: category,
-        latitude: 5.0377,
-        longitude: 7.9128,
-        location_name: "",
-      });
-      router.push("/requests");
+      if (mode === "edit" && jobId) {
+        await updateJob(jobId, {
+          title,
+          description: details,
+          budget: Number(budget),
+          latitude: initialData?.latitude ?? 5.0377,
+          longitude: initialData?.longitude ?? 7.9128,
+          location_name: initialData?.location_name ?? "",
+        });
+        router.push(`/requests/${jobId}`);
+      } else {
+        await createJob({
+          title,
+          description: details,
+          budget: Number(budget),
+          category_id: category,
+          latitude: 5.0377,
+          longitude: 7.9128,
+          location_name: "",
+        });
+        router.push("/requests");
+      }
     } catch (err: any) {
-      setSubmitError(err?.detail || "Couldn't post your request. Try again.");
+      setSubmitError(err?.detail || `Couldn't ${mode === "edit" ? "update" : "post"} your request. Try again.`);
     } finally {
       setSubmitting(false);
     }
@@ -97,7 +115,7 @@ export default function PostRequestForm() {
           id="category"
           value={category ?? ""}
           onChange={(e) => setCategory(Number(e.target.value))}
-          disabled={categoriesLoading}
+          disabled={categoriesLoading || mode === "edit"}
           className={FIELD_STYLE}
         >
           {categoriesLoading && <option>Loading categories…</option>}
@@ -107,6 +125,9 @@ export default function PostRequestForm() {
             </option>
           ))}
         </select>
+        {mode === "edit" && (
+          <p className="text-xs text-muted-foreground">Category can't be changed after posting.</p>
+        )}
       </div>
 
       <div className="flex gap-2 items-end">
@@ -176,7 +197,7 @@ export default function PostRequestForm() {
       )}
 
       <Button type="submit" intent="form" variant="primary" className="mt-2" loading={submitting}>
-        Publish Request Post
+        {mode === "edit" ? "Save Changes" : "Publish Request Post"}
       </Button>
     </form>
   );

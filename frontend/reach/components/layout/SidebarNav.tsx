@@ -147,6 +147,7 @@ function SidebarNav({ isOpen, onClose }: SidebarNavProps) {
             activeHref={pathname} 
             onSelect={handleNavigate} 
           />
+          
         </div>
       </aside>
     </>

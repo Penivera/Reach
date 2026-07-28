@@ -163,7 +163,7 @@ async def create_job_application(job_id:int, data: JobApplicationCreate, db:Asyn
     #prevent duplicate application
 
     result = await db.execute(select(JobApplication).where(JobApplication.job_id == job.id, 
-                                                           JobApplication.user_id == current_user.id))
+                                                           JobApplication.applicant_id == current_user.id))
     
     existing_application = result.scalar_one_or_none()
 

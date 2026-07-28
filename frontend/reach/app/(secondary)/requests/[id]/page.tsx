@@ -248,8 +248,10 @@ export default function RequestDetailPage() {
       </div>
 
       {/* Bottom action bar */}
-      <div className="fixed inset-x-0 bottom-0 border-t border-stroke bg-background p-4">
-        <div className="mx-auto flex w-full max-w-2xl items-center gap-3">
+
+    <div className="fixed inset-x-0 bottom-0 border-t border-stroke bg-background p-4">
+      <div className="mx-auto flex w-full max-w-2xl items-center gap-3">
+        {!isPoster && (
           <button
             onClick={() => router.push(`/chat/${job.posted_by}`)}
             aria-label="Message"
@@ -257,36 +259,48 @@ export default function RequestDetailPage() {
           >
             <ChatIcon className="h-4 w-4" />
           </button>
-          {!isPoster && job.status === "open" && (
-            <button onClick={() => setApplyModalOpen(true)} className="flex-1 rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground">
-              👋 I can do this
-            </button>
-          )}
-          {job.status === "in_progress" && isAcceptedApplicant && (
-            <button
-              onClick={() => setCompleteSheetOpen(true)}
-              className="flex-1 rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground"
-            >
-              ✅ Mark job complete
-            </button>
-          )}
+        )}
 
-          {job.status === "in_progress" && isPoster && (
-            <button
-              onClick={() => setCompleteSheetOpen(true)}
-              className="flex-1 rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground"
-            >
-              ✅ Complete and sign off
-            </button>
-          )}
+        {!isPoster && job.status === "open" && (
+          <button onClick={() => setApplyModalOpen(true)} className="flex-1 rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground">
+            👋 I can do this
+          </button>
+        )}
 
-          {!isPoster && job.status === "in_progress" && !isAcceptedApplicant && (
-            <button disabled className="flex-1 cursor-not-allowed rounded-lg bg-muted px-4 py-3 text-sm font-semibold text-muted-foreground">
-              No longer open
-            </button>
-          )}
-        </div>
+        {isPoster && job.status === "open" && (
+          <button
+            onClick={() => router.push(`/requests/${jobId}/edit`)}
+            className="flex-1 rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground"
+          >
+            ✏️ Edit request
+          </button>
+        )}
+
+        {job.status === "in_progress" && isAcceptedApplicant && (
+          <button
+            onClick={() => setCompleteSheetOpen(true)}
+            className="flex-1 rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground"
+          >
+            ✅ Mark job complete
+          </button>
+        )}
+
+        {job.status === "in_progress" && isPoster && (
+          <button
+            onClick={() => setCompleteSheetOpen(true)}
+            className="flex-1 rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground"
+          >
+            ✅ Complete and sign off
+          </button>
+        )}
+
+        {!isPoster && job.status === "in_progress" && !isAcceptedApplicant && (
+          <button disabled className="flex-1 cursor-not-allowed rounded-lg bg-muted px-4 py-3 text-sm font-semibold text-muted-foreground">
+            No longer open
+          </button>
+        )}
       </div>
+    </div>
 
       <ApplyJobModal
         isOpen={applyModalOpen}

@@ -45,7 +45,7 @@ export type JobApplication = {
   proposed_price: number;
   status: ApplicationStatus;
   created_at: string;
-  updaated_at: string; // typo
+  updated_at: string;
 };
 
 export type CreateJobApplicationInput = {
