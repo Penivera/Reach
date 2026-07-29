@@ -6,11 +6,19 @@ import RadiusDropdown from "@/components/ui/RadiusDropdown";
 import LinkButton from "@/components/ui/LinkButton";
 import { getJobs, Job } from "@/lib/jobs";
 import EmptyState from "@/components/layout/EmptyState";
+import { getMyJobApplications } from "@/lib/jobs";
 
 
 export default function RequestsFeedPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
+  const [appliedJobIds, setAppliedJobIds] = useState<Set<number>>(new Set());
+
+useEffect(() => {
+  getMyJobApplications()
+    .then((apps) => setAppliedJobIds(new Set(apps.map((a) => a.job_id))))
+    .catch(() => {});
+}, []);
 
   useEffect(() => {
     getJobs()
@@ -46,7 +54,7 @@ export default function RequestsFeedPage() {
       ) : (
           <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
             {jobs.map((job) => (
-              <RequestCard key={job.id} request={job} />
+              <RequestCard request={job} hasApplied={appliedJobIds.has(job.id)} />
             ))}
           </div>
         )}

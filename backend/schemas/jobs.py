@@ -94,10 +94,9 @@ class JobAppplicationResponse(BaseModel):
     status: ApplicationStatus
 
     created_at: datetime
-    updaated_at: datetime
+    updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
-
 
 class NearbyJobQuery(BaseModel):
     latitude: float = Field(..., ge=-90, le=90)

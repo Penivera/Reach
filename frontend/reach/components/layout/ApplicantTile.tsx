@@ -1,4 +1,4 @@
-import { type User } from "@/types";
+import { type User, PublicUser } from "@/types";
 import { type JobApplication } from "@/lib/jobs";
 import { getInitials, getDisplayName } from "@/utils/index";
 import NestedButton from "@/components/ui/NestedButton";
@@ -32,7 +32,7 @@ export default function ApplicantTile({
   accepted = false
 }: {
   application: JobApplication;
-  applicant: User | null;
+  applicant: User | PublicUser | null;
   isPoster?: boolean;
   onAccept?: (applicationId: number) => void;
   accepting?: boolean;

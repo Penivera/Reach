@@ -1,5 +1,5 @@
 import { api } from "./api";
-import { User } from "@/types";
+import { User, PublicUser } from "@/types";
 
 export async function getMyProfile(): Promise<User> {
   const data : User = await api("/users/me", {
@@ -23,8 +23,10 @@ export function deleteMyAccount(): Promise<void> {
   });
 }
 
-export function getUser(userId: number): Promise<User> {
-  return api(`/users/${userId}`);
+export function getUser(userId: number): Promise<PublicUser> {
+  return api(`/users/${userId}`, {
+    method: "GET",
+  });
 }
 
 export function getUsers(): Promise<User[]> {

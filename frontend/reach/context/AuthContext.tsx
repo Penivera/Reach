@@ -4,13 +4,14 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 import { getMyProfile } from "@/lib/users";
 import { User } from "@/types";
 import { ApiError } from "@/lib/api";
+import { logout as logoutRequest } from "@/lib/auth";
 
 type AuthContextType = {
   user: User | null;
   setUser: React.Dispatch<React.SetStateAction<User | null>>;
   loading: boolean;
   refresh: () => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -39,8 +40,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     refresh();
   }, []);
 
-  const logout = () => {
-    setUser(null);
+  const logout = async () => {
+    try {
+      await logoutRequest();
+    } finally {
+      setUser(null);
+    }
   };
 
   return (

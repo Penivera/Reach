@@ -107,13 +107,14 @@ export function applyToJob(jobId: number, data: CreateJobApplicationInput): Prom
   });
 }
 
-export function getJobApplications(jobId: number) : Promise<JobApplication[]> {
+export function getJobApplications(jobId: number): Promise<JobApplication[]> {
   return api(`/jobs/${jobId}/applications`, {
     method: "GET",
+    silentStatuses: [403],
   });
 }
 
-export function getMyJobApplications() {
+export function getMyJobApplications(): Promise<JobApplication[]> {
   return api("/jobs/applications/me", {
     method: "GET",
   });
@@ -145,5 +146,6 @@ export function updateApplicationStatus(
 export function getAcceptedApplication(jobId: number): Promise<JobApplication> {
   return api(`/jobs/${jobId}/accepted-application`, {
     method: "GET",
+    silentStatuses: [403, 404],
   });
 }

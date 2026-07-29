@@ -1,14 +1,14 @@
-import { User } from "@/types";
+import { PublicUser, User } from "@/types";
 
 
-export function getInitials(user: User | null): string {
+export function getInitials(user: User | PublicUser | null): string {
   if (!user) return "?";
   const first = user.first_name?.[0] ?? "";
   const last = user.last_name?.[0] ?? "";
   return (first + last).toUpperCase() || user.username[0]?.toUpperCase() || "?";
 }
 
-export function getDisplayName(user: User | null): string {
+export function getDisplayName(user: User | PublicUser | null): string {
   if (!user) return "Loading...";
   const name = [user.first_name, user.last_name].filter(Boolean).join(" ");
   return name || user.username;

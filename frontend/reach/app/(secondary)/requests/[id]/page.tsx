@@ -4,7 +4,7 @@ import { useRouter, useParams } from "next/navigation";
 import { ArrowLeftIcon, ChatIcon } from "@phosphor-icons/react";
 import { getJob, getJobApplications, Job, JobApplication } from "@/lib/jobs";
 import { getUser } from "@/lib/users";
-import { type User } from "@/types";
+import { PublicUser, type User } from "@/types";
 import ApplyJobModal from "@/components/layout/ApplyJobModal";
 import { getInitials, getDisplayName, formatPostedAt } from "@/utils"
 import { useAuth } from "@/context/AuthContext";
@@ -12,6 +12,7 @@ import ApplicantTile from "@/components/layout/ApplicantTile";
 import AcceptApplicationModal from "@/components/layout/AcceptApplicationModal";
 import { updateApplicationStatus } from "@/lib/jobs"; 
 import CompleteJobSheet from "@/components/layout/CompleteJobSheet";
+import { getAcceptedApplication } from "@/lib/jobs";
 
 export default function RequestDetailPage() {
   const router = useRouter();
@@ -19,9 +20,9 @@ export default function RequestDetailPage() {
   const jobId = Number(params.id);
 
   const [job, setJob] = useState<Job | null>(null);
-  const [poster, setPoster] = useState<User | null>(null);
+  const [poster, setPoster] = useState<User | PublicUser | null>(null);
   const [applications, setApplications] = useState<JobApplication[]>([]);
-  const [applicants, setApplicants] = useState<Record<number, User | null>>({});
+  const [applicants, setApplicants] = useState<Record<number, User | PublicUser | null>>({});
   const [loading, setLoading] = useState(true);
   const [applyModalOpen, setApplyModalOpen] = useState(false);
   const { user } = useAuth();
@@ -53,42 +54,40 @@ export default function RequestDetailPage() {
       cancelled = true;
     };
   }, [jobId]);
+useEffect(() => {
+  if (!job) return;
+  let cancelled = false;
 
-  useEffect(() => {
-    if (!job) return;
-    let cancelled = false;
+  getUser(job.posted_by)
+    .then((u) => { if (!cancelled) setPoster(u); })
+    .catch(() => { if (!cancelled) setPoster(null); });
 
-    getUser(job.posted_by)
-      .then((u) => {
-        if (!cancelled) setPoster(u);
-      })
-      .catch(() => {
-        if (!cancelled) setPoster(null);
-      });
-
+  if (isPoster) {
     getJobApplications(jobId)
-      .then((apps: JobApplication[]) => {
+      .then((apps) => {
         if (cancelled) return;
         setApplications(apps);
         apps.forEach((app) => {
           getUser(app.applicant_id)
-            .then((u) => {
-              if (!cancelled) setApplicants((prev) => ({ ...prev, [app.applicant_id]: u }));
-            })
-            .catch(() => {
-              if (!cancelled) setApplicants((prev) => ({ ...prev, [app.applicant_id]: null }));
-            });
+            .then((u) => { if (!cancelled) setApplicants((prev) => ({ ...prev, [app.applicant_id]: u })); })
+            .catch(() => { if (!cancelled) setApplicants((prev) => ({ ...prev, [app.applicant_id]: null })); });
         });
       })
-      .catch(() => {
-        if (!cancelled) setApplications([]);
-      });
+      .catch(() => { if (!cancelled) setApplications([]); });
+  } else if (job.status === "in_progress") {
+    getAcceptedApplication(jobId)
+      .then((app) => {
+        if (cancelled) return;
+        setApplications([app]);
+        getUser(app.applicant_id)
+          .then((u) => { if (!cancelled) setApplicants((prev) => ({ ...prev, [app.applicant_id]: u })); })
+          .catch(() => {});
+      })
+      .catch(() => { if (!cancelled) setApplications([]); });
+  }
 
-    return () => {
-      cancelled = true;
-    };
-  }, [job, jobId]);
-
+  return () => { cancelled = true; };
+}, [job, jobId, isPoster]);
   if (loading) {
     return <RequestDetailSkeleton />;
   }
@@ -128,21 +127,24 @@ export default function RequestDetailPage() {
     setAcceptTarget({ application, applicantName: getDisplayName(applicant) });
   };
 
-  const confirmAccept = async () => {
-    if (!acceptTarget) return;
-    setAccepting(true);
-    try {
-      const updated = await updateApplicationStatus(acceptTarget.application.id, {
-        status: "accepted",
-      });
-      setApplications((prev) =>
-        prev.map((a) => (a.id === updated.id ? updated : a))
-      );
-      setJob((prev) => (prev ? { ...prev, status: "in_progress" } : prev));
-    } finally {
-      setAccepting(false);
-    }
-  };
+const confirmAccept = async () => {
+  if (!acceptTarget) return;
+  setAccepting(true);
+  try {
+    await updateApplicationStatus(acceptTarget.application.id, {
+      status: "accepted",
+    });
+    const [freshJob, freshApplications] = await Promise.all([
+      getJob(jobId),
+      getJobApplications(jobId),
+    ]);
+    setJob(freshJob);
+    setApplications(freshApplications);
+    setAcceptTarget(null);
+  } finally {
+    setAccepting(false);
+  }
+};
 
   const handleCompleteJob = () => {}
 
@@ -263,7 +265,7 @@ export default function RequestDetailPage() {
 
         {!isPoster && job.status === "open" && (
           <button onClick={() => setApplyModalOpen(true)} className="flex-1 rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground">
-            👋 I can do this
+            I can do this
           </button>
         )}
 
@@ -272,7 +274,7 @@ export default function RequestDetailPage() {
             onClick={() => router.push(`/requests/${jobId}/edit`)}
             className="flex-1 rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground"
           >
-            ✏️ Edit request
+            Edit request
           </button>
         )}
 
@@ -281,7 +283,7 @@ export default function RequestDetailPage() {
             onClick={() => setCompleteSheetOpen(true)}
             className="flex-1 rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground"
           >
-            ✅ Mark job complete
+            Mark job complete
           </button>
         )}
 
@@ -290,7 +292,7 @@ export default function RequestDetailPage() {
             onClick={() => setCompleteSheetOpen(true)}
             className="flex-1 rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground"
           >
-            ✅ Complete and sign off
+            Complete and sign off
           </button>
         )}
 

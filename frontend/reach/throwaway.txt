@@ -49,3 +49,6 @@ json{ "name": "Tutor", "description": "Tutoring and lessons" }
 json{ "name": "Clean", "description": "Cleaning services" }
 json{ "name": "Trade", "description": "Skilled trade work" }
 json{ "name": "More", "description": "Anything else" }
+
+
+<Link href={/profile/${userId}}>

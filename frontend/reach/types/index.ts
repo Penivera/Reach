@@ -60,3 +60,12 @@ export type User = {
   is_email_verified: boolean;
   created_at: string;
 };
+
+export type PublicUser = {
+  id: number;
+  username: string;
+  first_name: string | null;
+  last_name: string | null;
+  bio: string | null;
+  profile_picture: string | null;
+};

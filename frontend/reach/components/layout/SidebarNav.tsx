@@ -4,7 +4,7 @@ import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import NavSection from "../ui/NavSection";
 import { customerItems, providerItems, activityItems, settingsItems } from "@/data";
-import { ArrowsClockwiseIcon, XIcon } from "@phosphor-icons/react";
+import { ArrowsClockwiseIcon, XIcon, SignOutIcon } from "@phosphor-icons/react";
 import { useAuth } from "@/context/AuthContext"; 
 
 interface SidebarUser {
@@ -62,7 +62,7 @@ function SidebarSkeleton({ isOpen, onClose }: { isOpen: boolean; onClose: () => 
 
 
 function SidebarNav({ isOpen, onClose }: SidebarNavProps) {
-  const { user, loading } = useAuth();
+  const { user, loading, logout } = useAuth();
   const [mode, setMode] = useState<"customer" | "provider">("customer");
   const pathname = usePathname();
   const router = useRouter();
@@ -75,6 +75,12 @@ function SidebarNav({ isOpen, onClose }: SidebarNavProps) {
     router.push(href);
     onClose();
   };
+
+  const handleLogout = async () => {
+  await logout();
+  router.push("/auth/signin");
+};
+
   const displayName =
     [user?.first_name, user?.last_name].filter(Boolean).join(" ") || user?.username || "Guest";
 
@@ -109,13 +115,13 @@ function SidebarNav({ isOpen, onClose }: SidebarNavProps) {
             </div>
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold text-foreground">{displayName}</p>
-              <button
-                onClick={() => setMode(isCustomer ? "provider" : "customer")}
-                className="mt-0.5 inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-border"
-              >
-                {roleTitle} mode
-                <ArrowsClockwiseIcon size={11} />
-              </button>
+          <button
+            onClick={() => router.push("/account/switch-mode")}
+            className="mt-0.5 inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-border"
+          >
+            {roleTitle} mode
+            <ArrowsClockwiseIcon size={11} />
+          </button>
             </div>
           </div>
 
@@ -147,6 +153,14 @@ function SidebarNav({ isOpen, onClose }: SidebarNavProps) {
             activeHref={pathname} 
             onSelect={handleNavigate} 
           />
+
+          <button
+            onClick={handleLogout}
+            className="mt-auto flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-destructive hover:bg-destructive/10 transition-colors"
+          >
+            <SignOutIcon size={18} weight="regular" />
+            Log out
+          </button>
           
         </div>
       </aside>

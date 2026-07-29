@@ -355,23 +355,27 @@ async def update_application_status(id: int,data: JobApplicationStatusUpdate,
     return application
 
 
+# routers/jobs.py
+
 @router.get("/{job_id}/accepted-application", response_model=JobAppplicationResponse)
-async def get_accepted_application(job_id:int, db:AsyncSession=Depends(get_db), current_user=Depends(get_current_user)):
+async def get_accepted_application(job_id: int, db: AsyncSession = Depends(get_db), current_user=Depends(get_current_user)):
     result = await db.execute(select(Job).where(Job.id == job_id))
-
     job = result.scalar_one_or_none()
-
     if not job:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="job not found")
-    
-    if job.owner_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
-                             detail="only job owners can view accepted applicants")
 
-    result = await db.execute(select(JobApplication).where(JobApplication.job_id == job.id,
-                                                            JobApplication.status == ApplicationStatus.ACCEPTED))
-
+    result = await db.execute(select(JobApplication).where(
+        JobApplication.job_id == job.id,
+        JobApplication.status == ApplicationStatus.ACCEPTED))
     accepted_applicant = result.scalar_one_or_none()
 
+    if not accepted_applicant:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="no accepted application yet")
+
+    is_owner = job.owner_id == current_user.id
+    is_accepted_applicant = accepted_applicant.applicant_id == current_user.id
+
+    if not (is_owner or is_accepted_applicant):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="not authorized to view this")
+
     return accepted_applicant
-    

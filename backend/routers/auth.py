@@ -157,11 +157,12 @@ async def login_user(response: Response, form_data: OAuth2PasswordRequestForm=De
     token = create_access_token(data={"sub": str(db_user.id)})
 
     response.set_cookie(
-    key="access_token",
-    value=token,
-    httponly=True,
-    samesite="lax",
-    max_age=60 * 15
+        key="access_token",
+        value=token,
+        httponly=True,
+        samesite="lax",
+        max_age=60 * 15,
+        path="/",
     )
 
     return {"message": "Logged in"}
