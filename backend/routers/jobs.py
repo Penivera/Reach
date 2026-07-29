@@ -96,14 +96,18 @@ async def update_job(job_id:int, job_data:JobUpdate, db:AsyncSession=Depends(get
     if job.owner_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You are not allowed to update this job")
     
-    point = ST_GeogFromText(f"POINT({job_data.longitude} {job_data.latitude})")
-
     data = job_data.model_dump(exclude_unset=True)
 
-    data.pop("longitude")
-    data.pop("latitude")
+    update_data = data.model_dump(exclude_unset=True)
 
-    data["location"] = point
+    if "latitude" in update_data and "longitude" in update_data:
+        point = ST_GeogFromText(
+            f"POINT({update_data['longitude']} {update_data['latitude']})"
+        )
+
+        update_data.pop("latitude")
+        update_data.pop("longitude")
+        update_data["location"] = point
 
     for field, value in data.items():
         setattr(job,field, value)
@@ -192,7 +196,7 @@ async def get_nearby_jobs(data:NearbyJobQuery=Depends(), db:AsyncSession=Depends
     query = select(Job).where(ST_DWithin(Job.location, search_point, data.radius*1000))
 
     if data.category_id is not None:
-        query = query.where(Job.category_id == data.category_id).order_by(ST_Distance(Job.location, search_point))
+        query = query.where(Job.category_id == data.category_id)
 
     query = query.order_by(ST_Distance(Job.location, search_point))
 

@@ -1,7 +1,9 @@
-from sqlalchemy import String, Integer, ForeignKey, Float, Enum
+from sqlalchemy import String, Text, ForeignKey, Float, Enum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from DB.database import Base
 from schemas import ServiceStatus, ServiceRequestStatus
+from geoalchemy2.elements import WKBElement
+from geoalchemy2 import Geography
 from .mixins import TimeStampMixin
 
 class Service(Base, TimeStampMixin):
@@ -9,22 +11,23 @@ class Service(Base, TimeStampMixin):
 
     id: Mapped[int] = mapped_column(primary_key=True)
 
-    owner_id: Mapped[int] = mapped_column(
-        ForeignKey("users.id"),
-        index=True
-    )
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+
+    business_name: Mapped[str] = mapped_column(String(150), nullable=False)
 
     title: Mapped[str] = mapped_column(String, nullable=False)
 
     description: Mapped[str] = mapped_column(String, nullable=False)
 
-    min_price: Mapped[float] = mapped_column(Float, nullable=False)
-
-    max_price: Mapped[float] = mapped_column(Float, nullable=False)
+    starting_price: Mapped[float] = mapped_column(Float, nullable=False)
 
     status: Mapped[ServiceStatus] = mapped_column(Enum(ServiceStatus), nullable=False, default= ServiceStatus.ACTIVE)
 
     category_id: Mapped[int] = mapped_column(ForeignKey("categories.id"),index=True, nullable=False)
+
+    location: Mapped[WKBElement] = mapped_column(Geography(geometry_type="POINT", srid=4326, spatial_index=False, nullable=False))
+
+    location_name: Mapped[str]
 
     category = relationship("Category",back_populates="services")
 
@@ -38,15 +41,19 @@ class ServiceRequest(Base, TimeStampMixin):
 
     id: Mapped[int] = mapped_column(primary_key=True)
 
-    service_id: Mapped[int] = mapped_column(ForeignKey("services.id"),index=True)
+    service_id: Mapped[int] = mapped_column(ForeignKey("services.id"),index=True, nullable=False)
 
-    requester_id: Mapped[int] = mapped_column(ForeignKey("users.id"),index=True)
+    requester_id: Mapped[int] = mapped_column(ForeignKey("users.id"),index=True, nullable=False)
 
-    provider_id: Mapped[int] = mapped_column(ForeignKey("users.id"),index=True)
+    provider_id: Mapped[int] = mapped_column(ForeignKey("users.id"),index=True, nullable=False)
 
-    message: Mapped[str] = mapped_column(String, nullable=False)
+    message: Mapped[str] = mapped_column(Text, nullable=False)
 
     proposed_price: Mapped[float] = mapped_column(Float, nullable=False)
+
+    location: Mapped[WKBElement] = mapped_column(Geography(geometry_type="POINT", srid=4326, spatial_index=False, nullable=False))
+    
+    location_name: Mapped[str]
 
     status: Mapped[ServiceRequestStatus] = mapped_column(Enum(ServiceRequestStatus), nullable=False, default=ServiceRequestStatus.PENDING)
 
