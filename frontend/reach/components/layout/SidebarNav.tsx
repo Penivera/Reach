@@ -6,6 +6,7 @@ import NavSection from "../ui/NavSection";
 import { customerItems, providerItems, activityItems, settingsItems } from "@/data";
 import { ArrowsClockwiseIcon, XIcon, SignOutIcon } from "@phosphor-icons/react";
 import { useAuth } from "@/context/AuthContext"; 
+import { useScope } from "@/context/ScopeContext";
 
 interface SidebarUser {
   initials: string;
@@ -66,9 +67,9 @@ function SidebarNav({ isOpen, onClose }: SidebarNavProps) {
   const [mode, setMode] = useState<"customer" | "provider">("customer");
   const pathname = usePathname();
   const router = useRouter();
+  const { scope } = useScope();
+  const isCustomer = scope === "customer";
   
-
-  const isCustomer = mode === "customer";
   const roleTitle = isCustomer ? "Customer" : "Provider";
   const roleItems = isCustomer ? customerItems : providerItems;
   const handleNavigate = (href: string) => {
