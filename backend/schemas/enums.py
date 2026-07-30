@@ -30,6 +30,7 @@ class ServiceStatus(str, Enum):
     ARCHIVED = "archived"
 
 class ServiceRequestStatus(str, Enum):
+    START = "start"
     PENDING = "pending"
     ACCEPTED = "accepted"
     DECLINED = "declined"

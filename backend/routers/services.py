@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Depends, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from dependencies import get_db, get_current_user
-from schemas import ServiceCreate, ServiceResponse, ServiceUpdate, ServiceStatus, NearbyServiceQuery
+from schemas import ServiceCreate, ServiceResponse, ServiceUpdate, ServiceStatus, NearbyServiceQuery, ServiceRequestResponse, ServiceRequestCreate, ServiceRequestStatus
 from models import Category, Service, ServiceRequest
 from geoalchemy2.functions import ST_Distance, ST_DWithin, ST_GeogFromText
 
@@ -179,42 +179,212 @@ async def archive_service(service_id:int, db:AsyncSession=Depends(get_db), curre
 
 #client 
 
-@router.post("/requests")
-async def create_service_request():
-    pass
+@router.post("/requests", response_model=ServiceRequestResponse)
+async def create_service_request(requests_data:ServiceRequestCreate, db:AsyncSession=Depends(get_db), current_user=Depends(get_current_user)):
+    result = await db.execute(select(Service).where(Service.id == requests_data.service_id,
+                                                    Service.status == ServiceStatus.ACTIVE))
+
+    service = result.scalar_one_or_none()
+
+    if not service:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="service not found")
+
+    if service.owner_id == current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="you cannot request your own service")
 
 
-@router.get("/requests/me")
-async def get_service_requests():
-    pass
+    # prevent duplicate service requests
+
+    result = await db.execute(select(ServiceRequest).where(ServiceRequest.service_id == service.id,
+                                                           ServiceRequest.requester_id == current_user.id))
+
+    existing_service_requests = result.scalar_one_or_none()
+
+    if existing_service_requests:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="You already have a pending request for this service.")
+
+    point = ST_GeogFromText(f"POINT({requests_data.longitude} {requests_data.latitude})")
+            
+    data = requests_data.model_dump()
+
+    data.pop("latitude")
+    data.pop("longitude")
+    data["location"] = point
+
+    new_request = ServiceRequest(**data,requester_id=current_user.id, 
+                                 provider_id=service.owner_id)
+
+    db.add(new_request)
+
+    try:
+        await db.commit()
+        await db.refresh(new_request)
+    except Exception:
+        await db.rollback()
+        raise
+
+    return new_request
+    
+
+@router.get("/requests/me", response_model=list[ServiceRequestResponse])
+async def get_service_requests(db:AsyncSession=Depends(get_db), current_user=Depends(get_current_user)):
+    result = await db.execute(select(ServiceRequest).where(ServiceRequest.requester_id == current_user.id))
+
+    requests = result.scalars().all()
+
+    return requests
 
 @router.patch("/requests/{request_id}/cancel")
-async def cancel_service_request():
-    pass
+async def cancel_service_request(request_id:int, db:AsyncSession=Depends(get_db), current_user=Depends(get_current_user)):
+    result = await db.execute(select(ServiceRequest).where(ServiceRequest.id == request_id))
 
-@router.get("/requests/{request_id}")
-async def get_service_request():
-    pass
+    request = result.scalar_one_or_none()
+
+    if not request:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="service request not found")
+
+    if request.requester_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="only requester can cancel request")
+
+    if request.status != ServiceRequestStatus.PENDING:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Only pending requests can be cancelled.")
+    
+    request.status = ServiceRequestStatus.CANCELLED
+
+    try:
+        await db.commit()
+        await db.refresh(request)
+    except Exception:
+        await db.rollback()
+        raise
+
+    return {"message": "service request cancelled successfully"}
+
+@router.get("/requests/{request_id}", response_model=ServiceRequestResponse)
+async def get_service_request(request_id:int, db:AsyncSession=Depends(get_db), current_user=Depends(get_current_user)):
+    result = await db.execute(select(ServiceRequest).where(ServiceRequest.id == request_id))
+
+    request = result.scalar_one_or_none()
+
+    if not request:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="service request not found")
+
+    return request
 
 
 # Provider
 
-@router.get("/requests/received")
-async def get_service_request_received():
-    pass
+@router.get("/requests/received", response_model=list[ServiceRequestResponse])
+async def get_service_request_received(db:AsyncSession=Depends(get_db), current_user=Depends(get_current_user)):
+    result = await db.execute(select(ServiceRequest).where(ServiceRequest.provider_id == current_user.id))
+
+    received_request = result.scalars().all()
+
+    return received_request
 
 @router.patch("/requests/{request_id}/accept")
-async def accept_service_request():
-    pass
+async def accept_service_request(request_id:int, db:AsyncSession=Depends(get_db), current_user=Depends(get_current_user)):
+    result = await db.execute(select(ServiceRequest).where(ServiceRequest.id == request_id))
+
+    request = result.scalar_one_or_none()
+
+    if not request:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="service request not found")
+
+    if request.provider_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="only service provider can update this request status")
+
+    if request.status != ServiceRequestStatus.PENDING:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="only pending service request can be accepted")
+
+    request.status = ServiceRequestStatus.ACCEPTED
+
+
+    try:
+        await db.commit()
+        await db.refresh(request)
+    except Exception:
+        await db.rollback()
+        raise
+
+    return {"message" : "service request accepted successfully"}
+
 
 @router.patch("/requests/{request_id}/decline")
-async def decline_service_request():
-    pass
+async def decline_service_request(request_id:int, db:AsyncSession=Depends(get_db), current_user=Depends(get_current_user)):
+    result = await db.execute(select(ServiceRequest).where(ServiceRequest.id == request_id))
+
+    request = result.scalar_one_or_none()
+
+    if not request:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="service request not found")
+
+    if request.provider_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="only assigned service provider is allowed to update this request status")
+
+    if request.status != ServiceRequestStatus.PENDING:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="only pending request can be declined")
+
+    request.status = ServiceRequestStatus.DECLINED
+
+    try:
+        await db.commit()
+        await db.refresh(request)
+    except Exception:
+        await db.rollback()
+        raise
+
+    return {"message": "service request declined successfully"}
 
 @router.patch("/requests/{request_id}/start")
-async def start_work():
-    pass
+async def start_work(request_id:int, db:AsyncSession=Depends(get_db), current_user=Depends(get_current_user)):
+    result = await db.execute(select(ServiceRequest).where(ServiceRequest.id == request_id))
+
+    request = result.scalar_one_or_none()
+
+    if not request:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="service request not found")
+
+    if request.provider_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="only assigned service providers can update this request status")
+
+    if request.status != ServiceRequestStatus.ACCEPTED:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="you can only start accepted service request")
+
+    request.status = ServiceRequestStatus.START
+
+    try:
+        await db.commit()
+        await db.refresh(request)
+    except Exception:
+        await db.rollback()
+        raise 
+
+    return {"message": "work started successfully"}
 
 @router.patch("/requests/{request_id}/complete")
-async def service_request_completed():
-    pass
+async def service_request_completed(request_id:int, db:AsyncSession=Depends(get_db), current_user=Depends(get_current_user)):
+    result = await db.execute(select(ServiceRequest).where(ServiceRequest.id == request_id))
+
+    request = result.scalar_one_or_none()
+
+    if not request:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="service request not found")
+
+    if request.provider_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="only assigned service provider can update this service request")
+
+    if request.status != ServiceRequestStatus.START:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="only START requests can be comleted")
+
+    request.status = ServiceRequestStatus.COMPLETED
+
+    try:
+        await db.commit()
+        await db.refresh(request)
+    except Exception:
+        await db.rollback()
+        raise
+
+    return {"message" : "service request completed successfully"}

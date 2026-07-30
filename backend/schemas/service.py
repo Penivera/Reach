@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, ConfigDict, field_validator
-from .enums import ServiceStatus
+from .enums import ServiceStatus, ServiceRequestStatus
 from datetime import datetime
 from typing import Optional
 
@@ -107,12 +107,57 @@ class NearbyServiceQuery(BaseModel):
 
 
 class ServiceRequestCreate(BaseModel):
-    pass
+    service_id: int
 
+    message: str = Field(min_length=10, max_length=1000)
 
-class ServiceRequestUpdate(BaseModel):
-    pass
+    proposed_price: float = Field(gt=0)
+
+    latitude: float
+
+    longitude: float
+
+    location_name: str
+
+    @field_validator("latitude")
+    @classmethod
+    def validate_latitude(cls, value):
+        if not -90 <= value <= 90:
+            raise ValueError("Latitude must be between -90 and 90.")
+        return value
+
+    @field_validator("longitude")
+    @classmethod
+    def validate_longitude(cls, value):
+        if not -180 <= value <= 180:
+            raise ValueError("Longitude must be between -180 and 180.")
+        return value
+
 
 class ServiceRequestResponse(BaseModel):
-    pass
+    id: int
+
+    service_id: int
+
+    requester_id: int
+
+    provider_id: int
+
+    message: str
+
+    proposed_price: float
+
+    status: ServiceRequestStatus
+
+    location_name: str
+
+    latitude: float
+
+    longitude: float
+
+    created_at: datetime
+
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
 
