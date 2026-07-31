@@ -221,3 +221,4 @@ test-ledger/
 
 # Firebase
 secrets/firebase-service-account.json
+.agents/
