@@ -148,161 +148,221 @@ const confirmAccept = async () => {
 
   const handleCompleteJob = () => {}
 
-  return (
-    <div className="min-h-screen bg-background pb-28">
-      <div className="mx-auto w-full max-w-2xl px-4 py-6 md:px-8">
+return (
+    <div className="min-h-screen bg-background pb-28 md:pb-12">
+      <div className="mx-auto w-full max-w-5xl px-4 py-6 md:px-8 md:py-10">
+        
         {/* Header */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 mb-6 md:mb-8">
           <button
             onClick={() => router.back()}
             aria-label="Go back"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-foreground"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-foreground hover:bg-shade transition-colors"
           >
             <ArrowLeftIcon size={20} weight="regular" />
           </button>
-          <h1 className="text-base font-semibold text-foreground">Request details</h1>
+          <h1 className="text-base md:text-xl font-semibold text-foreground">Request details</h1>
         </div>
 
-        {/* Poster row */}
-        <div className="mt-5 flex items-center gap-3">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
-            {getInitials(poster)}
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-foreground">
-              {getDisplayName(poster)}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Posted {formatPostedAt(job.created_at)} · {job.location_name}
-            </p>
-          </div>
-        </div>
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-8 lg:gap-12">
+          
+          {/* Left Column: Core Details */}
+          <div className="md:col-span-7 flex flex-col gap-6 md:gap-8">
+            
+            {/* Title + description */}
+            <div>
+              <h2 className="text-2xl md:text-3xl font-bold leading-snug text-foreground">
+                {job.title}
+              </h2>
+              <p className="mt-4 text-sm md:text-base leading-relaxed text-muted-foreground whitespace-pre-wrap">
+                {job.description}
+              </p>
+            </div>
 
-        {/* Title + description */}
-        <h2 className="mt-4 text-xl font-bold leading-snug text-foreground">
-          {job.title}
-        </h2>
-        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-          {job.description}
-        </p>
-
-        {/* Budget + status */}
-        <div className="mt-5 grid grid-cols-2 gap-3">
-          <div className="rounded-xl border border-stroke bg-shade p-4">
-            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-              Budget Offered
-            </p>
-            <p className="mt-1 text-lg font-bold text-foreground">
-              ₦{job.budget.toLocaleString()}
-            </p>
-          </div>
-          <div className="rounded-xl border border-stroke bg-shade p-4">
-            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-              Status
-            </p>
-            <p className="mt-1 text-sm font-semibold capitalize text-foreground">
-              {job.status.replace("_", " ")}
-            </p>
-          </div>
-        </div>
-
-        {/* Location */}
-        <div className="mt-3 rounded-xl border border-stroke bg-shade p-4">
-          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-            Location
-          </p>
-          <p className="mt-1 text-sm font-semibold text-foreground">
-            {job.location_name}
-          </p>
-        </div>
-
-        {/* Map placeholder */}
-        <div className="mt-3 flex h-40 items-center justify-center rounded-xl border border-stroke bg-gradient-to-br from-primary/5 to-emerald-50">
-          <p className="text-xs text-muted-foreground">
-            Map pin at {job.latitude.toFixed(4)}, {job.longitude.toFixed(4)}
-          </p>
-        </div>
-
-        {/* People interested */}
-        <div className="mt-3 flex flex-col gap-2">
-          {job.status === "in_progress"
-            ? acceptedApplication &&
-              (isPoster || isAcceptedApplicant) && (
-                <ApplicantTile
-                  key={acceptedApplication.id}
-                  application={acceptedApplication}
-                  applicant={applicants[acceptedApplication.applicant_id] ?? null}
-                  isPoster={isPoster}
-                  accepted
+            {/* Live OpenStreetMap Integration */}
+            <div>
+              <h3 className="text-sm font-semibold text-foreground mb-3 hidden md:block">Location Map</h3>
+              <div className="h-48 md:h-64 w-full overflow-hidden rounded-xl border border-stroke bg-shade relative">
+                <iframe
+                  width="100%"
+                  height="100%"
+                  frameBorder="0"
+                  scrolling="no"
+                  marginHeight={0}
+                  marginWidth={0}
+                  src={`https://www.openstreetmap.org/export/embed.html?bbox=${job.longitude - 0.005},${job.latitude - 0.005},${job.longitude + 0.005},${job.latitude + 0.005}&layer=mapnik&marker=${job.latitude},${job.longitude}`}
+                  className="absolute inset-0"
+                  style={{ filter: "grayscale(20%) contrast(1.1)" }} // Slight filter to make it fit UI better
                 />
-              )
-            : applications.map((app) => (
-                <ApplicantTile
-                  key={app.id}
-                  application={app}
-                  applicant={applicants[app.applicant_id] ?? null}
-                  isPoster={isPoster}
-                  onAccept={() => openAcceptModal(app)}
-                  accepting={accepting && acceptTarget?.application.id === app.id}
-                />
-              ))}
+              </div>
+            </div>
+
+            {/* People interested */}
+            <div className="flex flex-col gap-3">
+              <h3 className="text-sm font-semibold text-foreground">Applicants</h3>
+              {job.status === "in_progress"
+                ? acceptedApplication &&
+                  (isPoster || isAcceptedApplicant) && (
+                    <ApplicantTile
+                      key={acceptedApplication.id}
+                      application={acceptedApplication}
+                      applicant={applicants[acceptedApplication.applicant_id] ?? null}
+                      isPoster={isPoster}
+                      accepted
+                    />
+                  )
+                : applications.map((app) => (
+                    <ApplicantTile
+                      key={app.id}
+                      application={app}
+                      applicant={applicants[app.applicant_id] ?? null}
+                      isPoster={isPoster}
+                      onAccept={() => openAcceptModal(app)}
+                      accepting={accepting && acceptTarget?.application.id === app.id}
+                    />
+                  ))}
+              {applications.length === 0 && job.status === "open" && (
+                <p className="text-sm text-muted-foreground p-4 text-center border border-dashed border-stroke rounded-xl">
+                  No applicants yet. Check back later!
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Right Column: Sticky Info & Actions */}
+          <div className="md:col-span-5">
+            <div className="rounded-xl border border-stroke bg-shade p-5 md:p-6 flex flex-col gap-5 sticky top-24">
+              
+              {/* Poster row */}
+              <div className="flex items-center gap-3 pb-5 border-b border-stroke">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary/10 text-base font-semibold text-primary">
+                  {getInitials(poster)}
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-foreground">
+                    {getDisplayName(poster)}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Posted {formatPostedAt(job.created_at)}
+                  </p>
+                </div>
+              </div>
+
+              {/* Budget + status */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Budget Offered</p>
+                  <p className="mt-1 text-xl font-bold text-foreground">₦{job.budget.toLocaleString()}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Status</p>
+                  <span className="mt-1 inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold capitalize text-primary">
+                    {job.status.replace("_", " ")}
+                  </span>
+                </div>
+              </div>
+
+              {/* Location Text */}
+              <div>
+                <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Neighborhood</p>
+                <p className="mt-1 text-sm font-medium text-foreground">{job.location_name}</p>
+              </div>
+
+              {/* Desktop Actions (Hidden on mobile, uses bottom bar instead) */}
+              <div className="hidden md:flex gap-3 pt-4 mt-2 border-t border-stroke">
+                {!isPoster && (
+                  <button
+                    onClick={() => router.push(`/chat/${job.posted_by}`)}
+                    aria-label="Message"
+                    className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-stroke bg-background text-foreground hover:bg-border transition-colors"
+                  >
+                    <ChatIcon className="h-5 w-5" />
+                  </button>
+                )}
+
+                {!isPoster && job.status === "open" && (
+                  <button onClick={() => setApplyModalOpen(true)} className="flex-1 rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground hover:opacity-90 transition-opacity">
+                    I can do this
+                  </button>
+                )}
+
+                {isPoster && job.status === "open" && (
+                  <button
+                    onClick={() => router.push(`/requests/${jobId}/edit`)}
+                    className="flex-1 rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground hover:opacity-90 transition-opacity"
+                  >
+                    Edit request
+                  </button>
+                )}
+
+                {job.status === "in_progress" && isAcceptedApplicant && (
+                  <button
+                    onClick={() => setCompleteSheetOpen(true)}
+                    className="flex-1 rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground hover:opacity-90 transition-opacity"
+                  >
+                    Mark job complete
+                  </button>
+                )}
+
+                {job.status === "in_progress" && isPoster && (
+                  <button
+                    onClick={() => setCompleteSheetOpen(true)}
+                    className="flex-1 rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground hover:opacity-90 transition-opacity"
+                  >
+                    Complete and sign off
+                  </button>
+                )}
+
+                {!isPoster && job.status === "in_progress" && !isAcceptedApplicant && (
+                  <button disabled className="flex-1 cursor-not-allowed rounded-lg bg-muted px-4 py-3 text-sm font-semibold text-muted-foreground">
+                    No longer open
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Bottom action bar */}
-
-    <div className="fixed inset-x-0 bottom-0 border-t border-stroke bg-background p-4">
-      <div className="mx-auto flex w-full max-w-2xl items-center gap-3">
-        {!isPoster && (
-          <button
-            onClick={() => router.push(`/chat/${job.posted_by}`)}
-            aria-label="Message"
-            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-stroke bg-shade text-foreground"
-          >
-            <ChatIcon className="h-4 w-4" />
-          </button>
-        )}
-
-        {!isPoster && job.status === "open" && (
-          <button onClick={() => setApplyModalOpen(true)} className="flex-1 rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground">
-            I can do this
-          </button>
-        )}
-
-        {isPoster && job.status === "open" && (
-          <button
-            onClick={() => router.push(`/requests/${jobId}/edit`)}
-            className="flex-1 rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground"
-          >
-            Edit request
-          </button>
-        )}
-
-        {job.status === "in_progress" && isAcceptedApplicant && (
-          <button
-            onClick={() => setCompleteSheetOpen(true)}
-            className="flex-1 rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground"
-          >
-            Mark job complete
-          </button>
-        )}
-
-        {job.status === "in_progress" && isPoster && (
-          <button
-            onClick={() => setCompleteSheetOpen(true)}
-            className="flex-1 rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground"
-          >
-            Complete and sign off
-          </button>
-        )}
-
-        {!isPoster && job.status === "in_progress" && !isAcceptedApplicant && (
-          <button disabled className="flex-1 cursor-not-allowed rounded-lg bg-muted px-4 py-3 text-sm font-semibold text-muted-foreground">
-            No longer open
-          </button>
-        )}
+      {/* Mobile-only bottom action bar */}
+      <div className="fixed inset-x-0 bottom-0 border-t border-stroke bg-background p-4 md:hidden z-20">
+        <div className="mx-auto flex w-full max-w-lg items-center gap-3">
+          {!isPoster && (
+            <button
+              onClick={() => router.push(`/chat/${job.posted_by}`)}
+              aria-label="Message"
+              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-stroke bg-shade text-foreground"
+            >
+              <ChatIcon className="h-5 w-5" />
+            </button>
+          )}
+          {!isPoster && job.status === "open" && (
+            <button onClick={() => setApplyModalOpen(true)} className="flex-1 rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground">
+              I can do this
+            </button>
+          )}
+          {isPoster && job.status === "open" && (
+            <button onClick={() => router.push(`/requests/${jobId}/edit`)} className="flex-1 rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground">
+              Edit request
+            </button>
+          )}
+          {job.status === "in_progress" && isAcceptedApplicant && (
+            <button onClick={() => setCompleteSheetOpen(true)} className="flex-1 rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground">
+              Mark job complete
+            </button>
+          )}
+          {job.status === "in_progress" && isPoster && (
+            <button onClick={() => setCompleteSheetOpen(true)} className="flex-1 rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground">
+              Complete and sign off
+            </button>
+          )}
+          {!isPoster && job.status === "in_progress" && !isAcceptedApplicant && (
+            <button disabled className="flex-1 cursor-not-allowed rounded-lg bg-muted px-4 py-3 text-sm font-semibold text-muted-foreground">
+              No longer open
+            </button>
+          )}
+        </div>
       </div>
-    </div>
 
       <ApplyJobModal
         isOpen={applyModalOpen}
@@ -345,27 +405,24 @@ const confirmAccept = async () => {
 
 function RequestDetailSkeleton() {
   return (
-    <div className="min-h-screen bg-background">
-      <div className="mx-auto w-full max-w-2xl px-4 py-6 md:px-8">
-        <div className="flex items-center gap-3 animate-pulse">
+    <div className="min-h-screen bg-background pb-24 md:pb-12">
+      <div className="mx-auto w-full max-w-5xl px-4 py-6 md:px-8 md:py-10">
+        <div className="flex items-center gap-3 animate-pulse mb-8">
           <div className="h-9 w-9 rounded-lg bg-muted" />
           <div className="h-4 w-32 rounded-md bg-muted" />
         </div>
-        <div className="mt-5 flex items-center gap-3 animate-pulse">
-          <div className="h-11 w-11 rounded-full bg-muted" />
-          <div className="flex flex-col gap-2">
-            <div className="h-3 w-24 rounded-md bg-muted" />
-            <div className="h-3 w-32 rounded-md bg-muted" />
+        
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-8 lg:gap-12">
+          <div className="md:col-span-7 space-y-6">
+            <div className="space-y-2 animate-pulse">
+              <div className="h-8 w-3/4 rounded-md bg-muted" />
+              <div className="h-4 w-full rounded-md bg-muted mt-4" />
+              <div className="h-4 w-5/6 rounded-md bg-muted" />
+            </div>
+            <div className="h-48 w-full rounded-xl bg-muted animate-pulse mt-6" />
           </div>
-        </div>
-        <div className="mt-5 space-y-2 animate-pulse">
-          <div className="h-5 w-2/3 rounded-md bg-muted" />
-          <div className="h-3 w-full rounded-md bg-muted" />
-          <div className="h-3 w-5/6 rounded-md bg-muted" />
-        </div>
-        <div className="mt-5 grid grid-cols-2 gap-3 animate-pulse">
-          <div className="h-20 rounded-xl bg-muted" />
-          <div className="h-20 rounded-xl bg-muted" />
+
+          <div className="md:col-span-5 h-64 rounded-xl bg-muted animate-pulse" />
         </div>
       </div>
     </div>

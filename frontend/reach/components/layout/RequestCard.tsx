@@ -49,7 +49,7 @@ export function RequestCard({ request, hasApplied }: { request: Job; hasApplied?
           goToDetail();
         }
       }}
-      className="cursor-pointer rounded-xl border border-stroke bg-shade p-4"
+      className="cursor-pointer rounded-xl border border-stroke bg-shade p-4 transition-all duration-200 ease-in-out hover:-translate-y-1 hover:shadow-md hover:border-primary/30"
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2">

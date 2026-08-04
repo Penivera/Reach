@@ -68,10 +68,10 @@ export default function ProviderListingsPage() {
     key === "all" ? services.length : services.filter((s) => s.status === key).length;
 
   return (
-    <div className="min-h-screen bg-background pb-24">
-      <div className="mx-auto w-full max-w-lg px-4 py-6">
+    <div className="min-h-screen bg-background pb-24 md:pb-12">
+      <div className="mx-auto w-full max-w-5xl px-4 py-6 md:px-8 md:py-10">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">My Listings</h1>
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">My Listings</h1>
           <NestedButton onClick={() => router.push("/provider/listings/new")}>+ New</NestedButton>
         </div>
 
@@ -102,7 +102,7 @@ export default function ProviderListingsPage() {
         </div>
 
         {loading ? (
-          <div className="mt-4 flex flex-col gap-3 animate-pulse">
+          <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 animate-pulse">
             {[...Array(3)].map((_, i) => (
               <div key={i} className="h-20 rounded-xl bg-muted" />
             ))}
@@ -115,12 +115,12 @@ export default function ProviderListingsPage() {
             </p>
           </div>
         ) : (
-          <div className="mt-4 flex flex-col gap-3">
+          <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
             {filtered.map((service) => (
               <button
                 key={service.id}
                 onClick={() => router.push(`/provider/listings/${service.id}`)}
-                className="flex items-center gap-3 rounded-xl border border-stroke bg-shade p-3 text-left"
+                className="flex items-center gap-4 rounded-xl border border-stroke bg-shade p-3 md:p-4 text-left transition-colors hover:border-primary/50"
               >
                 <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-muted">
                   <PackageIcon size={20} className="text-muted-foreground" />
@@ -141,7 +141,6 @@ export default function ProviderListingsPage() {
         )}
       </div>
 
-      <ProviderTabBar />
     </div>
   );
 }

@@ -8,13 +8,8 @@ import { ArrowsClockwiseIcon, XIcon, SignOutIcon } from "@phosphor-icons/react";
 import { useAuth } from "@/context/AuthContext"; 
 import { useScope } from "@/context/ScopeContext";
 
-interface SidebarUser {
-  initials: string;
-  name: string;
-}
 
 interface SidebarNavProps {
-  user: SidebarUser;
   isOpen: boolean;
   onClose: () => void;
 }

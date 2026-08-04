@@ -54,7 +54,11 @@ useEffect(() => {
       ) : (
           <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
             {jobs.map((job) => (
-              <RequestCard request={job} hasApplied={appliedJobIds.has(job.id)} />
+              <RequestCard 
+                key={job.id} 
+                request={job} 
+                hasApplied={appliedJobIds.has(job.id)} 
+              />
             ))}
           </div>
         )}

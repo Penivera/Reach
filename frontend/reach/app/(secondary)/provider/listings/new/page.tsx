@@ -55,26 +55,31 @@ export default function NewListingPage() {
     }
   };
 
-  return (
-    <div className="min-h-screen bg-background pb-10">
-      <div className="mx-auto w-full max-w-lg px-4 py-6">
-        <div className="flex items-center justify-between">
+return (
+    <div className="relative min-h-screen text-foreground flex items-start md:items-center justify-center p-0 md:p-6 pb-24 md:pb-6">
+      <div id="auth-bg" aria-hidden="true" className="hidden md:block" />
+      
+      <div className="w-full max-w-lg border-0 bg-background p-4 py-6 md:p-6 md:rounded-lg md:shadow-md md:border md:border-foreground relative z-10">
+        
+        <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
             <button
               onClick={() => router.back()}
               aria-label="Go back"
-              className="flex h-9 w-9 items-center justify-center rounded-lg text-foreground hover:bg-shade transition-colors"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-foreground hover:bg-primary/10 transition-colors"
             >
-              <ArrowLeftIcon size={20} weight="regular" />
+              <ArrowLeftIcon size={16} weight="bold" />
             </button>
-            <h1 className="text-base font-semibold text-foreground">New Listing</h1>
+            <div className="space-y-1 text-left">
+              <h2 className="text-xl md:text-2xl font-bold tracking-tight">New Listing</h2>
+            </div>
           </div>
           <Button intent="action" variant="primary" onClick={handlePublish} loading={publishing}>
             Publish
           </Button>
         </div>
 
-        <div className="mt-6 space-y-5">
+        <div className="space-y-5">
           <Input
             id="title"
             label="Service title"

@@ -102,15 +102,5 @@ The backend is expected to be run from the full repository. If you are working i
 
 This frontend is already wired for authentication flows and uses the backend API through a small shared API layer. The product experience is still expanding, so expect additional routes and features as the marketplace evolves.
 
-## Contributing
-
-If you want to contribute:
-
-1. Create a feature branch
-2. Make your changes
-3. Run the app locally
-4. Open a pull request with a clear summary
-
-## Status
 
 Reach is currently in an early but active stage, with authentication and core frontend structure in place and the broader marketplace experience still being built out.

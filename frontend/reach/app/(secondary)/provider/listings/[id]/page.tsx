@@ -81,14 +81,23 @@ export default function ManageListingPage() {
     }
   };
 
-  if (loading) {
+if (loading) {
     return (
-      <div className="min-h-screen bg-background pb-24">
-        <div className="mx-auto w-full max-w-lg px-4 py-6 animate-pulse">
-          <div className="h-9 w-9 rounded-lg bg-muted" />
-          <div className="mt-4 h-5 w-2/3 rounded bg-muted" />
-          <div className="mt-2 h-4 w-24 rounded bg-muted" />
-          <div className="mt-3 h-8 w-32 rounded bg-muted" />
+      <div className="min-h-screen bg-background pb-24 md:pb-12">
+        <div className="mx-auto w-full max-w-5xl px-4 py-6 md:px-8 md:py-10 animate-pulse">
+          <div className="h-9 w-32 rounded-lg bg-muted mb-8" />
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
+            <div className="md:col-span-7">
+              <div className="h-6 w-24 rounded-full bg-muted mb-4" />
+              <div className="h-8 md:h-10 w-3/4 rounded bg-muted mb-6" />
+              <div className="space-y-2">
+                <div className="h-4 w-full rounded bg-muted" />
+                <div className="h-4 w-full rounded bg-muted" />
+                <div className="h-4 w-2/3 rounded bg-muted" />
+              </div>
+            </div>
+            <div className="md:col-span-5 h-48 rounded-xl bg-muted" />
+          </div>
         </div>
       </div>
     );
@@ -102,10 +111,12 @@ export default function ManageListingPage() {
     );
   }
 
-  return (
-    <div className="min-h-screen bg-background pb-24">
-      <div className="mx-auto w-full max-w-lg px-4 py-6">
-        <div className="flex items-center justify-between">
+return (
+    <div className="min-h-screen bg-background pb-24 md:pb-12">
+      <div className="mx-auto w-full max-w-5xl px-4 py-6 md:px-8 md:py-10">
+        
+        {/* Header */}
+        <div className="flex items-center justify-between mb-6 md:mb-8">
           <div className="flex items-center gap-3">
             <button
               onClick={() => router.back()}
@@ -114,40 +125,71 @@ export default function ManageListingPage() {
             >
               <ArrowLeftIcon size={20} weight="regular" />
             </button>
-            <h1 className="text-base font-semibold text-foreground">Manage Listing</h1>
+            <h1 className="text-base md:text-xl font-semibold text-foreground">Manage Listing</h1>
           </div>
           {statusBadge(service.status)}
         </div>
 
-        <h2 className="mt-5 text-lg font-bold text-foreground">{service.title}</h2>
-        <span className="mt-1 inline-block rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground">
-          {categoryName}
-        </span>
-        <p className="mt-2 text-2xl font-bold text-foreground">{formatPriceRange(service)}</p>
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-8 lg:gap-12">
+          
+          {/* Left Column: Details */}
+          <div className="md:col-span-7 flex flex-col items-start">
+            <span className="inline-block rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground mb-3 md:mb-4">
+              {categoryName}
+            </span>
+            <h2 className="text-2xl md:text-3xl font-bold text-foreground">{service.title}</h2>
+            
+            <div className="mt-6 md:mt-8 w-full border-t border-stroke/50 pt-6">
+              <h3 className="text-sm font-semibold text-foreground mb-2 hidden md:block">Description</h3>
+              <p className="text-sm md:text-base leading-relaxed text-muted-foreground whitespace-pre-wrap">
+                {service.description}
+              </p>
+            </div>
+          </div>
 
-        <p className="mt-4 text-sm leading-relaxed text-muted-foreground">{service.description}</p>
+          {/* Right Column: Pricing & Actions Card */}
+          <div className="md:col-span-5">
+            <div className="rounded-xl border border-stroke bg-shade p-5 md:p-6 flex flex-col gap-6 sticky top-24">
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Pricing</p>
+                <p className="text-2xl md:text-3xl font-bold text-foreground">{formatPriceRange(service)}</p>
+              </div>
 
-        <div className="mt-6 flex gap-2.5">
-          <NestedButton
-            variant="secondary"
-            className="flex-1 justify-center py-2.5"
-            onClick={handleTogglePause}
-            disabled={updating || service.status === "archived"}
-          >
-            {service.status === "active" ? "Pause listing" : "Activate listing"}
-          </NestedButton>
-          <NestedButton
-            variant="secondary"
-            className="flex-1 justify-center py-2.5 !border-destructive/30 !text-destructive"
-            onClick={handleArchive}
-            disabled={updating || service.status === "archived"}
-          >
-            Archive
-          </NestedButton>
+              <div className="flex flex-col gap-3">
+                {/* Edit Button - Hidden on mobile (uses bottom bar), visible on desktop */}
+                <button
+                  onClick={() => router.push(`/provider/listings/${service.id}/edit`)}
+                  className="hidden md:block w-full rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground hover:opacity-90 transition-opacity"
+                >
+                  Edit Details
+                </button>
+                
+                <div className="flex gap-2.5 md:flex-col mt-2 md:mt-0">
+                  <NestedButton
+                    variant="secondary"
+                    className="flex-1 justify-center py-2.5 md:py-3"
+                    onClick={handleTogglePause}
+                    disabled={updating || service.status === "archived"}
+                  >
+                    {service.status === "active" ? "Pause listing" : "Activate listing"}
+                  </NestedButton>
+                  <NestedButton
+                    variant="secondary"
+                    className="flex-1 justify-center py-2.5 md:py-3 border-destructive/30! text-destructive!"
+                    onClick={handleArchive}
+                    disabled={updating || service.status === "archived"}
+                  >
+                    Archive
+                  </NestedButton>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div className="fixed inset-x-0 bottom-0 border-t border-stroke bg-background p-4">
+      {/* Mobile-only fixed bottom bar */}
+      <div className="fixed inset-x-0 bottom-0 border-t border-stroke bg-background p-4 md:hidden z-20">
         <div className="mx-auto w-full max-w-lg">
           <button
             onClick={() => router.push(`/provider/listings/${service.id}/edit`)}

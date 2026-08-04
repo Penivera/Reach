@@ -15,7 +15,7 @@ export default function ProviderTabBar() {
   const router = useRouter();
 
   return (
-    <div className="fixed inset-x-0 bottom-0 border-t border-stroke bg-background">
+    <div className="fixed inset-x-0 bottom-0 border-t border-stroke bg-background md:hidden">
       <div className="mx-auto flex w-full max-w-lg items-center justify-around px-2 py-2">
         {TABS.map(({ href, label, icon: Icon }) => {
           const active = pathname === href;
