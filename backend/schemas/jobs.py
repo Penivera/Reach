@@ -72,7 +72,8 @@ class JobResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-
+class JobCompletionRequest(BaseModel):
+    completed: bool
 
 class JobApplicationCreate(BaseModel):
     proposal_text: str

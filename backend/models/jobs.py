@@ -1,4 +1,4 @@
-from sqlalchemy import String, Integer, ForeignKey, Enum, Float
+from sqlalchemy import String, Integer, ForeignKey, Enum, Float, Boolean
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from DB.database import Base
 from schemas import ApplicationStatus, JobStatus
@@ -23,6 +23,10 @@ class Job(Base, TimeStampMixin):
     location: Mapped[WKBElement] = mapped_column(Geography(geometry_type="POINT", srid=4326, spatial_index=False, nullable=False))
 
     location_name: Mapped[str]
+
+    client_completed = mapped_column(Boolean, default=False, nullable=False)
+
+    worker_completed = mapped_column(Boolean, default=False, nullable=False)
 
     owner = relationship("User", back_populates="jobs")
 
