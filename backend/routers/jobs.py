@@ -121,6 +121,55 @@ async def update_job(job_id:int, job_data:JobUpdate, db:AsyncSession=Depends(get
 
     return job
 
+@router.patch("/{job_id}/completion")
+async def complete_job(job_id:int, db:AsyncSession=Depends(get_db), current_user=Depends(get_current_user)):
+    #get job
+    result = await db.execute(select(Job).where(Job.id == job_id))
+    job = result.scalar_one_or_none()
+
+    #check if job exist
+    if not job:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="job not found")
+
+    #verify if job is in progress
+    if job.status != JobStatus.IN_PROGRESS:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="only jobs in progress can be completed")
+
+    #get accepted applicant
+    result = await db.execute(select(JobApplication).where(JobApplication.job_id == job_id,
+                                                        JobApplication.status == ApplicationStatus.ACCEPTED))
+
+    application = result.scalar_one_or_none()
+
+
+    if not application:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="no applicant not found for this job")
+
+    #Determine who is comleting the job (either employer or worker) and update the status
+    if current_user.id == job.owner_id:
+        job.client_completed = True
+
+    elif current_user.id == application.applicant_id:
+        job.worker_completed = True
+
+    else:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="you are not involved in this job")
+
+
+    # if check if both worker and employer has confirmed the job completion and commit it
+    if job.client_complete and job.worker_completed:
+        job.status = JobStatus.COMPLETED
+
+    try:
+        await db.commit()
+        await db.refresh(job)
+    except Exception:
+        await db.rollback()
+        raise
+
+    return job
+    
+
 
 
 @router.delete("/{job_id}", status_code=status.HTTP_204_NO_CONTENT)
