@@ -121,7 +121,7 @@ async def update_job(job_id:int, job_data:JobUpdate, db:AsyncSession=Depends(get
 
     return job
 
-@router.patch("/{job_id}/completion")
+@router.patch("/{job_id}/completion", response_model=JobResponse)
 async def complete_job(job_id:int, db:AsyncSession=Depends(get_db), current_user=Depends(get_current_user)):
     #get job
     result = await db.execute(select(Job).where(Job.id == job_id))
