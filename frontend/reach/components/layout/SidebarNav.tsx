@@ -7,6 +7,8 @@ import { customerItems, providerItems, activityItems, settingsItems } from "@/da
 import { ArrowsClockwiseIcon, XIcon, SignOutIcon } from "@phosphor-icons/react";
 import { useAuth } from "@/context/AuthContext"; 
 import { useScope } from "@/context/ScopeContext";
+import { useWallet } from "@/context/WalletContext";
+import { WalletIcon } from "@phosphor-icons/react";
 
 
 interface SidebarNavProps {
@@ -64,6 +66,7 @@ function SidebarNav({ isOpen, onClose }: SidebarNavProps) {
   const router = useRouter();
   const { scope } = useScope();
   const isCustomer = scope === "customer";
+  const { accountId, connect, disconnect } = useWallet();
   
   const roleTitle = isCustomer ? "Customer" : "Provider";
   const roleItems = isCustomer ? customerItems : providerItems;
@@ -128,6 +131,14 @@ function SidebarNav({ isOpen, onClose }: SidebarNavProps) {
           >
             <XIcon size={20} weight="bold" />
           </button>
+
+          <button
+          onClick={accountId ? disconnect : connect}
+          className="mb-6 flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground hover:bg-muted transition-colors"
+        >
+          <WalletIcon size={16} />
+          {accountId ? `${accountId.slice(0, 10)}...` : "Connect Wallet"}
+        </button>
         </div>
 
         <div className="flex flex-col gap-6">
