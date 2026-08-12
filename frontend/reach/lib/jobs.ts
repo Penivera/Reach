@@ -14,6 +14,7 @@ export type Job = {
   latitude: number;
   longitude: number;
   location_name: string;
+  near_task_id: number;
   created_at: string;
   updated_at: string;
 };
@@ -44,6 +45,7 @@ export type JobApplication = {
   proposal_text: string;
   proposed_price: number;
   status: ApplicationStatus;
+  near_application_id: number;
   created_at: string;
   updated_at: string;
 };
@@ -148,4 +150,14 @@ export function getAcceptedApplication(jobId: number): Promise<JobApplication> {
     method: "GET",
     silentStatuses: [403, 404],
   });
+}
+
+export function linkJobChain(jobId: number, near_task_id: number) {
+  return api(`/jobs/${jobId}/link-chain?near_task_id=${near_task_id}`, { method: "PATCH" });
+}
+export function linkApplicationChain(id: number, near_application_id: number) {
+  return api(`/jobs/applications/${id}/link-chain?near_application_id=${near_application_id}`, { method: "PATCH" });
+}
+export function completeJob(jobId: number): Promise<Job> {
+  return api(`/jobs/${jobId}/completion`, { method: "PATCH" });
 }

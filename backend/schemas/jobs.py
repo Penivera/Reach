@@ -67,6 +67,8 @@ class JobResponse(BaseModel):
     longitude: float
     location_name: str
 
+    near_task_id: int
+
     created_at: datetime
     updated_at: datetime
 
@@ -93,6 +95,8 @@ class JobAppplicationResponse(BaseModel):
     proposal_text: str
     proposed_price: float
     status: ApplicationStatus
+
+    near_application_id: int
 
     created_at: datetime
     updated_at: datetime

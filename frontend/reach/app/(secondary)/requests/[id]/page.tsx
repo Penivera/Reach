@@ -13,6 +13,12 @@ import AcceptApplicationModal from "@/components/layout/AcceptApplicationModal";
 import { updateApplicationStatus } from "@/lib/jobs"; 
 import CompleteJobSheet from "@/components/layout/CompleteJobSheet";
 import { getAcceptedApplication } from "@/lib/jobs";
+import { useWallet } from "@/context/WalletContext";
+import { getWalletSelector } from "@/lib/near/wallet-selector";
+import { acceptApplicationOnChain, approveWorkOnChain, completeTaskOnChain } from "@/lib/near/contract-calls";
+import { getNearApplicationId } from "@/lib/near/views";
+import { linkApplicationChain, completeJob } from "@/lib/jobs";
+import { toast } from "@/lib/toast";
 
 export default function RequestDetailPage() {
   const router = useRouter();
@@ -37,6 +43,9 @@ export default function RequestDetailPage() {
   const acceptedApplication = applications.find((a) => a.status === "accepted") ?? null;
   const isAcceptedApplicant =
   !!user && !!acceptedApplication && user.id === acceptedApplication.applicant_id;
+  const { accountId } = useWallet();
+
+
 
   useEffect(() => {
     let cancelled = false;
@@ -92,6 +101,16 @@ useEffect(() => {
     return <RequestDetailSkeleton />;
   }
 
+
+  useEffect(() => {
+  if (!isAcceptedApplicant) return;
+  const key = `reach:seen-acceptance:${jobId}`;
+  if (!localStorage.getItem(key)) {
+    localStorage.setItem(key, "1");
+    toast.success("You've been accepted for this job!");
+  }
+}, [isAcceptedApplicant, jobId]);
+
   if (!job) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-background px-6 text-center">
@@ -131,16 +150,20 @@ const confirmAccept = async () => {
   if (!acceptTarget) return;
   setAccepting(true);
   try {
-    await updateApplicationStatus(acceptTarget.application.id, {
-      status: "accepted",
-    });
-    const [freshJob, freshApplications] = await Promise.all([
-      getJob(jobId),
-      getJobApplications(jobId),
-    ]);
+    if (job!.near_task_id && accountId) {
+      const selector = await getWalletSelector();
+      const nearApplicationId = acceptTarget.application.near_application_id
+        ?? await getNearApplicationId(job!.near_task_id, /* applicant's account — need this on JobApplication or User */ "");
+      await acceptApplicationOnChain(selector, nearApplicationId);
+    }
+
+    await updateApplicationStatus(acceptTarget.application.id, { status: "accepted" });
+    const [freshJob, freshApplications] = await Promise.all([getJob(jobId), getJobApplications(jobId)]);
     setJob(freshJob);
     setApplications(freshApplications);
     setAcceptTarget(null);
+  } catch {
+    toast.error("Couldn't accept on-chain — funds weren't moved, nothing changed.");
   } finally {
     setAccepting(false);
   }
