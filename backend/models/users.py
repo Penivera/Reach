@@ -77,7 +77,9 @@ class User(Base, TimeStampMixin):
     verification_status: Mapped[VerificationStatus] = mapped_column(Enum(VerificationStatus), default=VerificationStatus.PENDING)
 
     jobs = relationship("Job", back_populates="owner")
-    services = relationship("Service", back_populates="owner")
+
+    # services = relationship("Service", back_populates="owner")
+
     verification_tokens = relationship("EmailVerificationToken", back_populates="user", cascade="all, delete-orphan")
 
     user_skills = relationship("UserSkill", back_populates="user", cascade="all, delete-orphan")
@@ -88,3 +90,4 @@ class User(Base, TimeStampMixin):
 
     received_service_requests = relationship("ServiceRequest",foreign_keys="ServiceRequest.provider_id",back_populates="provider")
 
+    business = relationship("Business", back_populates="owner", uselist=False)

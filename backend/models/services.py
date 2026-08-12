@@ -11,9 +11,7 @@ class Service(Base, TimeStampMixin):
 
     id: Mapped[int] = mapped_column(primary_key=True)
 
-    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
-
-    business_name: Mapped[str] = mapped_column(String(150), nullable=False)
+    business_id: Mapped[int] = mapped_column(ForeignKey("businesses.id"), index=True, nullable=False)
 
     title: Mapped[str] = mapped_column(String, nullable=False)
 
@@ -31,7 +29,7 @@ class Service(Base, TimeStampMixin):
 
     category = relationship("Category",back_populates="services")
 
-    owner = relationship("User",back_populates = "services")
+    business = relationship("Business", back_populates="services")
 
     requests = relationship("ServiceRequest", back_populates="service",cascade="all, delete-orphan")
 

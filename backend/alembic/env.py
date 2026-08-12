@@ -7,7 +7,7 @@ import asyncio
 
 from models import (User, UserSkill, Skill, EmailVerificationToken, PasswordResetToken, Service, ServiceRequest,
 Job, JobApplication, Category, ConversationParticipant, Coversation, Media, Notification, Report,
-Review, TimeStampMixin)
+Review, TimeStampMixin, Business)
 from alembic import context
 
 # this is the Alembic Config object, which provides
