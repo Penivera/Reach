@@ -5,7 +5,7 @@ from typing import Optional
 
 
 class ServiceCreate(BaseModel):
-    business_name: str = Field(min_length=2, max_length=150)
+    business_id: int
 
     title: str = Field(min_length=3, max_length=200)
 
@@ -37,7 +37,6 @@ class ServiceCreate(BaseModel):
 
 
 class ServiceUpdate(BaseModel):
-    business_name: Optional[str] = Field(default=None, min_length=2, max_length=150)
 
     title: Optional[str] = Field(default=None, min_length=3, max_length=200)
 
@@ -71,28 +70,22 @@ class ServiceUpdate(BaseModel):
 class ServiceResponse(BaseModel):
     id: int
 
-    business_name: str
+    business_id: int
 
     title: str
-
     description: str
-
     starting_price: float
 
     status: ServiceStatus
 
     category_id: int
 
-    owner_id: int
-
     location_name: str
 
     latitude: float
-
     longitude: float
 
     created_at: datetime
-
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)

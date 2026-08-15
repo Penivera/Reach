@@ -18,3 +18,5 @@ class Business(Base, TimeStampMixin):
     owner = relationship("User", back_populates="business")
 
     services = relationship("Service", back_populates="business")
+
+    media = relationship("Media", back_populates="business", cascade="all, delete-orphan")

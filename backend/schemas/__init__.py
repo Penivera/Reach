@@ -5,3 +5,4 @@ from .categories import CategoryCreate, CategoryResponse, CategoryUpdate
 from .skills import SkillCreate, SkillResponse, SkillUpdate, UserSkillUpdate
 from .jobs import JobApplicationCreate, JobApplicationUpdate, JobUpdate, JobAppplicationResponse, JobCreate, JobResponse, JobApplicationStatusUpdate, NearbyJobQuery, JobCompletionRequest
 from .service import ServiceCreate, ServiceUpdate, ServiceResponse, NearbyServiceQuery, ServiceRequestCreate, ServiceRequestResponse
+from .businesses import BusinessCreate, BusinessResponse, BusinessUpdate
