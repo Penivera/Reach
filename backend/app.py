@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from routers import auth_router, users_router, categories_router, skills_router, jobs_router, services_router
+from routers import auth_router, users_router, categories_router, skills_router, jobs_router, services_router, business_router
 from fastapi.middleware.cors import CORSMiddleware
 from DB.database import Base, engine
 
@@ -25,6 +25,7 @@ app.include_router(categories_router)
 app.include_router(skills_router)
 app.include_router(jobs_router)
 app.include_router(services_router)
+app.include_router(business_router)
 
 @app.get("/")
 async def index():

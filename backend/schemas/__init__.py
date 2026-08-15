@@ -6,3 +6,4 @@ from .skills import SkillCreate, SkillResponse, SkillUpdate, UserSkillUpdate
 from .jobs import JobApplicationCreate, JobApplicationUpdate, JobUpdate, JobAppplicationResponse, JobCreate, JobResponse, JobApplicationStatusUpdate, NearbyJobQuery, JobCompletionRequest
 from .service import ServiceCreate, ServiceUpdate, ServiceResponse, NearbyServiceQuery, ServiceRequestCreate, ServiceRequestResponse
 from .businesses import BusinessCreate, BusinessResponse, BusinessUpdate
+from .media import MediaResponse

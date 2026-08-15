@@ -53,3 +53,4 @@ class MediaType(str, Enum):
     PROFILE = "profile"
     JOB = "job"
     SERVICE = "service"
+    BUSINESS = "business"

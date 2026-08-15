@@ -8,6 +8,9 @@ alembic>=1.13.0
 asyncpg>=0.29.0                  # ← Best async driver for PostgreSQL
 psycopg2-binary>=2.9.0           # Optional: keep for alembic if needed
 
+#media/storage
+cloudinary
+
 # Auth & Security
 python-jose[cryptography]>=3.3.0
 passlib[bcrypt]>=1.7.4
