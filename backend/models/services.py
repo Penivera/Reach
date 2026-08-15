@@ -33,6 +33,8 @@ class Service(Base, TimeStampMixin):
 
     requests = relationship("ServiceRequest", back_populates="service",cascade="all, delete-orphan")
 
+    media = relationship("Media", back_populates="service", cascade="all, delete-orphan")
+
 
 class ServiceRequest(Base, TimeStampMixin):
     __tablename__ = "service_requests"

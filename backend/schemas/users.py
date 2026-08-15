@@ -75,7 +75,7 @@ class UserResponse(BaseModel):
     bio: str | None = None
     phone_number: str | None = None
 
-    profile_picture: str | None = None
+    profile_image: str | None = None
 
     is_email_verified: bool
 

@@ -1,12 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
-from models import Job, JobApplication, User
-from utils import send_job_notification
+from models import Job, JobApplication, User, Media
+from utils import send_job_notification, upload_image
 from dependencies import get_db, get_current_user
 from schemas import (JobCreate, JobUpdate, JobResponse, JobApplicationCreate, 
                      JobApplicationStatusUpdate, JobApplicationUpdate, JobAppplicationResponse,
-                       JobStatus, ApplicationStatus, NearbyJobQuery)
+                       JobStatus, ApplicationStatus, NearbyJobQuery, MediaResponse, MediaType)
 from fastapi import BackgroundTasks
 from geoalchemy2.functions import ST_GeogFromText, ST_DWithin, ST_Distance
 
@@ -195,6 +195,38 @@ async def delete_job(job_id:int, db:AsyncSession=Depends(get_db), current_user=D
 
     return
 
+@router.post("/{job_id}/images")
+async def upload_job_image(job_id: int, file: UploadFile = File(...), 
+                           db: AsyncSession = Depends(get_db),current_user=Depends(get_current_user)):
+    result = await db.execute(select(Job).where(Job.id == job_id))
+
+    job = result.scalar_one_or_none()
+
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
+
+    #Only the job owner can upload images
+    if job.owner_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only upload images to your own job")
+
+
+    image_url = await upload_image(file, folder=f"jobs/{job.id}")
+
+    media = Media(url=image_url, media_type=MediaType.JOB, uploaded_by=current_user.id, job_id=job.id)
+
+    db.add(media)
+
+
+    try:
+        await db.commit()
+        await db.refresh(media)
+
+    except Exception:
+        await db.rollback()
+        raise
+
+    return media
 
 #Job Applications
 

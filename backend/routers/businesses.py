@@ -18,9 +18,9 @@ async def create_business(business_data: BusinessCreate, db:AsyncSession=Depends
     if business_exist:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="you already have a business")
 
-    business = Business(**business_data.model_dump())
+    business = Business(**business_data.model_dump(), owner_id=current_user.id)
 
-    await db.add(business)
+    db.add(business)
 
     try:
         await db.commit()
@@ -45,7 +45,7 @@ async def get_my_business(db:AsyncSession=Depends(get_db), current_user=Depends(
 
 
 @router.patch("/me", response_model=BusinessResponse)
-async def update_my_business(business_data: BusinessUpdate, db:AsyncSession=Depends(get_db), current_user=Depends(get_db)):
+async def update_my_business(business_data: BusinessUpdate, db:AsyncSession=Depends(get_db), current_user=Depends(get_current_user)):
     result = await db.execute(select(Business).where(Business.owner_id == current_user.id))
 
     business = result.scalar_one_or_none()

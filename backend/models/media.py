@@ -24,3 +24,7 @@ class Media(Base, TimeStampMixin):
     business_id: Mapped[int | None] = mapped_column(ForeignKey("businesses.id"), nullable=True)
 
     business = relationship("Business", back_populates="media")
+
+    service = relationship("Service", back_populates="media")
+
+    job = relationship("Job", back_populates="media")

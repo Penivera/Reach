@@ -34,6 +34,8 @@ class Job(Base, TimeStampMixin):
 
     category = relationship("Category", back_populates="jobs")
 
+    media = relationship("Media", back_populates="job", cascade="all, delete-orphan")
+
     @property
     def latitude(self) -> float:
         return to_shape(self.location).y

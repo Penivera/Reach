@@ -1,9 +1,11 @@
-from fastapi import APIRouter, HTTPException, Depends, status
+from fastapi import APIRouter, HTTPException, Depends, status, UploadFile, File
 from sqlalchemy import select
+from utils import upload_image
 from sqlalchemy.ext.asyncio import AsyncSession
 from dependencies import get_db, get_current_user
-from schemas import ServiceCreate, ServiceResponse, ServiceUpdate, ServiceStatus, NearbyServiceQuery, ServiceRequestResponse, ServiceRequestCreate, ServiceRequestStatus
-from models import Category, Service, ServiceRequest, Business
+from schemas import (ServiceCreate, ServiceResponse, ServiceUpdate, ServiceStatus, NearbyServiceQuery,ServiceRequestResponse, 
+                     ServiceRequestCreate, ServiceRequestStatus, MediaType, MediaResponse)
+from models import Category, Service, ServiceRequest, Business, Media
 from geoalchemy2.functions import ST_Distance, ST_DWithin, ST_GeogFromText
 
 router = APIRouter(prefix="/services", tags=["services"])
@@ -217,6 +219,48 @@ async def archive_service(service_id: int, db: AsyncSession = Depends(get_db), c
 
     return {"message": "service archived successfully"}
 
+
+@router.post("/{service_id}/images")
+async def upload_service_image(service_id: int, file: UploadFile = File(...), db: AsyncSession = Depends(get_db), current_user=Depends(get_current_user)):
+
+    result = await db.execute(select(Service).where(Service.id == service_id))
+
+    service = result.scalar_one_or_none()
+
+    if not service:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Service not found")
+
+    
+    result = await db.execute(select(Business).where(Business.id == service.business_id))
+
+    business = result.scalar_one_or_none()
+
+    if not business:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Business not found")
+
+    #Make sure current user owns the business
+    if business.owner_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only upload images to your own service"
+        )
+
+    #Upload to Cloudinary
+    image_url = await upload_image(file, folder=f"services/{service.id}")
+
+    media = Media(url=image_url, media_type=MediaType.SERVICE, uploaded_by=current_user.id, service_id=service.id)
+
+    db.add(media)
+
+    try:
+        await db.commit()
+        await db.refresh(media)
+
+    except Exception:
+        await db.rollback()
+        raise
+
+    return media
 
 #client 
 

@@ -1,3 +1,4 @@
+import core.cloudinary
 import cloudinary.uploader
 from fastapi import UploadFile
 

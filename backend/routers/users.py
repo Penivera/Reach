@@ -1,10 +1,11 @@
-from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi import APIRouter, HTTPException, status, Depends, UploadFile, File
 from models import User, Skill, UserSkill
 from schemas import UserUpdate, UserPublicResponse, UserResponse, UserSkillUpdate, SkillResponse, LocationUpdate, FCMTokenUpdate
 from sqlalchemy import select
 from datetime import datetime, timedelta, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from dependencies import get_current_user, get_db
+from utils import upload_image
 
 
 
@@ -133,3 +134,22 @@ async def delete_me(db:AsyncSession=Depends(get_db), current_user=Depends(get_cu
         raise
 
     return {"message": "Account deleted successfully"}
+
+@router.put("/me/profile-image")
+async def upload_profile_image(file: UploadFile = File(...), db: AsyncSession = Depends(get_db), current_user=Depends(get_current_user)):
+
+    #Upload image to Cloudinary
+    image_url = await upload_image(file, folder=f"profiles/{current_user.id}")
+
+    # Save URL to user
+    current_user.profile_image = image_url
+
+    try:
+        await db.commit()
+        await db.refresh(current_user)
+
+    except Exception:
+        await db.rollback()
+        raise
+
+    return {"message": "Profile image uploaded successfully", "profile_image": current_user.profile_image}
