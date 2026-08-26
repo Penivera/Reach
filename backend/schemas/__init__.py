@@ -7,3 +7,4 @@ from .jobs import JobApplicationCreate, JobApplicationUpdate, JobUpdate, JobAppp
 from .service import ServiceCreate, ServiceUpdate, ServiceResponse, NearbyServiceQuery, ServiceRequestCreate, ServiceRequestResponse
 from .businesses import BusinessCreate, BusinessResponse, BusinessUpdate
 from .media import MediaResponse
+from .reviews import ReviewCreate, ReviewResponse
