@@ -20,9 +20,9 @@ class Review(Base, TimeStampMixin):
 
     comment: Mapped[str]
 
-    reviewer: Mapped["User"] = relationship("User", foreign_keys=[reviewer_id])
+    reviewer: Mapped["User"] = relationship("User", foreign_keys=[reviewer_id], back_populates="reviews_given")
 
-    reviewed_user: Mapped["User"] = relationship("User", foreign_keys=[reviewed_user_id])
+    reviewed_user: Mapped["User"] = relationship("User", foreign_keys=[reviewed_user_id], back_populates="reviews_received")
 
     job: Mapped["Job"] = relationship("Job", foreign_keys=[job_id])
 

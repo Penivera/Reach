@@ -4,7 +4,7 @@ from .skills import Skill, UserSkill
 from .services import Service, ServiceRequest
 from .jobs import Job, JobApplication
 from .categories import Category
-from .conversations import ConversationParticipant, Coversation
+from .conversations import ConversationParticipant, Conversation, Message
 from .media import Media
 from .notifications import Notification
 from .reports import Report

@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 import asyncio
 
 from models import (User, UserSkill, Skill, EmailVerificationToken, PasswordResetToken, Service, ServiceRequest,
-Job, JobApplication, Category, ConversationParticipant, Coversation, Media, Notification, Report,
+Job, JobApplication, Category, ConversationParticipant, Conversation, Message, Media, Notification, Report,
 Review, TimeStampMixin, Business)
 from alembic import context
 

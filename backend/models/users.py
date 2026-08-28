@@ -91,3 +91,12 @@ class User(Base, TimeStampMixin):
     received_service_requests = relationship("ServiceRequest",foreign_keys="ServiceRequest.provider_id",back_populates="provider")
 
     business = relationship("Business", back_populates="owner", uselist=False)
+
+    reviews_given = relationship("Review", foreign_keys="Review.reviewer_id", back_populates="reviewer", cascade="all, delete-orphan")
+
+    reviews_received = relationship("Review", foreign_keys="Review.reviewed_user_id", back_populates="reviewed_user", cascade="all, delete-orphan")
+
+    conversations = relationship("ConversationParticipant", back_populates="user", cascade="all, delete-orphan")
+
+    messages = relationship("Message", back_populates="sender", cascade="all, delete-orphan")
+

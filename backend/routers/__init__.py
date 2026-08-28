@@ -6,3 +6,5 @@ from .jobs import router as jobs_router
 from .services import router as services_router
 from .businesses import router as business_router
 from .reviews import router as review_router
+from .chats import router as chats_router
+from .reports import router as reports_router

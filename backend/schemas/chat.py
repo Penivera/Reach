@@ -1,19 +1,29 @@
-from pydantic import BaseModel
-from typing import Optional
+from pydantic import BaseModel, Field, ConfigDict
 from datetime import datetime
 
+
 class ConversationCreate(BaseModel):
-    pass
+    participant_id: int
+
 
 class ConversationResponse(BaseModel):
-    pass
+    id: int
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
 
 class MessageCreate(BaseModel):
-    content: str
+    content: str = Field(min_length=1, max_length=5000)
+
 
 class MessageResponse(BaseModel):
     id: int
+    conversation_id: int
     sender_id: int
     content: str
+    is_read: bool
     created_at: datetime
 
+    model_config = ConfigDict(from_attributes=True)
