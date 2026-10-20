@@ -16,6 +16,16 @@ class Settings(BaseSettings):
     CLOUDINARY_API_KEY:str
     CLOUDINARY_API_SECRET:str
 
+    FOSSAPAY_API_URL: str = "https://api-production.fossapay.com/api/v1"
+    FOSSAPAY_API_KEY: str | None = None
+    FOSSAPAY_WEBHOOK_SECRET: str | None = None
+    FOSSAPAY_ENABLED: bool = False
+    FOSSAPAY_TIMEOUT_SECONDS: float = 30.0
+    PAYMENT_PROVIDER: str = "fossapay"
+
+    PLATFORM_FEE_BPS: int = 500
+    MIN_ESCROW_KOBO: int = 100000
+
     model_config = SettingsConfigDict(
         env_file=".env",
         extra="ignore"
