@@ -13,6 +13,7 @@ class VerificationStatus(str, Enum):
 
 class JobStatus(str, Enum):
     OPEN = "open"
+    AWAITING_PAYMENT = "awaiting_payment"
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
     CANCELLED = "cancelled"
@@ -54,3 +55,32 @@ class MediaType(str, Enum):
     JOB = "job"
     SERVICE = "service"
     BUSINESS = "business"
+
+
+class ProvisioningStatus(str, Enum):
+    PENDING = "pending"
+    PROVISIONED = "provisioned"
+    FAILED = "failed"
+
+
+class PaymentStatus(str, Enum):
+    PENDING = "pending"
+    PAID = "paid"
+    FAILED = "failed"
+    EXPIRED = "expired"
+    REVERSED = "reversed"
+
+
+class PayoutStatus(str, Enum):
+    PROCESSING = "processing"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    REVERSED = "reversed"
+
+
+class WebhookStatus(str, Enum):
+    RECEIVED = "received"
+    PROCESSED = "processed"
+    FAILED = "failed"
+    REJECTED = "rejected"
+    IGNORED = "ignored"

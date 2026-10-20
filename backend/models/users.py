@@ -100,3 +100,17 @@ class User(Base, TimeStampMixin):
 
     messages = relationship("Message", back_populates="sender", cascade="all, delete-orphan")
 
+    payment_profile = relationship(
+        "PaymentProfile",
+        back_populates="user",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
+
+    fossapay_customer = relationship(
+        "FossaPayCustomer",
+        back_populates="user",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
+
