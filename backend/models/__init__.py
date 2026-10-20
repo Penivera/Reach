@@ -9,5 +9,12 @@ from .media import Media
 from .notifications import Notification
 from .reports import Report
 from .reviews import Review
+from .payments import (
+    FossaPayCustomer,
+    PaymentIntent,
+    PaymentProfile,
+    Payout,
+    WebhookEvent,
+)
 from .mixins import TimeStampMixin
 from .business import Business
