@@ -23,6 +23,24 @@ class Settings(BaseSettings):
     FOSSAPAY_TIMEOUT_SECONDS: float = 30.0
     PAYMENT_PROVIDER: str = "fossapay"
 
+    # Obiex: fiat collection, NGN <-> USDC conversion, crypto withdrawals.
+    OBiex_ENABLED: bool = False
+    OBiex_API_URL: str = "https://api.obiex.finance/v1"
+    OBiex_API_KEY: str | None = None
+    OBiex_API_SECRET: str | None = None
+    OBiex_WEBHOOK_SECRET: str | None = None
+    OBiex_TIMEOUT_SECONDS: float = 30.0
+    OBiex_COLLECTION_CURRENCY: str = "USDC"
+
+    # Solana settlement layer (Model 1).
+    REACH_SOLANA_RPC_URL: str = ""
+    REACH_PROGRAM_ID: str = "5iCtrxFDsPQf6qyR2nfjkDgUJyuH7oxoA5Lf1qQiDfwY"
+    REACH_STABLE_MINT: str = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+    REACH_RELAYER_SECRET_KEY: str | None = None
+    REACH_RELAYER_CONFIRM_TIMEOUT: float = 60.0
+    REACH_MIN_ESCROW_UNITS: int = 1000000
+    REACH_CREATION_FEE_BPS: int = 250
+
     PLATFORM_FEE_BPS: int = 500
     MIN_ESCROW_KOBO: int = 100000
 

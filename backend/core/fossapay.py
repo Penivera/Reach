@@ -130,6 +130,187 @@ class FossaPayClient:
             raise FossaPayError("FossaPay returned an invalid payout")
         return data
 
+    async def expire_checkout(self, checkout_id: str) -> dict:
+        data = await self._request("POST", f"/checkouts/{checkout_id}/expire")
+        if not isinstance(data, dict):
+            raise FossaPayError("FossaPay returned an invalid checkout")
+        return data
+
+    async def get_customer(self, customer_id: str) -> dict:
+        data = await self._request("GET", f"/customers/{customer_id}")
+        if not isinstance(data, dict):
+            raise FossaPayError("FossaPay returned an invalid customer")
+        return data
+
+    async def list_customers(self) -> list[dict]:
+        data = await self._request("GET", "/customers")
+        if isinstance(data, dict):
+            data = data.get("result", [])
+        return data if isinstance(data, list) else []
+
+    # -- crypto wallets ----------------------------------------------------
+
+    async def create_crypto_wallet(
+        self,
+        customer_id: str,
+        network: str = "solana",
+    ) -> dict:
+        """Provision a Solana (or Stellar) wallet for a customer."""
+        data = await self._request(
+            "POST",
+            "/wallets/crypto/create",
+            json={"network": network, "customerId": customer_id},
+        )
+        if not isinstance(data, dict) or not data.get("address"):
+            raise FossaPayError("FossaPay did not return a crypto wallet address")
+        return data
+
+    async def create_master_crypto_wallet(self, network: str = "solana") -> list[dict]:
+        data = await self._request(
+            "POST", "/wallets/crypto/master/create", json={"network": network}
+        )
+        return data if isinstance(data, list) else []
+
+    async def get_master_crypto_wallet(self) -> list[dict]:
+        data = await self._request("GET", "/wallets/crypto/master")
+        return data if isinstance(data, list) else []
+
+    async def get_customer_crypto_balance(
+        self,
+        customer_id: str,
+        network: str | None = None,
+    ) -> dict:
+        path = f"/wallets/crypto/customer/{customer_id}/balance"
+        if network:
+            path = f"{path}?network={network}"
+        data = await self._request("GET", path)
+        return data if isinstance(data, dict) else {}
+
+    async def get_crypto_wallet(self, wallet_id: str) -> dict:
+        data = await self._request("GET", f"/wallets/crypto/{wallet_id}")
+        if not isinstance(data, dict):
+            raise FossaPayError("FossaPay returned an invalid crypto wallet")
+        return data
+
+    async def get_crypto_wallet_by_address(self, address: str) -> dict:
+        data = await self._request("GET", f"/wallets/crypto/address/{address}")
+        if not isinstance(data, dict):
+            raise FossaPayError("FossaPay returned an invalid crypto wallet")
+        return data
+
+    async def list_crypto_wallet_transactions(
+        self,
+        wallet_id: str,
+        page: int = 1,
+        limit: int = 50,
+    ) -> list[dict]:
+        data = await self._request(
+            "GET",
+            f"/wallets/crypto/{wallet_id}/transactions",
+            params={"page": page, "limit": limit},
+        )
+        return data if isinstance(data, list) else []
+
+    async def get_crypto_transaction(self, transaction_id: str) -> dict:
+        data = await self._request("GET", f"/wallets/crypto/transactions/{transaction_id}")
+        if not isinstance(data, dict):
+            raise FossaPayError("FossaPay returned an invalid crypto transaction")
+        return data
+
+    async def create_crypto_transfer(
+        self,
+        *,
+        customer_id: str,
+        recipient: str,
+        amount: float,
+        currency: str = "usdc",
+        network: str = "solana",
+        memo: str | None = None,
+    ) -> dict:
+        """Send crypto from a customer's wallet to any address on the network."""
+        payload: dict = {
+            "customerId": customer_id,
+            "recipient": recipient,
+            "network": network,
+            "currency": currency,
+            "amount": amount,
+        }
+        if memo:
+            payload["memo"] = memo
+
+        data = await self._request("POST", "/transfers/crypto", json=payload)
+        if not isinstance(data, dict):
+            raise FossaPayError("FossaPay returned an invalid crypto transfer")
+        return data
+
+    async def calculate_crypto_transfer_fee(
+        self,
+        *,
+        amount: float,
+        currency: str = "usdc",
+        network: str | None = None,
+    ) -> dict:
+        params = {"amount": amount, "currency": currency}
+        if network:
+            params["network"] = network
+
+        data = await self._request(
+            "GET", "/transfers/crypto/calculate-fee", params=params
+        )
+        return data if isinstance(data, dict) else {}
+
+    # -- identity ----------------------------------------------------------
+
+    async def verify_identity(
+        self,
+        *,
+        method: str,
+        identity_number: str,
+    ) -> dict:
+        """Look up a Nigerian NIN or BVN. `method` is `nin` or `bvn`."""
+        data = await self._request(
+            "POST",
+            "/kyc/verifications",
+            json={"method": method, "identityNumber": identity_number},
+        )
+        return data if isinstance(data, dict) else {}
+
+    # -- webhook administration -------------------------------------------
+
+    async def update_webhook_settings(
+        self,
+        *,
+        url: str,
+        events: list[str],
+        secret: str,
+    ) -> dict:
+        data = await self._request(
+            "PUT",
+            "/settings/webhooks",
+            json={"url": url, "events": events, "secret": secret},
+        )
+        return data if isinstance(data, dict) else {}
+
+    async def simulate_webhook(
+        self,
+        *,
+        event: str,
+        customer_id: str,
+        amount: float,
+        currency: str = "NGN",
+    ) -> dict:
+        data = await self._request(
+            "POST",
+            "/webhooks/simulate",
+            json={
+                "event": event,
+                "customer_id": customer_id,
+                "amount": amount,
+                "currency": currency,
+            },
+        )
+        return data if isinstance(data, dict) else {}
+
     async def create_payout(
         self,
         amount_ngn: int,
@@ -226,6 +407,125 @@ class FakeFossaPayClient:
             "reference": reference,
             "status": "completed",
         }
+
+    async def create_crypto_wallet(
+        self,
+        customer_id: str,
+        network: str = "solana",
+    ) -> dict:
+        suffix = hashlib.sha256(customer_id.encode()).hexdigest()[:32]
+        return {
+            "id": f"fake_crypto_wallet_{suffix}",
+            "walletId": f"fake_crypto_wallet_{suffix}",
+            "address": _fake_solana_address(suffix),
+            "network": network,
+        }
+
+    async def get_master_crypto_wallet(self) -> list[dict]:
+        return [
+            {
+                "id": "fake_master_wallet",
+                "address": _fake_solana_address("master"),
+                "network": "solana",
+                "tokens": {},
+            }
+        ]
+
+    async def get_customer_crypto_balance(
+        self,
+        customer_id: str,
+        network: str | None = None,
+    ) -> dict:
+        return {"customerId": customer_id, "tokens": {}}
+
+    async def get_crypto_wallet(self, wallet_id: str) -> dict:
+        return {"id": wallet_id, "address": _fake_solana_address(wallet_id)}
+
+    async def get_crypto_wallet_by_address(self, address: str) -> dict:
+        return {"id": "fake_crypto_wallet", "address": address}
+
+    async def list_crypto_wallet_transactions(
+        self,
+        wallet_id: str,
+        page: int = 1,
+        limit: int = 50,
+    ) -> list[dict]:
+        return []
+
+    async def get_crypto_transaction(self, transaction_id: str) -> dict:
+        return {"id": transaction_id, "status": "success"}
+
+    async def create_crypto_transfer(
+        self,
+        *,
+        customer_id: str,
+        recipient: str,
+        amount: float,
+        currency: str = "usdc",
+        network: str = "solana",
+        memo: str | None = None,
+    ) -> dict:
+        return {
+            "token": {"symbol": currency, "amount": amount},
+            "network": network.upper(),
+            "recipientAddress": recipient,
+            "status": "processing",
+        }
+
+    async def calculate_crypto_transfer_fee(
+        self,
+        *,
+        amount: float,
+        currency: str = "usdc",
+        network: str | None = None,
+    ) -> dict:
+        return {"amount": amount, "currency": currency, "feeAmount": 0, "total": amount}
+
+    async def verify_identity(
+        self,
+        *,
+        method: str,
+        identity_number: str,
+    ) -> dict:
+        return {
+            "reference": f"fake_kyc_{method}",
+            "method": method,
+            "charged": False,
+            "feeAmount": "0.00",
+            "currency": "NGN",
+            "person": {"firstName": "Fake", "lastName": "Customer"},
+        }
+
+    async def update_webhook_settings(
+        self,
+        *,
+        url: str,
+        events: list[str],
+        secret: str,
+    ) -> dict:
+        return {"url": url, "events": events, "active": True}
+
+    async def simulate_webhook(
+        self,
+        *,
+        event: str,
+        customer_id: str,
+        amount: float,
+        currency: str = "NGN",
+    ) -> dict:
+        return {"event": event, "customerId": customer_id, "status": "simulated"}
+
+
+def _fake_solana_address(seed: str) -> str:
+    """A deterministic, syntactically valid base58 Solana address."""
+    digest = hashlib.sha256(seed.encode()).digest()
+    alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+    number = int.from_bytes(digest, "big")
+    encoded = ""
+    while number > 0:
+        number, remainder = divmod(number, 58)
+        encoded = alphabet[remainder] + encoded
+    return encoded[:44].ljust(44, "1")
 
 
 def get_fossapay_client() -> FossaPayClient | FakeFossaPayClient:
