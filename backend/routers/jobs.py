@@ -419,8 +419,8 @@ async def update_application_status(id: int,data: JobApplicationStatusUpdate,
         for pending_application in pending_applications:
             pending_application.status = ApplicationStatus.REJECTED
 
-        # Update job status
-        job.status = JobStatus.IN_PROGRESS
+        # The poster must fund escrow before work starts.
+        job.status = JobStatus.AWAITING_PAYMENT
 
     # Rejecting an applicant
     elif data.status == ApplicationStatus.REJECTED:

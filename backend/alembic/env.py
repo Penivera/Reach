@@ -7,7 +7,7 @@ import asyncio
 
 from models import (User, UserSkill, Skill, EmailVerificationToken, PasswordResetToken, Service, ServiceRequest,
 Job, JobApplication, Category, ConversationParticipant, Conversation, Message, Media, Notification, Report,
-Review, TimeStampMixin, Business)
+Review, TimeStampMixin, Business, PaymentProfile, FossaPayCustomer, PaymentIntent, Payout, WebhookEvent)
 from alembic import context
 
 # this is the Alembic Config object, which provides
