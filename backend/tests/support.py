@@ -28,6 +28,26 @@ os.environ.setdefault("PAYMENT_PROVIDER", "fake")
 os.environ.setdefault("FOSSAPAY_WEBHOOK_SECRET", "test-webhook-secret")
 os.environ.setdefault("PLATFORM_FEE_BPS", "500")
 os.environ.setdefault("MIN_ESCROW_KOBO", "100000")
+os.environ.setdefault("OBiex_ENABLED", "false")
+os.environ.setdefault("OBiex_WEBHOOK_SECRET", "test-obiex-secret")
+os.environ.setdefault("REACH_CREATION_FEE_BPS", "250")
+os.environ.setdefault("REACH_SOLANA_RPC_URL", "http://localhost:8899")
+os.environ.setdefault("REACH_PROGRAM_ID", "5iCtrxFDsPQf6qyR2nfjkDgUJyuH7oxoA5Lf1qQiDfwY")
+os.environ.setdefault(
+    "REACH_STABLE_MINT", "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+)
+
+# Imported after the environment is set: the settings object reads it at
+# import time.
+from core.fossapay import FossaPayError  # noqa: E402
+from core import settings as _settings  # noqa: E402
+
+# Another module may have imported the settings before this file ran, so the
+# test values are applied to the object as well.
+_settings.PAYMENT_PROVIDER = "fake"
+_settings.FOSSAPAY_WEBHOOK_SECRET = "test-webhook-secret"
+_settings.OBiex_WEBHOOK_SECRET = "test-obiex-secret"
+_settings.REACH_CREATION_FEE_BPS = 250
 
 
 class FakeResult:
@@ -65,6 +85,8 @@ class FakeSession:
         return FakeResult(self.results.pop(0))
 
     async def get(self, model, ident):
+        if (model, ident) in self.get_results:
+            return self.get_results[(model, ident)]
         return self.get_results.get(ident)
 
     def add(self, obj):
@@ -95,26 +117,33 @@ class FakeRequest:
 class FakeProvider:
     """Stands in for the FossaPay client."""
 
-    def __init__(self, checkout=None, payout=None):
+    def __init__(self, checkout=None, payout=None, error=None):
         self.checkout = checkout
         self.payout = payout
+        self.error = error
         self.checkout_calls = []
         self.payout_calls = []
 
     async def get_checkout(self, checkout_id):
         self.checkout_calls.append(checkout_id)
+        if self.error:
+            raise FossaPayError(str(self.error))
         if self.checkout is None:
             raise AssertionError("unexpected get_checkout call")
         return self.checkout
 
     async def get_payout(self, payout_id):
         self.payout_calls.append(payout_id)
+        if self.error:
+            raise FossaPayError(str(self.error))
         if self.payout is None:
             raise AssertionError("unexpected get_payout call")
         return self.payout
 
     async def get_payout_by_reference(self, reference):
         self.payout_calls.append(reference)
+        if self.error:
+            raise FossaPayError(str(self.error))
         if self.payout is None:
             raise AssertionError("unexpected get_payout_by_reference call")
         return self.payout
@@ -126,4 +155,41 @@ class FakeProvider:
             "reference": reference,
             "status": "completed",
             "amount": f"{amount_ngn}.00",
+        }
+
+
+class FakeObiex:
+    """Stands in for the Obiex client."""
+
+    def __init__(self, rates=None):
+        self.rates = rates or [
+            {"currency": "NGNX", "base": "USDT", "buyRate": 1600, "sellRate": 1580}
+        ]
+        self.calls = []
+
+    async def get_fiat_rates(self):
+        self.calls.append("get_fiat_rates")
+        return self.rates
+
+    async def initiate_collection(self, **kwargs):
+        self.calls.append("initiate_collection")
+        return {
+            "customerId": "cus_1",
+            "transactionReference": "col_1",
+            "targetCurrency": kwargs.get("target_currency", "USDC"),
+            "expiresAt": "2099-01-01T00:00:00.000Z",
+            "account": {
+                "bankName": "Fake Bank",
+                "accountName": "Obiex-Ada Okoro",
+                "accountNumber": "9012345678",
+            },
+        }
+
+    async def create_deposit_address(self, **kwargs):
+        self.calls.append("create_deposit_address")
+        return {
+            "id": "addr_1",
+            "value": "7EcJ1eB6J3ggRrGkQWsT4ZP8dkqPZ4JmW4YRwR7Qp5cY",
+            "network": kwargs.get("network", "SOL"),
+            "currency": kwargs.get("currency", "USDC"),
         }
