@@ -67,7 +67,9 @@ class JobResponse(BaseModel):
     longitude: float
     location_name: str
 
-    near_task_id: int
+    onchain_task_id: int | None = None
+    onchain_tx_hash: str | None = None
+    near_task_id: int | None = Field(default=None, deprecated=True, description="Deprecated in favor of onchain_task_id")
 
     created_at: datetime
     updated_at: datetime
@@ -96,7 +98,8 @@ class JobAppplicationResponse(BaseModel):
     proposed_price: float
     status: ApplicationStatus
 
-    near_application_id: int
+    onchain_application_id: int | None = None
+    near_application_id: int | None = Field(default=None, deprecated=True, description="Deprecated in favor of onchain_application_id")
 
     created_at: datetime
     updated_at: datetime

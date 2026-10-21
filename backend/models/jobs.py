@@ -28,6 +28,19 @@ class Job(Base, TimeStampMixin):
 
     worker_completed = mapped_column(Boolean, default=False, nullable=False)
 
+    # On-chain tracking (Model 1: Solana Anchor program is canonical)
+    onchain_task_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    onchain_tx_hash: Mapped[str | None] = mapped_column(String(128), nullable=True)
+
+    @property
+    def near_task_id(self) -> int | None:
+        """Deprecated alias for onchain_task_id (Model 1: Solana is canonical)."""
+        return self.onchain_task_id
+
+    @near_task_id.setter
+    def near_task_id(self, value: int | None):
+        self.onchain_task_id = value
+
     owner = relationship("User", back_populates="jobs")
 
     application = relationship("JobApplication", back_populates="job")
@@ -68,6 +81,18 @@ class JobApplication(Base, TimeStampMixin):
     proposed_price: Mapped[float]
 
     status: Mapped[ApplicationStatus] = mapped_column(Enum(ApplicationStatus), nullable=False, default=ApplicationStatus.PENDING)
+
+    # On-chain tracking (Model 1: Solana Anchor program is canonical)
+    onchain_application_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    @property
+    def near_application_id(self) -> int | None:
+        """Deprecated alias for onchain_application_id (Model 1: Solana is canonical)."""
+        return self.onchain_application_id
+
+    @near_application_id.setter
+    def near_application_id(self, value: int | None):
+        self.onchain_application_id = value
 
     job = relationship(
         "Job",

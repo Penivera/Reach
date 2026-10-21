@@ -1,63 +1,38 @@
-# Basic Auction Contract 
+# [DEPRECATED] Reach Protocol - NEAR Standalone Escrow Contract
 
-This directory contains a Rust contract that is used as part of the [Basic Auction Tutorial](https://docs.near.org/tutorials/auction/basic-auction).
-
-The contract is a simple auction where you can place bids, view the highest bid, and claim the tokens at the end of the auction.
-
-This repo showcases the basic anatomy of a smart contract application on NEAR Protocol that showcases how to store data in a contract, how to update the state, and then how to read it.
-There are also unit tests, integration tests, and CI/CD pipelines preconfigured for your reference.
+> [!WARNING]
+> **DEPRECATION NOTICE (ARCHITECTURE MODEL 1):**
+> This standalone NEAR escrow smart contract (`reach.testnet`) has been **DEPRECATED** in favor of **Model 1 (Canonical Solana Settlement + NEAR Chain Abstraction)**:
+> 
+> * **Canonical Settlement Layer:** All task escrow locking, collateral management, advance disbursement, and final settlement are executed on the **Solana Anchor Program** located at [`sol-contract/programs/sol-contract`](../sol-contract/programs/sol-contract).
+> * **Role of NEAR Protocol:** NEAR is leveraged exclusively for **Chain Abstraction**:
+>   1. **NEAR Intents (Defuse Solver Network):** Enables users on multichain ecosystems (Ethereum, Base, Arbitrum, NEAR, Polygon) to convert any asset into Solana SPL USDC in a single click.
+>   2. **NEAR Chain Signatures (MPC):** Enables non-Solana wallets to derive deterministic Solana addresses and sign Anchor transactions on Solana directly without requiring a separate Solana wallet or manual bridging.
+> 
+> *Do not deploy or wire new application features to this standalone contract.*
 
 ---
 
-## How to Build Locally?
+## Historical Context & Reference
 
-Install [`cargo-near`](https://github.com/near/cargo-near) and run:
+This contract was originally developed as an NEP-141 escrow contract for NEAR Protocol using `near-sdk` v5.
 
-```bash
-cargo near build
-```
+### Methods Overview (Archival Reference):
+* `init(supported_stables)`: Initializes the contract state with fee basis points (creation: 2.5%, cancellation: 10%).
+* `ft_on_transfer`: Handles incoming NEP-141 stablecoins via `TransferAction`:
+  * `CreateTask { desc, tag, stablecoin, terms }`: Escrows labor and material funds.
+  * `ProvideCollateral { task_id, application_id }`: Escrows provider collateral.
+  * `CancelApprovedApplication { task_id }`: Handles provider abandonment and debt enforcement.
+* `complete_task`: Provider marks task completed.
+* `approve_work`: Creator releases escrow to provider.
+* `cancel_task`: Creator cancels before work begins (cancellation fee deducted).
+* `raise_dispute` & `resolve_dispute`: Dispute handling and admin-controlled payout splits.
 
-## How to Test Locally?
+---
+
+## Build & Test Instructions (Archived)
 
 ```bash
 cargo test
+cargo near build
 ```
-
-## How to Deploy?
-
-Deployment is automated with GitHub Actions CI/CD pipeline.
-To deploy manually, install [`cargo-near`](https://github.com/near/cargo-near) and run:
-
-If you deploy for debugging purposes:
-
-```bash
-cargo near deploy build-non-reproducible-wasm
-```
-
-If you deploy production ready smart contract:
-
-```bash
-cargo near deploy build-reproducible-wasm
-```
-
-## Initialize the contract
-
-```bash
-# on Linux / Windows WSL
-TWO_MINUTES_FROM_NOW=$(date -d '+2 minutes' +%s000000000)
-# on MacOS
-TWO_MINUTES_FROM_NOW=$(date -v+2M +%s000000000)
-
-near contract call-function as-transaction '<CONTRACT_ACCOUNT_ID>' init json-args '{"end_time": "'$TWO_MINUTES_FROM_NOW'", "auctioneer": "<AUCTIONEER_ACCOUNT_ID>"}' prepaid-gas '30.0 Tgas' attached-deposit '0 NEAR'
-```
-
-## Useful Links
-
-- [cargo-near](https://github.com/near/cargo-near) - NEAR smart contract development toolkit for Rust
-- [near CLI](https://near.cli.rs) - Interact with NEAR blockchain from command line
-- [NEAR Rust SDK Documentation](https://docs.near.org/sdk/rust/introduction)
-- [NEAR Documentation](https://docs.near.org)
-- [NEAR StackOverflow](https://stackoverflow.com/questions/tagged/nearprotocol)
-- [NEAR Discord](https://near.chat)
-- [NEAR Telegram Developers Community Group](https://t.me/neardev)
-- NEAR DevHub: [Telegram](https://t.me/neardevhub), [Twitter](https://twitter.com/neardevhub)

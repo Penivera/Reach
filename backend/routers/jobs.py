@@ -466,27 +466,50 @@ async def get_accepted_application(job_id: int, db: AsyncSession = Depends(get_d
     return accepted_applicant
 
 @router.patch("/{job_id}/link-chain", response_model=JobResponse)
-async def link_job_chain(job_id: int, near_task_id: int, db: AsyncSession = Depends(get_db), current_user=Depends(get_current_user)):
+async def link_job_chain(
+    job_id: int,
+    onchain_task_id: int | None = None,
+    near_task_id: int | None = None,  # Deprecated: retained for legacy compatibility
+    onchain_tx_hash: str | None = None,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
     result = await db.execute(select(Job).where(Job.id == job_id))
     job = result.scalar_one_or_none()
     if not job:
         raise HTTPException(status_code=404, detail="job not found")
     if job.owner_id != current_user.id:
         raise HTTPException(status_code=403, detail="not your job")
-    job.near_task_id = near_task_id
+    
+    task_id_val = onchain_task_id if onchain_task_id is not None else near_task_id
+    if task_id_val is not None:
+        job.onchain_task_id = task_id_val
+    if onchain_tx_hash is not None:
+        job.onchain_tx_hash = onchain_tx_hash
+
     await db.commit()
     await db.refresh(job)
     return job
 
 @router.patch("/applications/{id}/link-chain", response_model=JobAppplicationResponse)
-async def link_application_chain(id: int, near_application_id: int, db: AsyncSession = Depends(get_db), current_user=Depends(get_current_user)):
+async def link_application_chain(
+    id: int,
+    onchain_application_id: int | None = None,
+    near_application_id: int | None = None,  # Deprecated: retained for legacy compatibility
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
     result = await db.execute(select(JobApplication).where(JobApplication.id == id))
     application = result.scalar_one_or_none()
     if not application:
         raise HTTPException(status_code=404, detail="application not found")
     if application.applicant_id != current_user.id:
         raise HTTPException(status_code=403, detail="not your application")
-    application.near_application_id = near_application_id
+    
+    app_id_val = onchain_application_id if onchain_application_id is not None else near_application_id
+    if app_id_val is not None:
+        application.onchain_application_id = app_id_val
+
     await db.commit()
     await db.refresh(application)
     return application

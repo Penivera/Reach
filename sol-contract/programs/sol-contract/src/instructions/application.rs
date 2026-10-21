@@ -202,14 +202,10 @@ pub fn claim_advance(ctx: Context<ClaimAdvance>, task_id: u64) -> Result<()> {
         .checked_mul(pct).unwrap()
         .checked_div(100).unwrap()) as u64;
 
-    // Fix 2: Include task.creator in the signer seeds
+    // Canonical Task PDA signer seeds: [TASK_SEED, task_id.to_le_bytes()]
     let task_id_bytes = task_id.to_le_bytes();
-    let signer_seeds: &[&[&[u8]]] = &[&[
-        TASK_SEED,
-        task.creator.as_ref(),
-        task_id_bytes.as_ref(),
-        &[ctx.bumps.task],
-    ]];
+    let seeds: &[&[u8]] = &[TASK_SEED, task_id_bytes.as_ref(), &[ctx.bumps.task]];
+    let signer_seeds = &[seeds];
 
     let cpi_accounts = anchor_spl::token::TransferChecked {
         from: ctx.accounts.task_vault.to_account_info(),
