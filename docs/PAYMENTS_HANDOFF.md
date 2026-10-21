@@ -1,3 +1,12 @@
+> **Superseded.** This document describes the pay-after-acceptance fiat
+> flow (FossaPay checkout after an applicant is accepted, a naira payout with a
+> 5% commission, and an escrow ledger in Postgres). Model 1 replaced it: the
+> escrow is locked on Solana when the task is created, the Anchor program is
+> the settlement layer, and settlement is the program's `approve_work`.
+>
+> See `docs/REACH_MODEL1_PAYMENTS_PLAN.md` for the current design and
+> `reach_flows_and_architecture_documentation.md` for the architecture.
+
 # Payments Handoff
 
 Companion to `PAYMENTS_IMPLEMENTATION_PLAN.md`. This file is the working document: what is already built, what the frontend has to do, what is still missing on the backend, and the full reference for the new endpoints.

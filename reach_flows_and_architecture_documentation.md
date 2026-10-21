@@ -238,3 +238,39 @@ The following critical bugs in [`sol-contract/`](file:///home/peni/Projects/reac
    * Added `constraint = task.creator == owner.key() @ ErrorCode::NotOwner` to prevent arbitrary third parties from accepting applications.
    * Added `constraint = application.status == ProviderApplicationStatus::Pending @ ErrorCode::ApplicationNotAccepted`.
    * Added `require!(task.status == TaskStatus::Open, ErrorCode::InvalidTaskStatus)` to prevent reassigning providers on in-progress or closed tasks.
+
+---
+
+## 5. Provider Mapping (backend implementation notes)
+
+The flows above describe the roles each provider plays. The role boundaries
+below record what the providers' APIs actually support, so the build matches
+the APIs rather than the assumption.
+
+| Role | Provider | API |
+|---|---|---|
+| Collect naira from a customer, settle into USDC | **Obiex** (Business Collections) | `POST /collections` → one-time virtual NGN account, BVN/NIN identity, settles to USDC. `COLLECTION` webhook. Requires a Business account (access gated). |
+| Collect naira through a bank-transfer checkout | FossaPay | `POST /api/v1/checkouts` (30-minute checkout, NGN only). `checkout.completed` webhook. |
+| Convert platform naira into USDC | Obiex | `POST /trades/swap` (`NGNX` → `USDC`). |
+| Move USDC into the escrow | Obiex | `POST /wallets/ext/debit/crypto` (`network: SOL`) → the relayer's Solana address. |
+| Per-user Solana address (custodial payer and provider payout) | FossaPay | `POST /api/v1/wallets/crypto/create`. |
+| Cash a provider out to naira | Obiex | `POST /wallets/ext/debit/fiat` (bank account). |
+| Identity (NIN / BVN) | FossaPay | `POST /api/v1/kyc/verifications`. |
+| Test environment | Obiex staging | `https://staging.api.obiex.finance/v1` — FossaPay has **no** sandbox, every request reaches production. |
+
+### Corrections to the flows above
+
+1. **FossaPay does not convert fiat into stablecoins.** Its checkout endpoint
+   accepts `NGN` only, and no endpoint converts fiat to USDC. The conversion
+   leg is Obiex's: a collection settles naira into USDC, or the platform
+   swaps its own naira balance into USDC. The escrow is therefore always
+   funded in USDC by the platform, and the naira it collected is the
+   receivable behind that USDC.
+2. **The relayer is a self-hosted Solana keypair.** As described in Flow 2,
+   the backend holds an automated keypair and signs `create_task` and
+   `approve_work` for custodial payers (`payer_type = "custodial"`). The
+   provider address it receives the USDC float on is the relayer's own
+   Solana address.
+3. **Funding happens when the task is created.** The escrow is locked at
+   creation, so a task starts in `pending_funding` and becomes `open` once
+   its escrow is on-chain. There is no pay-after-acceptance step.
