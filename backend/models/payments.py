@@ -13,6 +13,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from DB.database import Base
 from schemas.enums import (
+    ChainTransactionStatus,
+    FundingRail,
     PaymentStatus,
     PayoutStatus,
     ProvisioningStatus,
@@ -49,6 +51,19 @@ class PaymentProfile(Base, TimeStampMixin):
         nullable=False,
         default="Nigeria",
     )
+
+    # Nigerian identity. Obiex Business Collections need a BVN or NIN to
+    # open a collection for a customer.
+    bvn: Mapped[str | None] = mapped_column(String(20), nullable=True)
+
+    nin: Mapped[str | None] = mapped_column(String(20), nullable=True)
+
+    # Bank details, used when a provider's USDC is cashed out to NGN.
+    bank_code: Mapped[str | None] = mapped_column(String(20), nullable=True)
+
+    bank_account_number: Mapped[str | None] = mapped_column(String(30), nullable=True)
+
+    bank_account_name: Mapped[str | None] = mapped_column(String(150), nullable=True)
 
     user = relationship("User", back_populates="payment_profile")
 
@@ -89,6 +104,19 @@ class FossaPayCustomer(Base, TimeStampMixin):
 
     bank_code: Mapped[str | None] = mapped_column(String(20), nullable=True)
 
+    # The customer's Solana address, held by FossaPay. This is where a
+    # provider's USDC payout lands, and the address the relayer signs for.
+    crypto_wallet_id: Mapped[str | None] = mapped_column(
+        String(100),
+        unique=True,
+        index=True,
+        nullable=True,
+    )
+
+    crypto_wallet_address: Mapped[str | None] = mapped_column(String(120), nullable=True)
+
+    crypto_network: Mapped[str | None] = mapped_column(String(20), nullable=True)
+
     status: Mapped[ProvisioningStatus] = mapped_column(
         Enum(ProvisioningStatus),
         nullable=False,
@@ -101,7 +129,12 @@ class FossaPayCustomer(Base, TimeStampMixin):
 
 
 class PaymentIntent(Base, TimeStampMixin):
-    """One FossaPay checkout attempt for a job."""
+    """One attempt to fund a task's escrow.
+
+    The intent is the customer-facing side of Model 1: it records what the
+    customer was asked to pay, on which rail, and whether the money made it
+    all the way into the on-chain escrow.
+    """
 
     __tablename__ = "payment_intents"
 
@@ -120,9 +153,18 @@ class PaymentIntent(Base, TimeStampMixin):
         nullable=False,
     )
 
+    rail: Mapped[FundingRail] = mapped_column(
+        Enum(FundingRail),
+        nullable=False,
+        default=FundingRail.OBIEX_FIAT,
+    )
+
     amount_kobo: Mapped[int] = mapped_column(BigInteger, nullable=False)
 
     amount_payable_kobo: Mapped[int] = mapped_column(BigInteger, nullable=False)
+
+    # The escrow amount in USDC base units (6 decimals).
+    usdc_amount: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
 
     status: Mapped[PaymentStatus] = mapped_column(
         Enum(PaymentStatus),
@@ -137,6 +179,21 @@ class PaymentIntent(Base, TimeStampMixin):
         nullable=True,
     )
 
+    # Provider-side identifiers: the Obiex collection reference, the FossaPay
+    # checkout id, or the deposit address the customer paid into.
+    provider_reference: Mapped[str | None] = mapped_column(
+        String(150),
+        unique=True,
+        index=True,
+        nullable=True,
+    )
+
+    provider_customer_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+
+    network: Mapped[str | None] = mapped_column(String(20), nullable=True)
+
+    deposit_address: Mapped[str | None] = mapped_column(String(120), nullable=True)
+
     bank_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
     account_name: Mapped[str | None] = mapped_column(String(150), nullable=True)
@@ -149,6 +206,53 @@ class PaymentIntent(Base, TimeStampMixin):
     )
 
     paid_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    failure_reason: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+
+
+class ChainTransaction(Base, TimeStampMixin):
+    """A transaction the relayer signed against the Reach program."""
+
+    __tablename__ = "chain_transactions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    job_id: Mapped[int | None] = mapped_column(
+        ForeignKey("jobs.id"),
+        index=True,
+        nullable=True,
+    )
+
+    kind: Mapped[str] = mapped_column(String(40), nullable=False)
+
+    idempotency_key: Mapped[str] = mapped_column(
+        String(120),
+        unique=True,
+        index=True,
+        nullable=False,
+    )
+
+    signature: Mapped[str | None] = mapped_column(
+        String(128),
+        unique=True,
+        index=True,
+        nullable=True,
+    )
+
+    status: Mapped[ChainTransactionStatus] = mapped_column(
+        Enum(ChainTransactionStatus),
+        nullable=False,
+        default=ChainTransactionStatus.PENDING,
+    )
+
+    slot: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+
+    error: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+
+    processed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
     )

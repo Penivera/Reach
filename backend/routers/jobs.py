@@ -1,13 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
-from models import Job, JobApplication, User, Media
-from utils import send_job_notification, upload_image
+from models import Job, JobApplication, Media
+from utils import upload_image
 from dependencies import get_db, get_current_user
-from schemas import (JobCreate, JobUpdate, JobResponse, JobApplicationCreate, 
+from schemas import (JobCreate, JobUpdate, JobResponse, JobApplicationCreate,
                      JobApplicationStatusUpdate, JobApplicationUpdate, JobAppplicationResponse,
-                       JobStatus, ApplicationStatus, NearbyJobQuery, MediaResponse, MediaType)
-from fastapi import BackgroundTasks
+                       JobStatus, ApplicationStatus, NearbyJobQuery, MediaType,
+                       FundingStatus)
 from geoalchemy2.functions import ST_GeogFromText, ST_DWithin, ST_Distance
 
 
@@ -24,8 +24,14 @@ async def create_job(job_data:JobCreate, db:AsyncSession=Depends(get_db), curren
     data.pop("longitude")
     data["location"] = point
 
-    new_job = Job(**data, owner_id=current_user.id)
-    
+    new_job = Job(
+        **data,
+        owner_id=current_user.id,
+        # Model 1: a task is created waiting for its escrow to be locked.
+        # It opens for providers once the funding is on-chain.
+        status=JobStatus.PENDING_FUNDING,
+    )
+
 
     db.add(new_job)
     try:
@@ -35,25 +41,6 @@ async def create_job(job_data:JobCreate, db:AsyncSession=Depends(get_db), curren
     except Exception:
         await db.rollback()
         raise
-
-    
-
-    #Find users nearby
-
-    radius = 30000 #30km
-    result = await db.execute(select(User).where(
-        ST_DWithin(User.location, point, radius),
-        User.id != current_user.id,
-        User.location.is_not(None)))
-
-    nearby_users = result.scalars().all()
-
-    for user in nearby_users:
-        if user.fcm_token:
-            send_job_notification(user.fcm_token,
-                                  new_job.title,
-                                  new_job.location_name,
-                                  new_job.id)
 
     return new_job
 
@@ -419,8 +406,11 @@ async def update_application_status(id: int,data: JobApplicationStatusUpdate,
         for pending_application in pending_applications:
             pending_application.status = ApplicationStatus.REJECTED
 
-        # The poster must fund escrow before work starts.
-        job.status = JobStatus.AWAITING_PAYMENT
+        # Model 1: the escrow is locked when the task is created, so by the
+        # time an applicant is accepted the funding is already on-chain and
+        # the program owns the task's status. The backend only mirrors it.
+        if job.funding_status != FundingStatus.FUNDED:
+            job.status = JobStatus.IN_PROGRESS
 
     # Rejecting an applicant
     elif data.status == ApplicationStatus.REJECTED:

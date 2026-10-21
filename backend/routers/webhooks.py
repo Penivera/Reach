@@ -1,3 +1,15 @@
+"""Webhook receivers.
+
+Two providers deliver money events:
+
+* **FossaPay** — NGN checkouts (`checkout.completed`) and payouts.
+* **Obiex** — fiat collections (`COLLECTION`), crypto deposits (`DEPOSIT`) and
+  treasury withdrawals (`WITHDRAWAL`).
+
+Both are verified before anything is trusted, both are deduplicated, and both
+end in the same place: the task's escrow is locked on Solana.
+"""
+
 import hashlib
 import json
 from datetime import datetime, timezone
@@ -9,16 +21,24 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core import settings
 from core.fossapay import FossaPayError, FossaPayNotConfigured, get_fossapay_client
+from core.obiex import verify_webhook_signature
 from dependencies import get_db
 from models import Job, PaymentIntent, Payout, WebhookEvent
 from payment_amounts import AmountError, to_kobo
-from payment_signatures import extract_raw_data, verify_signature
+from payment_signatures import verify_fossapay_event
 from schemas import (
-    JobStatus,
+    FundingStatus,
     PaymentStatus,
     PayoutStatus,
     WebhookStatus,
 )
+from services.chain import (
+    EscrowError,
+    InsufficientEscrowFunds,
+    RelayerUnavailable,
+    fund_task_escrow,
+)
+from services.funding import estimate_usdc_units, to_usdc_units
 
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
@@ -26,6 +46,120 @@ router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 
 class WebhookProcessingError(Exception):
     pass
+
+
+async def _get_or_create_event(
+    db: AsyncSession,
+    *,
+    event_id: str,
+    event_type: str | None,
+    reference: str | None,
+    provider_object_id: str | None,
+) -> WebhookEvent:
+    result = await db.execute(
+        select(WebhookEvent).where(WebhookEvent.event_id == event_id)
+    )
+    event = result.scalar_one_or_none()
+
+    if event:
+        return event
+
+    event = WebhookEvent(
+        event_id=event_id,
+        event_type=event_type,
+        reference=reference,
+        provider_object_id=provider_object_id,
+    )
+    db.add(event)
+
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        result = await db.execute(
+            select(WebhookEvent).where(WebhookEvent.event_id == event_id)
+        )
+        return result.scalar_one_or_none()
+
+    await db.refresh(event)
+    return event
+
+
+async def _store_rejected_event(
+    db: AsyncSession,
+    *,
+    event_id: str,
+    event_type: str | None,
+    reference: str | None,
+    provider_object_id: str | None,
+):
+    event = WebhookEvent(
+        event_id=event_id,
+        event_type=event_type,
+        reference=reference,
+        provider_object_id=provider_object_id,
+        signature_valid=False,
+        status=WebhookStatus.REJECTED,
+    )
+    db.add(event)
+
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+
+
+async def _fund_intent(
+    db: AsyncSession,
+    intent: PaymentIntent,
+    *,
+    usdc_units: int,
+) -> None:
+    """Mark a funding intent paid and lock the task's escrow on-chain."""
+    job = await db.get(Job, intent.job_id)
+
+    if job is None:
+        raise WebhookProcessingError("The job for this payment no longer exists")
+
+    if intent.status == PaymentStatus.PAID and job.funding_status == FundingStatus.FUNDED:
+        return
+
+    intent.status = PaymentStatus.PAID
+    intent.paid_at = datetime.now(timezone.utc)
+    intent.usdc_amount = usdc_units
+
+    job.funding_status = FundingStatus.PAID
+
+    await db.commit()
+
+    try:
+        await fund_task_escrow(
+            db,
+            job,
+            funded_units=usdc_units,
+            creation_fee_bps=settings.REACH_CREATION_FEE_BPS,
+            tag=(job.title or "")[:30],
+            desc=(job.description or "")[:200],
+        )
+    except InsufficientEscrowFunds as exc:
+        # The money is safe with the provider; the escrow waits for the
+        # platform's USDC float to be replenished.
+        job.funding_status = FundingStatus.PAID
+        intent.failure_reason = str(exc)[:1000]
+        await db.commit()
+    except RelayerUnavailable as exc:
+        job.funding_status = FundingStatus.PAID
+        intent.failure_reason = str(exc)[:1000]
+        await db.commit()
+    except EscrowError as exc:
+        job.funding_status = FundingStatus.PAID
+        intent.failure_reason = str(exc)[:1000]
+        await db.commit()
+    except Exception as exc:  # pragma: no cover - defensive
+        job.funding_status = FundingStatus.PAID
+        intent.failure_reason = str(exc)[:1000]
+        await db.commit()
+        raise
 
 
 @router.post("/fossapay")
@@ -53,10 +187,8 @@ async def fossapay_webhook(
     provider_object_id = data.get("checkoutId") or data.get("payoutId")
     event_id = payload.get("eventId") or hashlib.sha256(raw_body).hexdigest()
 
-    raw_data = extract_raw_data(raw_body)
-    signature = request.headers.get("x-fossapay-signature", "")
-    signature_valid = bool(raw_data) and verify_signature(
-        raw_data, signature, secret
+    signature_valid, _scheme = verify_fossapay_event(
+        raw_body, dict(request.headers), secret
     )
 
     if not signature_valid:
@@ -83,9 +215,6 @@ async def fossapay_webhook(
     ):
         return {"received": True}
 
-    # A rejected row may exist from an earlier invalid signature. A valid
-    # signature is allowed to reprocess it.
-
     event.signature_valid = True
     event.status = WebhookStatus.RECEIVED
     event.last_error = None
@@ -100,104 +229,22 @@ async def fossapay_webhook(
         else:
             event.status = WebhookStatus.IGNORED
 
-        if event.status != WebhookStatus.IGNORED:
-            event.status = WebhookStatus.PROCESSED
-            event.processed_at = datetime.now(timezone.utc)
-
+        event.status = WebhookStatus.PROCESSED
+        event.processed_at = datetime.now(timezone.utc)
         await db.commit()
 
     except WebhookProcessingError as exc:
         event.status = WebhookStatus.FAILED
         event.last_error = str(exc)[:1000]
         await db.commit()
+        # Tell the provider to retry: the money may still be settling.
         raise HTTPException(status_code=503, detail=str(exc))
 
     return {"received": True}
 
 
-async def _get_or_create_event(
-    db: AsyncSession,
-    *,
-    event_id: str,
-    event_type: str | None,
-    reference: str | None,
-    provider_object_id: str | None,
-) -> WebhookEvent:
-    event = (
-        await db.execute(
-            select(WebhookEvent).where(WebhookEvent.event_id == event_id)
-        )
-    ).scalar_one_or_none()
-
-    if event:
-        return event
-
-    # A replay can change eventId. The provider object plus event type is the
-    # business-level dedupe key; the eventType is still checked by the provider
-    # lookup before any state changes.
-    if provider_object_id and event_type:
-        event = (
-            await db.execute(
-                select(WebhookEvent).where(
-                    WebhookEvent.provider_object_id == provider_object_id,
-                    WebhookEvent.event_type == event_type,
-                )
-            )
-        ).scalar_one_or_none()
-        if event:
-            return event
-
-    event = WebhookEvent(
-        event_id=event_id,
-        event_type=event_type,
-        reference=reference,
-        provider_object_id=provider_object_id,
-        signature_valid=True,
-        status=WebhookStatus.RECEIVED,
-    )
-    db.add(event)
-
-    try:
-        await db.flush()
-    except IntegrityError:
-        await db.rollback()
-        event = (
-            await db.execute(
-                select(WebhookEvent).where(WebhookEvent.event_id == event_id)
-            )
-        ).scalar_one_or_none()
-        if not event:
-            raise
-
-    return event
-
-
-async def _store_rejected_event(
-    db: AsyncSession,
-    *,
-    event_id: str,
-    event_type: str | None,
-    reference: str | None,
-    provider_object_id: str | None,
-) -> None:
-    event = WebhookEvent(
-        event_id=event_id,
-        event_type=event_type,
-        reference=reference,
-        provider_object_id=provider_object_id,
-        signature_valid=False,
-        status=WebhookStatus.REJECTED,
-        last_error="Invalid signature",
-    )
-    db.add(event)
-
-    try:
-        await db.commit()
-    except IntegrityError:
-        await db.rollback()
-
-
 async def _sync_checkout(data: dict, db: AsyncSession) -> None:
+    """A FossaPay checkout reached a terminal state."""
     intent = None
 
     if data.get("reference"):
@@ -254,17 +301,11 @@ async def _sync_checkout(data: dict, db: AsyncSession) -> None:
                 await db.commit()
                 return
 
-        intent.status = PaymentStatus.PAID
-        intent.paid_at = datetime.now(timezone.utc)
-
-        job = (
-            await db.execute(select(Job).where(Job.id == intent.job_id))
-        ).scalar_one_or_none()
-
-        if job and job.status == JobStatus.AWAITING_PAYMENT:
-            job.status = JobStatus.IN_PROGRESS
-
-        await db.commit()
+        # The checkout collected naira. The platform converts it with Obiex
+        # and escrows the USDC equivalent from its float.
+        naira = intent.amount_kobo // 100
+        units = await estimate_usdc_units(naira)
+        await _fund_intent(db, intent, usdc_units=units)
         return
 
     if status in ("failed", "expired", "reversed"):
@@ -313,9 +354,7 @@ async def _sync_payout(
 
     try:
         if payout_id:
-            provider_payout = await get_fossapay_client().get_payout(
-                str(payout_id)
-            )
+            provider_payout = await get_fossapay_client().get_payout(str(payout_id))
         else:
             provider_payout = await get_fossapay_client().get_payout_by_reference(
                 payout.reference
@@ -332,20 +371,170 @@ async def _sync_payout(
     if not payout.provider_payout_id and provider_payout.get("id"):
         payout.provider_payout_id = str(provider_payout["id"])
 
-    status = provider_payout.get("status")
+    provider_status = provider_payout.get("status")
 
-    if status == "completed":
+    if provider_status == "completed":
         payout.status = PayoutStatus.COMPLETED
         payout.completed_at = datetime.now(timezone.utc)
-        payout.failure_reason = None
-    elif status == "failed":
-        payout.status = PayoutStatus.FAILED
-    elif status == "reversed":
-        payout.status = PayoutStatus.REVERSED
-    elif status in ("processing", "pending"):
         await db.commit()
         return
-    else:
-        raise WebhookProcessingError(f"Unexpected payout status: {status}")
 
-    await db.commit()
+    if provider_status in ("failed", "reversed"):
+        payout.status = (
+            PayoutStatus.FAILED if provider_status == "failed" else PayoutStatus.REVERSED
+        )
+        payout.failure_reason = str(provider_payout.get("message") or provider_status)[
+            :1000
+        ]
+        await db.commit()
+        return
+
+    raise WebhookProcessingError(f"Unexpected payout status: {provider_status}")
+
+
+@router.post("/obiex")
+async def obiex_webhook(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Receive Obiex collection, deposit and withdrawal events."""
+    raw_body = await request.body()
+
+    secret = settings.OBiex_WEBHOOK_SECRET
+    if not secret:
+        raise HTTPException(status_code=500, detail="Webhook secret not configured")
+
+    signature = request.headers.get("x-obiex-signature", "")
+
+    if not verify_webhook_signature(raw_body, signature, secret):
+        raise HTTPException(status_code=401, detail="Invalid signature")
+
+    try:
+        payload = json.loads(raw_body)
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid JSON")
+
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="Invalid webhook payload")
+
+    event_type = payload.get("type")
+    reference = payload.get("reference")
+    status = payload.get("status")
+
+    event_id = (
+        f"obiex:{reference}:{event_type}:{status}"
+        if reference
+        else hashlib.sha256(raw_body).hexdigest()
+    )
+
+    event = await _get_or_create_event(
+        db,
+        event_id=event_id,
+        event_type=event_type,
+        reference=reference,
+        provider_object_id=reference,
+    )
+
+    if event.status in (WebhookStatus.PROCESSED, WebhookStatus.IGNORED):
+        return {"received": True}
+
+    event.signature_valid = True
+    event.status = WebhookStatus.RECEIVED
+    event.last_error = None
+
+    try:
+        if event_type == "COLLECTION":
+            await _sync_collection(payload, db)
+        elif event_type == "DEPOSIT":
+            await _sync_deposit(payload, db)
+        elif event_type == "WITHDRAWAL":
+            await _sync_withdrawal(payload, db)
+        else:
+            event.status = WebhookStatus.IGNORED
+
+        event.status = WebhookStatus.PROCESSED
+        event.processed_at = datetime.now(timezone.utc)
+        await db.commit()
+
+    except WebhookProcessingError as exc:
+        event.status = WebhookStatus.FAILED
+        event.last_error = str(exc)[:1000]
+        await db.commit()
+        raise HTTPException(status_code=503, detail=str(exc))
+
+    return {"received": True}
+
+
+async def _sync_collection(payload: dict, db: AsyncSession) -> None:
+    """A fiat collection settled, or was held for review."""
+    reference = payload.get("reference")
+    status = payload.get("status")
+
+    if not reference:
+        raise WebhookProcessingError("The collection has no reference")
+
+    intent = (
+        await db.execute(
+            select(PaymentIntent).where(PaymentIntent.provider_reference == reference)
+        )
+    ).scalar_one_or_none()
+
+    if not intent:
+        raise WebhookProcessingError("Unknown collection")
+
+    if status == "HELD":
+        intent.status = PaymentStatus.HELD
+        intent.failure_reason = (
+            "The payer's name does not match the account holder. "
+            "Support is reviewing this payment."
+        )
+        job = await db.get(Job, intent.job_id)
+        if job:
+            job.funding_status = FundingStatus.HELD
+        await db.commit()
+        return
+
+    if status != "COMPLETED":
+        return
+
+    target_amount = payload.get("targetAmount")
+    if target_amount is None:
+        raise WebhookProcessingError("The collection has no settled amount")
+
+    units = to_usdc_units(target_amount)
+    await _fund_intent(db, intent, usdc_units=units)
+
+
+async def _sync_deposit(payload: dict, db: AsyncSession) -> None:
+    """A customer deposited USDC into their Solana deposit address."""
+    address = payload.get("address")
+    status = payload.get("status")
+
+    if not address:
+        raise WebhookProcessingError("The deposit has no address")
+
+    if status != "CONFIRMED":
+        return
+
+    intent = (
+        await db.execute(
+            select(PaymentIntent).where(PaymentIntent.deposit_address == address)
+        )
+    ).scalar_one_or_none()
+
+    if not intent:
+        # Not every deposit belongs to a task; the treasury deposits land
+        # on the same rail.
+        return
+
+    amount = payload.get("amount")
+    if amount is None:
+        raise WebhookProcessingError("The deposit has no amount")
+
+    units = to_usdc_units(amount)
+    await _fund_intent(db, intent, usdc_units=units)
+
+
+async def _sync_withdrawal(payload: dict, db: AsyncSession) -> None:
+    """The platform moved USDC out of Obiex (treasury replenishment)."""
+    return

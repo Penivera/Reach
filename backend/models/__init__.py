@@ -10,6 +10,7 @@ from .notifications import Notification
 from .reports import Report
 from .reviews import Review
 from .payments import (
+    ChainTransaction,
     FossaPayCustomer,
     PaymentIntent,
     PaymentProfile,

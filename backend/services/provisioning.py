@@ -102,9 +102,23 @@ async def provision_user(user: User, db: AsyncSession) -> FossaPayCustomer:
             record.account_name = wallet.get("accountName")
             record.bank_name = wallet.get("bankName")
             record.bank_code = wallet.get("bankCode")
-            record.status = ProvisioningStatus.PROVISIONED
-            record.last_error = None
-            await db.commit()
+
+        if not record.crypto_wallet_address:
+            # The customer's Solana address. This is where a provider's USDC
+            # payout lands, and the address a custodial payer uses on-chain.
+            crypto_wallet = await client.create_crypto_wallet(
+                customer_id=record.provider_customer_id,
+                network="solana",
+            )
+            record.crypto_wallet_id = str(
+                crypto_wallet.get("walletId") or crypto_wallet.get("id") or ""
+            ) or None
+            record.crypto_wallet_address = crypto_wallet.get("address")
+            record.crypto_network = crypto_wallet.get("network")
+
+        record.status = ProvisioningStatus.PROVISIONED
+        record.last_error = None
+        await db.commit()
 
     except FossaPayNotConfigured as exc:
         record.status = ProvisioningStatus.PENDING

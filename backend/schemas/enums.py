@@ -12,8 +12,10 @@ class VerificationStatus(str, Enum):
     REJECTED = "rejected"
 
 class JobStatus(str, Enum):
+    # Model 1: escrow is locked when the task is created, so a job starts life
+    # waiting for its funding before it can accept providers.
+    PENDING_FUNDING = "pending_funding"
     OPEN = "open"
-    AWAITING_PAYMENT = "awaiting_payment"
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
     CANCELLED = "cancelled"
@@ -69,6 +71,43 @@ class PaymentStatus(str, Enum):
     FAILED = "failed"
     EXPIRED = "expired"
     REVERSED = "reversed"
+    HELD = "held"  # collected, but awaiting a manual review (name mismatch)
+
+
+class FundingRail(str, Enum):
+    """How the customer funded (or is funding) the task."""
+
+    OBIEX_FIAT = "obiex_fiat"  # NGN collected into a virtual account, settled as USDC
+    FOSSAPAY_CHECKOUT = "fossapay_checkout"  # NGN bank transfer checkout
+    CRYPTO = "crypto"  # USDC sent to a per-user Solana deposit address
+    WALLET = "wallet"  # the user signed the Anchor transaction themselves
+
+
+class FundingStatus(str, Enum):
+    """The state of a task's funding."""
+
+    PENDING = "pending"
+    HELD = "held"
+    PAID = "paid"  # the money arrived with the provider
+    FUNDED = "funded"  # the escrow is locked on-chain
+    FAILED = "failed"
+    EXPIRED = "expired"
+    REVERSED = "reversed"
+
+
+class PayerType(str, Enum):
+    """Who controlled the key that locked the escrow."""
+
+    WALLET = "wallet"  # the user signed with their own wallet
+    CUSTODIAL = "custodial"  # the server relayer signed for them
+
+
+class ChainTransactionStatus(str, Enum):
+    PENDING = "pending"
+    SUBMITTED = "submitted"
+    CONFIRMED = "confirmed"
+    FINALIZED = "finalized"
+    FAILED = "failed"
 
 
 class PayoutStatus(str, Enum):

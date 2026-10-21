@@ -9,7 +9,16 @@ from payment_validation import (
     validate_single_name,
 )
 
-from .enums import PaymentStatus, PayoutStatus, ProvisioningStatus
+from .enums import (
+    ChainTransactionStatus,
+    FundingRail,
+    FundingStatus,
+    JobStatus,
+    PaymentStatus,
+    PayerType,
+    PayoutStatus,
+    ProvisioningStatus,
+)
 
 
 class PaymentProfileUpsert(BaseModel):
@@ -23,6 +32,13 @@ class PaymentProfileUpsert(BaseModel):
     address: str = Field(min_length=5, max_length=255)
     city: str = Field(min_length=2, max_length=100)
     country: str = Field(default="Nigeria", min_length=2, max_length=100)
+    # Nigerian identity, required by the Obiex collection rail.
+    bvn: str | None = Field(default=None, max_length=20)
+    nin: str | None = Field(default=None, max_length=20)
+    # Bank details, used to cash a provider's USDC out to naira.
+    bank_code: str | None = Field(default=None, max_length=20)
+    bank_account_number: str | None = Field(default=None, max_length=30)
+    bank_account_name: str | None = Field(default=None, max_length=150)
 
     @field_validator("first_name", "last_name", "middle_name")
     @classmethod
@@ -69,6 +85,11 @@ class PaymentProfileResponse(BaseModel):
     address: str
     city: str
     country: str
+    bvn: str | None = None
+    nin: str | None = None
+    bank_code: str | None = None
+    bank_account_number: str | None = None
+    bank_account_name: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -122,5 +143,56 @@ class PayoutResponse(BaseModel):
     provider_payout_id: str | None = None
     failure_reason: str | None = None
     completed_at: datetime | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class FundingIntentResponse(BaseModel):
+    """How a customer is paying for a task, and how far along it is."""
+
+    id: int
+    job_id: int
+    reference: str
+    rail: FundingRail
+    status: PaymentStatus
+    amount_kobo: int
+    amount_payable_kobo: int
+    usdc_amount: int | None = None
+    bank_name: str | None = None
+    account_name: str | None = None
+    account_number: str | None = None
+    deposit_address: str | None = None
+    network: str | None = None
+    provider_reference: str | None = None
+    expires_at: datetime | None = None
+    paid_at: datetime | None = None
+    failure_reason: str | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class FundingStateResponse(BaseModel):
+    """The full funding picture for a task."""
+
+    job_id: int
+    job_status: JobStatus
+    funding_status: FundingStatus
+    payer_type: PayerType | None = None
+    onchain_task_id: int | None = None
+    onchain_tx_hash: str | None = None
+    onchain_status: str | None = None
+    intent: FundingIntentResponse | None = None
+
+
+class ChainTransactionResponse(BaseModel):
+    id: int
+    job_id: int | None = None
+    kind: str
+    idempotency_key: str
+    signature: str | None = None
+    status: ChainTransactionStatus
+    slot: int | None = None
+    error: str | None = None
+    processed_at: datetime | None = None
 
     model_config = ConfigDict(from_attributes=True)
