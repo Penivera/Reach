@@ -1,10 +1,12 @@
 # Reach Payments — Fiat Escrow Implementation Plan
 
-**Status:** draft for implementation
+**Status:** in progress — job checkout, payout release and webhooks are built; escrow ledger, refunds, disputes, KYC and reconciliation are not
 **Owner:** Backend
 **Scope:** Jobs/requests, service requests, product orders
 **Provider:** FossaPay (NGN, production-only)
 **Goal:** Add a production-grade fiat escrow system alongside the existing code: customers pay into escrow, funds are released to providers only after verified completion, and every movement is auditable and reconcilable. The existing NEAR/Solana code is **out of scope and will not be modified**.
+
+**Also see:** `docs/PAYMENTS_HANDOFF.md` — what is built, what the frontend must do, what is still missing, and the endpoint reference.
 
 ---
 
@@ -882,6 +884,10 @@ Flow:
 | `GET` | `/payments/jobs/{job_id}` | Get the latest payment intent for a job |
 | `POST` | `/payments/jobs/{job_id}/release` | Release a funded, completed job to the provider |
 | `GET` | `/payments/jobs/{job_id}/payout` | Get the payout record for a job |
+
+All amounts are **integer kobo** (`amount_kobo`, `amount_payable_kobo`, `commission_kobo`, `provider_payout_kobo`). Payment endpoints require the session cookie. Full request/response payloads, error codes and the frontend flow live in `docs/PAYMENTS_HANDOFF.md`.
+
+**Job status change:** accepting an applicant now sets the job to `awaiting_payment` (new status). `in_progress` is only reached once FossaPay confirms the payment.
 
 ### Planned
 
