@@ -8,7 +8,7 @@ class UserRole(str, Enum):
 
 class VerificationStatus(str, Enum):
     PENDING = "pending"
-    VERIFIED = "virified"
+    VERIFIED = "verified"
     REJECTED = "rejected"
 
 class JobStatus(str, Enum):
