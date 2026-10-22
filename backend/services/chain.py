@@ -21,10 +21,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.relayer import (
     FinancialTerms,
     Relayer,
-    RelayerConfig,
     RelayerError,
-    RelayerNotConfigured,
+    relayer_from_env,
 )
+from core import settings
 from core.solana import SolanaError, TaskState
 from models import ChainTransaction, Job
 from schemas.enums import (
@@ -65,18 +65,7 @@ ONCHAIN_STATUS_TO_JOB_STATUS = {
 
 def get_relayer() -> Relayer:
     """Build the relayer from the environment."""
-    config = RelayerConfig.from_env()
-
-    if not config.rpc_url:
-        raise RelayerNotConfigured("REACH_SOLANA_RPC_URL is not set")
-
-    if not config.secret_key:
-        raise RelayerNotConfigured("REACH_RELAYER_SECRET_KEY is not set")
-
-    if not config.stable_mint:
-        raise RelayerNotConfigured("REACH_STABLE_MINT is not set")
-
-    return Relayer(config)
+    return relayer_from_env()
 
 
 def escrow_units_for(amount_units: int, creation_fee_bps: int) -> int:
@@ -194,8 +183,15 @@ async def fund_task_escrow(
 
     balance = await relayer.token_balance()
     if balance < escrow_units:
+        # The customer's money has already been collected, so the escrow is
+        # not failed: the treasury moves USDC from the provider onto Solana
+        # and the escrow is locked once it lands.
+        from services.treasury import top_up
+
+        await top_up(db, required_units=escrow_units)
+
         raise InsufficientEscrowFunds(
-            "The relayer does not hold enough USDC to fund this task"
+            "The escrow is waiting for the treasury float to be replenished"
         )
 
     idempotency_key = f"create-task-{job.id}"
@@ -327,8 +323,52 @@ async def release_task_escrow(
     return transaction
 
 
+async def retry_pending_fundings(db: AsyncSession, limit: int = 20) -> list[Job]:
+    """Lock the escrows that are waiting for the treasury float.
+
+    A collection that arrives while the float is short is not a failure: the
+    customer's money is safe with the provider and the escrow is locked as
+    soon as the float covers it. This runs after a treasury withdrawal lands,
+    and on demand.
+    """
+    from models import PaymentIntent
+    from schemas.enums import PaymentStatus
+
+    result = await db.execute(
+        select(PaymentIntent)
+        .where(
+            PaymentIntent.status == PaymentStatus.PAID,
+            PaymentIntent.usdc_amount.is_not(None),
+        )
+        .order_by(PaymentIntent.id)
+        .limit(limit)
+    )
+
+    funded: list[Job] = []
+
+    for intent in result.scalars().all():
+        job = await db.get(Job, intent.job_id)
+        if job is None or job.funding_status == FundingStatus.FUNDED:
+            continue
+
+        try:
+            await fund_task_escrow(
+                db,
+                job,
+                funded_units=int(intent.usdc_amount),
+                creation_fee_bps=settings.REACH_CREATION_FEE_BPS,
+                tag=(job.title or "")[:30],
+                desc=(job.description or "")[:200],
+            )
+        except (InsufficientEscrowFunds, RelayerUnavailable, EscrowError):
+            continue
+
+        funded.append(job)
+
+    return funded
+
+
 async def sync_job_from_chain(db: AsyncSession, job: Job) -> TaskState | None:
-    """Read the task's state from the program and mirror it onto the job."""
     relayer = get_relayer()
 
     try:

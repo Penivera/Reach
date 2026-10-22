@@ -15,6 +15,7 @@ from DB.database import Base
 from schemas.enums import (
     ChainTransactionStatus,
     FundingRail,
+    TreasuryTransferStatus,
     PaymentStatus,
     PayoutStatus,
     ProvisioningStatus,
@@ -211,6 +212,51 @@ class PaymentIntent(Base, TimeStampMixin):
     )
 
     failure_reason: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+
+
+class TreasuryTransfer(Base, TimeStampMixin):
+    """A withdrawal of USDC from the payment provider into the escrow float.
+
+    A fiat collection settles as USDC in the provider's wallet. The escrow is
+    funded from the relayer's balance on Solana, so the money is withdrawn to
+    it. Withdrawals are batched: the provider charges a fee per withdrawal.
+    """
+
+    __tablename__ = "treasury_transfers"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    reference: Mapped[str | None] = mapped_column(
+        String(150),
+        unique=True,
+        index=True,
+        nullable=True,
+    )
+
+    amount_units: Mapped[int] = mapped_column(BigInteger, nullable=False)
+
+    currency: Mapped[str] = mapped_column(
+        String(10),
+        nullable=False,
+        default="USDC",
+    )
+
+    network: Mapped[str | None] = mapped_column(String(20), nullable=True)
+
+    destination: Mapped[str | None] = mapped_column(String(120), nullable=True)
+
+    status: Mapped[TreasuryTransferStatus] = mapped_column(
+        Enum(TreasuryTransferStatus),
+        nullable=False,
+        default=TreasuryTransferStatus.PENDING,
+    )
+
+    tx_hash: Mapped[str | None] = mapped_column(String(128), nullable=True)
+
+    processed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
 
 
 class ChainTransaction(Base, TimeStampMixin):

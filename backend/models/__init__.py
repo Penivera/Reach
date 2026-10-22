@@ -15,6 +15,7 @@ from .payments import (
     PaymentIntent,
     PaymentProfile,
     Payout,
+    TreasuryTransfer,
     WebhookEvent,
 )
 from .mixins import TimeStampMixin

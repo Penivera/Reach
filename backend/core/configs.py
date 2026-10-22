@@ -31,6 +31,8 @@ class Settings(BaseSettings):
     OBiex_WEBHOOK_SECRET: str | None = None
     OBiex_TIMEOUT_SECONDS: float = 30.0
     OBiex_COLLECTION_CURRENCY: str = "USDC"
+    # The network the treasury's USDC is withdrawn on.
+    OBiex_WITHDRAWAL_NETWORK: str = "SOL"
 
     # Solana settlement layer (Model 1).
     REACH_SOLANA_RPC_URL: str = ""
@@ -40,6 +42,10 @@ class Settings(BaseSettings):
     REACH_RELAYER_CONFIRM_TIMEOUT: float = 60.0
     REACH_MIN_ESCROW_UNITS: int = 1000000
     REACH_CREATION_FEE_BPS: int = 250
+    # The USDC float the treasury keeps on Solana, in base units (6 decimals).
+    REACH_TREASURY_TARGET_UNITS: int = 500000000
+    # Obiex's minimum withdrawal, in base units.
+    REACH_TREASURY_MIN_WITHDRAWAL_UNITS: int = 10000000
 
     PLATFORM_FEE_BPS: int = 500
     MIN_ESCROW_KOBO: int = 100000

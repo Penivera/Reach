@@ -110,6 +110,15 @@ class ChainTransactionStatus(str, Enum):
     FAILED = "failed"
 
 
+class TreasuryTransferStatus(str, Enum):
+    """A withdrawal of USDC from the provider into the on-chain float."""
+
+    PENDING = "pending"
+    SUBMITTED = "submitted"
+    CONFIRMED = "confirmed"
+    FAILED = "failed"
+
+
 class PayoutStatus(str, Enum):
     PROCESSING = "processing"
     COMPLETED = "completed"

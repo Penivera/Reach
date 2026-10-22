@@ -54,6 +54,7 @@ from services.chain import (
     RelayerUnavailable,
     release_task_escrow,
 )
+from services.treasury import TreasuryError
 from services.funding import (
     FundingError,
     ProfileIncomplete,
@@ -459,6 +460,44 @@ async def release_job_payment(
         raise HTTPException(status_code=502, detail=str(exc))
 
     return ChainTransactionResponse.model_validate(transaction)
+
+
+@router.post("/treasury/top-up")
+async def top_up_treasury(
+    required_units: int = 0,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Move USDC from the provider into the on-chain escrow float.
+
+    Normally the treasury tops itself up when a collection arrives and the
+    float is short. This endpoint is for moving a balance deliberately, for
+    example after a collection settles without anyone waiting on it.
+    """
+    from services import treasury
+    from services.chain import retry_pending_fundings
+
+    try:
+        plan = await treasury.plan_top_up(required_units=required_units)
+    except (RelayerUnavailable, ObiexNotConfigured, ObiexError) as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+
+    if plan["withdraw_units"]:
+        try:
+            await treasury.request_withdrawal(
+                db, amount_units=plan["withdraw_units"]
+            )
+        except TreasuryError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+
+    funded = await retry_pending_fundings(db)
+
+    return {
+        "onchain_units": plan["onchain_units"],
+        "provider_units": plan["provider_units"],
+        "withdraw_units": plan["withdraw_units"],
+        "funded_jobs": [job.id for job in funded],
+    }
 
 
 @router.get("/jobs/{job_id}/transactions", response_model=list[ChainTransactionResponse])

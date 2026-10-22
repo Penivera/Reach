@@ -30,13 +30,16 @@ from schemas import (
     FundingStatus,
     PaymentStatus,
     PayoutStatus,
+    TreasuryTransferStatus,
     WebhookStatus,
 )
+from services import treasury
 from services.chain import (
     EscrowError,
     InsufficientEscrowFunds,
     RelayerUnavailable,
     fund_task_escrow,
+    retry_pending_fundings,
 )
 from services.funding import estimate_usdc_units, to_usdc_units
 
@@ -536,5 +539,49 @@ async def _sync_deposit(payload: dict, db: AsyncSession) -> None:
 
 
 async def _sync_withdrawal(payload: dict, db: AsyncSession) -> None:
-    """The platform moved USDC out of Obiex (treasury replenishment)."""
-    return
+    """A treasury withdrawal from the provider landed (or failed).
+
+    The escrow float is topped up from the provider's balance, so a completed
+    withdrawal is what lets the waiting escrows be locked.
+    """
+    reference = payload.get("reference")
+    status = payload.get("status")
+
+    if not reference:
+        raise WebhookProcessingError("The withdrawal has no reference")
+
+    transfer = await treasury.get_transfer(db, reference)
+
+    if transfer is None:
+        # Not one of ours (a treasury sweep we did not record, say).
+        return
+
+    if transfer.status == TreasuryTransferStatus.CONFIRMED:
+        return
+
+    if status == "SUCCESSFUL":
+        await treasury.mark_transfer(
+            db,
+            transfer,
+            status=TreasuryTransferStatus.CONFIRMED,
+            tx_hash=payload.get("hash"),
+        )
+    elif status == "FAILED":
+        await treasury.mark_transfer(
+            db,
+            transfer,
+            status=TreasuryTransferStatus.FAILED,
+            tx_hash=payload.get("hash"),
+        )
+    else:
+        # Still in flight.
+        await treasury.mark_transfer(
+            db,
+            transfer,
+            status=TreasuryTransferStatus.SUBMITTED,
+            tx_hash=payload.get("hash"),
+        )
+        return
+
+    # The float should cover the escrows that were waiting for it.
+    await retry_pending_fundings(db)
