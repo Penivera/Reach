@@ -204,10 +204,24 @@ and reuse the same PDA.
    own (cases B and C).
 
 ### D. Treasury reconciliation
-1. Track the treasury ATA balance; alert below the float needed.
-2. Attribute inbound transfers to payers and to funding intents.
-3. Batch the Obiex withdrawal rather than one per task (Obiex charges ~1 per
-   withdrawal, with a ~10 minimum).
+Done, with Obiex as the provider:
+
+1. `services/treasury.py` — the treasury. It reads the two balances that
+   matter: the **on-chain** balance (USDC in the relayer's token account,
+   which funds escrows) and the **provider** balance (USDC in our Obiex
+   wallet, which the next withdrawal is made from).
+2. A fiat collection settles into Obiex, so the USDC has to be withdrawn to
+   the relayer before the escrow can be locked. Withdrawals are **batched**:
+   Obiex charges about 1 per withdrawal with a minimum around 10, so the
+   treasury sweeps the provider balance down to a target
+   (`REACH_TREASURY_TARGET_UNITS`) instead of withdrawing per job.
+3. A collection that arrives while the float is short is **not a failure**.
+   The customer's money is safe, the escrow waits, and
+   `services/chain.retry_pending_fundings` locks it as soon as the float
+   covers it — triggered by the Obiex `WITHDRAWAL` webhook, or on demand
+   through `POST /payments/treasury/top-up`.
+4. `treasury_transfers` records every withdrawal, so a float movement can be
+   reconciled against the provider's history.
 
 ### E. Provider naira cash-out (later milestone)
 1. `POST /payments/payouts/withdraw` — the provider's bank details, an amount,
