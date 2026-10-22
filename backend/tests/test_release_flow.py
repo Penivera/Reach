@@ -61,11 +61,15 @@ class ReleaseFlowTests(unittest.IsolatedAsyncioTestCase):
         application = SimpleNamespace(
             id=2, job_id=5, applicant_id=2, status=ApplicationStatus.ACCEPTED
         )
-        provider = SimpleNamespace(id=2, first_name="Ada", last_name="Okoro")
-        account = self._provider_account()
+        provider = SimpleNamespace(
+            id=2,
+            first_name="Ada",
+            last_name="Okoro",
+            onchain_address="7EcJ1eB6J3ggRrGkQWsT4ZP8dkqPZ4JmW4YRwR7Qp5cY",
+        )
 
         db = FakeSession(
-            [job, application, account],
+            [job, application],
             get_results={(User, 2): provider},
         )
 
@@ -118,12 +122,12 @@ class ReleaseFlowTests(unittest.IsolatedAsyncioTestCase):
         application = SimpleNamespace(
             id=2, job_id=5, applicant_id=2, status=ApplicationStatus.ACCEPTED
         )
-        provider = SimpleNamespace(id=2, first_name="Ada", last_name="Okoro")
-        account = self._provider_account()
-        account.crypto_wallet_address = None
+        provider = SimpleNamespace(
+            id=2, first_name="Ada", last_name="Okoro", onchain_address=None
+        )
 
         db = FakeSession(
-            [job, application, account],
+            [job, application],
             get_results={(User, 2): provider},
         )
 

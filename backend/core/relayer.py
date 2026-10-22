@@ -150,9 +150,15 @@ class Relayer:
             return 0
         return int(balance["value"]["amount"])
 
-    async def ensure_token_account(self) -> Pubkey:
-        """Create the relayer's USDC token account if it does not exist yet."""
-        ata = self.program.associated_token_address(self.address, self.mint)
+    async def ensure_token_account(self, owner: Pubkey | None = None) -> Pubkey:
+        """Create a USDC token account if it does not exist yet.
+
+        The owner pays the rent. For the relayer that is the escrow's source
+        account; for a provider it is the account their payout is released
+        into, which does not exist until they have held USDC on Solana.
+        """
+        owner = owner or self.address
+        ata = self.program.associated_token_address(owner, self.mint)
         existing = await self.rpc.get_account_info(ata)
         if existing is not None:
             return ata
@@ -173,6 +179,7 @@ class Relayer:
             bytes([1]),
             [
                 AccountMeta(self.address, True, True),
+                AccountMeta(owner, False, False),
                 AccountMeta(ata, False, True),
                 AccountMeta(self.mint, False, False),
                 AccountMeta(SYSTEM_PROGRAM_ID, False, False),
@@ -180,7 +187,10 @@ class Relayer:
             ],
         )
 
-        await self.submit([create, create_ata], idempotency_key=f"ata-{ata}")
+        await self.submit(
+            [create, create_ata],
+            idempotency_key=f"ata-{ata}",
+        )
         return ata
 
     # -- policy ----------------------------------------------------------

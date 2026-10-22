@@ -1,5 +1,5 @@
 from .enums import ServiceStatus, ServiceRequestStatus, NotificationType, MediaType, UserRole, VerificationStatus, JobStatus, ApplicationStatus, ReportStatus, ProvisioningStatus, PaymentStatus, PayoutStatus, WebhookStatus, FundingRail, FundingStatus, PayerType, ChainTransactionStatus
-from .users import UserCreate, UserResponse, ChangePasswordRequest, UserUpdate, UserSignUpResponse, UserPublicResponse, LocationUpdate
+from .users import UserCreate, UserResponse, ChangePasswordRequest, UserUpdate, UserSignUpResponse, UserPublicResponse, LocationUpdate, OnchainAddressUpdate
 from .verification import EmailVerificationRequest, ForgotPasswordRequest, ResetPasswordRequest, ResendEmailVerificationRequest, FCMTokenUpdate
 from .categories import CategoryCreate, CategoryResponse, CategoryUpdate
 from .skills import SkillCreate, SkillResponse, SkillUpdate, UserSkillUpdate

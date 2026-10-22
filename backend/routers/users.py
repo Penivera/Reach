@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, status, Depends, UploadFile, File
 from models import User, Skill, UserSkill
-from schemas import UserUpdate, UserPublicResponse, UserResponse, UserSkillUpdate, SkillResponse, LocationUpdate, FCMTokenUpdate
+from schemas import UserUpdate, UserPublicResponse, UserResponse, UserSkillUpdate, SkillResponse, LocationUpdate, FCMTokenUpdate, OnchainAddressUpdate
+from payment_validation import PaymentProfileValidationError, validate_solana_address
 from sqlalchemy import select
 from datetime import datetime, timedelta, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -90,9 +91,39 @@ async def update_my_skills(data: UserSkillUpdate,
 
     return {"message": "Skills updated successfully"}
 
+@router.put("/me/onchain-address", response_model=UserResponse)
+async def update_onchain_address(
+    data: OnchainAddressUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Set the Solana address a user's escrow payout is released to.
+
+    A provider needs this before they can be paid: the release moves USDC
+    straight from the escrow to this address.
+    """
+    try:
+        address = validate_solana_address(data.onchain_address)
+    except PaymentProfileValidationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        )
+
+    current_user.onchain_address = address
+
+    try:
+        await db.commit()
+        await db.refresh(current_user)
+    except Exception:
+        await db.rollback()
+        raise
+
+    return current_user
+
+
 @router.put("/me/location")
-async def update_location(data: LocationUpdate,
-                          db:AsyncSession=Depends(get_db), current_user=Depends(get_current_user)):
+async def update_location(data: LocationUpdate,                          db:AsyncSession=Depends(get_db), current_user=Depends(get_current_user)):
     current_user.latitude = data.latitude
     current_user.longitude = data.longitude
     current_user.location_name = data.location_name

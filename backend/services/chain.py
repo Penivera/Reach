@@ -282,6 +282,10 @@ async def release_task_escrow(
 
     idempotency_key = f"approve-work-{job.id}"
 
+    # The payout goes to the provider's USDC token account, which does not
+    # exist until they have held USDC on Solana. Create it first.
+    await relayer.ensure_token_account(provider)
+
     try:
         confirmation = await relayer.approve_work(
             task_id=job.id,

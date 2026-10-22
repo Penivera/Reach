@@ -431,19 +431,23 @@ async def release_job_payment(
         raise HTTPException(status_code=400, detail="No accepted applicant")
 
     provider = await db.get(User, application.applicant_id)
-    provider_customer = await _get_customer(provider.id, db)
 
-    if not provider_customer or not provider_customer.crypto_wallet_address:
+    provider_address = getattr(provider, "onchain_address", None)
+
+    if not provider_address:
         raise HTTPException(
             status_code=400,
-            detail="The provider does not have a Solana address yet",
+            detail=(
+                "The provider has not added a Solana address yet, so the "
+                "payment cannot be released"
+            ),
         )
 
     try:
         transaction = await release_task_escrow(
             db,
             job,
-            provider_address=provider_customer.crypto_wallet_address,
+            provider_address=provider_address,
         )
     except RelayerUnavailable as exc:
         raise HTTPException(status_code=503, detail=str(exc))
