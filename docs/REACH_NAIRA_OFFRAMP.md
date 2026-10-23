@@ -367,8 +367,9 @@ REACH_OFFRAMP_FIAT_FEE_KOBO=5000           # quote-time estimate; live fee wins
 REACH_OFFRAMP_REQUIRE_NAME_MATCH=true
 ```
 
-`REACH_OFFRAMP_ENABLED=false` is deliberate. The endpoints return `503` until
-the prerequisites above are answered and a staging run has passed.
+`REACH_OFFRAMP_ENABLED=false` is deliberate. The money-opening endpoints
+return `503` until the prerequisites above are answered and a staging run has
+passed; read, cancel, refund, and reconcile paths remain usable for cleanup.
 
 ---
 

@@ -50,7 +50,7 @@ flowchart TD
     W_Sol -->|Anchor Instruction: create_task| SC
 
     U2 -->|1. Pay Card/Bank| FP
-    FP -->|2. Webhook: payment.completed| Webhook
+    FP -->|2. Webhook: payment completed / COLLECTION| Webhook
     Webhook -->|3. Trigger Relayer| Relayer
     Relayer -->|4. Custodial Sign: create_task| SC
 
@@ -123,7 +123,7 @@ sequenceDiagram
     FP-->>Client: Render checkout / bank-transfer instructions
     Creator->>FP: Authorize Fiat Payment
     FP->>FP: Collect NGN (no direct USDC conversion)
-    FP->>Server: Webhook: payment.completed (Payload contains tx/payout info)
+    FP->>Server: Webhook: payment completed / COLLECTION
     Server->>Server: Verify webhook; settle NGN to USDC via Obiex treasury
     Server->>Sol: Relayer Keypair calls create_task(task_id = job.id, terms)
     Sol->>Vault: Relayer SPL Account transfers Escrow to Task Vault

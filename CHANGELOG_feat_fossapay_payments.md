@@ -2,7 +2,7 @@
 
 Rebased onto `origin/main` (Model 1 architecture: Solana Anchor program is the canonical escrow, fiat collections settle into USDC via Obiex, relayer signs on-chain).
 
-> **Branch state (2026-10-23):** synced with `origin/feat/fossapay-payments` at `8b57ffc`. The branch was force-pushed after the rebase; the working tree is clean. Future history rewrites need `git push --force-with-lease origin feat/fossapay-payments`.
+> **Branch state (2026-10-23):** synced with `origin/feat/fossapay-payments`; the working tree is clean. The branch was force-pushed after the rebase. Future history rewrites need `git push --force-with-lease origin feat/fossapay-payments`.
 
 ---
 
