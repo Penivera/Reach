@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { HouseIcon, MagnifyingGlassIcon, ChatIcon, ClipboardTextIcon } from "@phosphor-icons/react";
 
 const TABS = [
-  { href: "/", label: "Home", icon: HouseIcon },
+  { href: "/home", label: "Home", icon: HouseIcon },
   { href: "/requests", label: "Requests", icon: MagnifyingGlassIcon },
   { href: "/chats", label: "Chats", icon: ChatIcon },
   { href: "/orders", label: "Orders", icon: ClipboardTextIcon },
@@ -14,8 +14,12 @@ const TABS = [
 export default function BottomTabBar() {
   const pathname = usePathname();
 
+  // const activeIndex = TABS.findIndex((t) => 
+  //   t.href === "/" ? pathname === "/" : pathname.startsWith(t.href)
+  // );
+  // Simplify the activeIndex logic since we no longer have a root "/" tab
   const activeIndex = TABS.findIndex((t) => 
-    t.href === "/" ? pathname === "/" : pathname.startsWith(t.href)
+    pathname === t.href || pathname.startsWith(`${t.href}/`)
   );
 
   const safeActiveIndex = activeIndex === -1 ? 0 : activeIndex;
@@ -42,7 +46,9 @@ export default function BottomTabBar() {
 
       <div className="flex w-full h-16">
         {TABS.map(({ href, label, icon: Icon }) => {
-          const isActive = href === "/" ? pathname === "/" : pathname.startsWith(href);
+          // const isActive = href === "/" ? pathname === "/" : pathname.startsWith(href);
+          // Update the isActive boolean here as well
+          const isActive = pathname === href || pathname.startsWith(`${href}/`);
           
           return (
             <Link

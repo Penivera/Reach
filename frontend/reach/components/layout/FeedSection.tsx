@@ -1,8 +1,11 @@
 "use client"
 import { FeedItem } from "@/types";
 import FeedCard from "../ui/FeedCard";
+import { useRouter } from "next/navigation";
 
 export function FeedSection({ title, items }: { title: string; items: FeedItem[] }) {
+  const router = useRouter();
+
   return (
     <section className="mb-10">
       <h2 className="mb-3 text-sm font-semibold text-foreground">{title}</h2>
@@ -22,7 +25,7 @@ export function FeedSection({ title, items }: { title: string; items: FeedItem[]
             price={item.price}
             className="w-55 shrink-0 md:w-full md:shrink"
             onClick={() => {
-              // TODO: route to item detail page
+              router.push(`/product/${item.id}`);
             }}
           />
         ))}
