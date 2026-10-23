@@ -1,6 +1,7 @@
 # Reach Payment Flows — Funding and Settlement Plan
 
-Status: plan, 2026-10-22. Backend scope.
+Status: backend plan; Cases A and D implemented (D behind a disabled flag),
+reviewed 2026-10-23.
 Companion to `reach_flows_and_architecture_documentation.md` (Model 1) and
 `docs/REACH_MODEL1_PAYMENTS_PLAN.md` (the provider work already landed).
 
@@ -93,15 +94,18 @@ refunded in USDC), that is the moment to introduce their FossaPay address.
 The on-chain settlement is always USDC to an address. What changes is what the
 provider does next.
 
-**Decision for this milestone: case A.** The provider has their own Solana
-wallet, `approve_work` releases USDC straight to it, and they convert to naira
-themselves using any exchange they like. Nothing else runs on our side.
+**Decision for this milestone: case A, with optional case D.** The provider
+has their own Solana wallet, `approve_work` releases USDC straight to it, and
+they convert to naira themselves using any exchange they like. Providers who
+want Reach to handle the naira leg can use the deposit-address off-ramp
+(case D), which is implemented behind `REACH_OFFRAMP_ENABLED=false`.
 
 | Case | Provider has | Path | Status |
 |---|---|---|---|
 | **A** | **Their own Solana wallet** | `approve_work` → their address → they convert to naira themselves | **This milestone** |
 | B | An exchange account (Obiex, Yellow Card, …) | `approve_work` → their exchange deposit address → they withdraw naira themselves | Deferred |
 | C | Neither | `approve_work` → a custodial address we control → we pull the USDC back → Obiex fiat withdrawal → their bank | Deferred |
+| **D** | **Their own Solana wallet, but wants naira** | `approve_work` → their address → send USDC to a one-time Obiex deposit address → swap to NGNX → bank payout | **Implemented, live disabled** |
 
 Case A needs two things from us:
 
@@ -114,6 +118,13 @@ Case A needs two things from us:
 Case C, when it comes, is a separate endpoint (`POST /payments/payouts/withdraw`)
 and must be **batched**: Obiex charges about 1 per withdrawal with a minimum
 around 10, so a withdrawal per provider per job is uneconomic.
+
+Case D is implemented as `/payments/offramp`: Reach creates a unique Obiex
+USDC/SOL deposit address, the provider sends USDC there, Obiex settles it into
+Reach's wallet, Reach swaps USDC → NGNX, then debits NGNX to the provider's
+verified bank account. It is non-custodial between jobs; the provider signs a
+normal USDC transfer from their own wallet, not an extra escrow instruction.
+See `docs/REACH_NAIRA_OFFRAMP.md`.
 
 ## 5. Cross-rail matrix
 
@@ -199,9 +210,9 @@ and reuse the same PDA.
 3. `POST /payments/{target}/release` — done: resolves the provider's own
    address, creates their USDC token account if it does not exist, then signs
    `approve_work`.
-4. Deferred: the FossaPay custodial address as a fallback destination, and the
-   Obiex/Yellow Card naira off-ramp for providers who have no wallet of their
-   own (cases B and C).
+4. Deferred: the FossaPay custodial address as a fallback destination (case B)
+   and Reach-controlled custodial wallets (case C). The non-custodial
+   deposit-address naira off-ramp is implemented separately; see §8E.
 
 ### D. Treasury reconciliation
 Done, with Obiex as the provider:
@@ -223,18 +234,25 @@ Done, with Obiex as the provider:
 4. `treasury_transfers` records every withdrawal, so a float movement can be
    reconciled against the provider's history.
 
-### E. Provider naira cash-out (later milestone)
-1. `POST /payments/payouts/withdraw` — the provider's bank details, an amount,
-   and the Obiex/Yellow Card off-ramp call.
-2. Reconciliation: the on-chain release and the off-ramp payout must be
-   matched to each other.
+### E. Provider naira cash-out (implemented, live disabled)
+1. `POST /payments/offramp` — create a one-time Obiex USDC/SOL deposit address
+   plus a bank-payout row. The provider sends USDC from their own wallet; Reach
+   does not hold the provider's key.
+2. `POST /payments/offramp/quote`, `GET /payments/offramp`, bank listing,
+   cancel, admin retry/refund, and `POST /payments/offramp/reconcile`.
+3. Live payouts remain blocked on Obiex Business Collections access and the
+   prerequisites in `docs/REACH_NAIRA_OFFRAMP.md` §6. `REACH_OFFRAMP_ENABLED`
+   stays `false` until a staging payout passes.
+4. Case C (batched custodial withdrawal) remains deferred; it needs
+   Reach-controlled provider wallets and provider signing.
 
 ## 9. Open questions
 
-1. Should the naira rail be Obiex or Yellow Card? Yellow Card's direct
-   settlement removes the withdrawal hop (naira → USDC straight to the
-   treasury ATA) and it has a sandbox; Obiex's collections are simpler but
-   gated and need a withdrawal step. Both need a business account.
+1. Should the naira rail be Obiex or Yellow Card? The collection rail is
+   currently implemented with Obiex and is waiting on Business Collections
+   access; Yellow Card remains a fallback because its direct settlement would
+   remove the withdrawal hop and it has a sandbox. Both need a business
+   account.
 2. Does Yellow Card accept a direct settlement to an arbitrary (non-whitelisted)
    Solana address? Their balance pay-outs are whitelisted; the receive request
    takes a free-form `walletAddress`. This decides the treasury design.

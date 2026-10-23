@@ -1,8 +1,9 @@
 # Reach Model 1 — Backend Payments Plan (FossaPay + Obiex + Solana)
 
-Status: **phase 0–2 and 4–6 implemented** on `feat/fossapay-payments`, 2026-10-21.
-Scope: **backend only** (the FossaPay integration). Spec:
-`reach_flows_and_architecture_documentation.md` (Model 1, canonical).
+Status: **phases 0–6 implemented; phase 7 (ops) pending** on
+`feat/fossapay-payments`, reviewed 2026-10-23.
+Scope: **backend only**. Spec: `reach_flows_and_architecture_documentation.md`
+(Model 1, canonical).
 
 ## Progress
 
@@ -14,16 +15,21 @@ Scope: **backend only** (the FossaPay integration). Spec:
 | 3 — chain state mirror | Done | `services/chain.py` maps the program's task status onto the job row. |
 | 4 — payment API | Done | `routers/payments.py` and `routers/webhooks.py` rewritten for the rails; the Obiex webhook is new. |
 | 5 — schema | Done | Migration `a1b2c3d4e5f6`. |
-| 6 — tests | Done | 98 tests, no database required. |
-| 7 — ops | Pending | Needs live credentials, a staging run and a treasury float policy. |
+| 6 — tests | Done | 126 tests, no database required. |
+| 7 — ops | Pending | Needs live credentials, a staging run, a treasury float policy and an external scheduler for reconciliation. |
 
 ### Still open
 
 - The treasury float: an escrow is locked from the relayer's USDC balance, so
-  the platform holds USDC and replenishes it with Obiex withdrawals. The
-  replenishment job is not written yet.
-- The provider cash-out endpoint (Obiex `wallets/ext/debit/fiat`) is not
-  exposed yet; providers currently receive USDC on-chain only.
+  the platform holds USDC and replenishes it with Obiex withdrawals. A
+  collection that arrives while the float is short is retried automatically
+  by `retry_pending_fundings` after the withdrawal webhook; there is no
+  background scheduler yet, so reconciliation still needs external cron.
+- Provider naira cash-out is implemented as the deposit-address off-ramp
+  (`/payments/offramp`), but live payouts remain disabled behind
+  `REACH_OFFRAMP_ENABLED=false` until Obiex Business Collections access and
+  the prerequisites in `docs/REACH_NAIRA_OFFRAMP.md` §6 are confirmed.
+  Providers otherwise receive USDC on-chain only.
 - The FossaPay webhook signature scheme has to be confirmed against a real
   event. Both the v1 (over `data`) and v2 (over the body) schemes are
   accepted for now, and the matched scheme is reported.
@@ -154,7 +160,7 @@ POST /jobs -> user signs create_task in Phantom -> PATCH /jobs/{id}/link-chain
 - new `chain_transactions` (business ref, kind, tx hash, status, error, raw).
 
 ### Phase 6 — tests
-- Extend the fake provider in `backend/tests/support.py`; keep the 29 existing tests.
+- Extend the fake provider in `backend/tests/support.py`; the branch currently has 126 tests.
 - New: instruction-encoding golden tests (PDA/ATA vs anchor), HMAC verification,
   webhook dedupe/replay, relayer idempotency, collection -> escrow flow, release flow.
 - Obiex **staging** is the only place an end-to-end run can happen safely.

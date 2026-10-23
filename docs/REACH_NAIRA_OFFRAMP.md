@@ -8,7 +8,8 @@ provider sends USDC to it, Obiex credits Reach's wallet, Reach swaps the USDC
 to NGNX, and Obiex pays naira to the provider's bank account.
 
 This is the recommended model because it needs no custodial provider wallets
-and no provider signing beyond the existing on-chain escrow lifecycle.
+and no new on-chain program instruction: the provider signs only a normal USDC
+transfer from their own wallet.
 
 ---
 
@@ -67,7 +68,10 @@ last name that match Obiex's resolved account name, and a Solana
 ## 3. API
 
 All endpoints require the normal Reach login cookie. The feature flag
-`REACH_OFFRAMP_ENABLED` gates the whole surface; the default is `false`.
+`REACH_OFFRAMP_ENABLED` gates new quotes, bank listing, deposit-address
+creation, retry, and settlement; the default is `false`. Existing rows can
+still be read, cancelled, refunded, and reconciled while the flag is off so an
+in-flight payout can be cleaned up.
 
 | Method | Path | Purpose |
 |---|---|---|
@@ -263,6 +267,12 @@ These are **not** answered by the public docs. Send them to Obiex
 (`sales@obiex.finance`, and the API/support contact) and record the answers
 here before flipping `REACH_OFFRAMP_ENABLED=true`.
 
+> **First blocker — Business Collections access:** Reach's business account has
+> not yet been enabled for the Business Collections API. Ask what is required
+> to open it (KYB documents, agreement, fees, timeline) and whether that same
+> approval covers broker deposit addresses, USDC/SOL deposits, swaps, and NGN
+> bank payouts. If any of those need separate enablement, ask which.
+
 ### Account and compliance
 
 1. Is Reach's business account enabled for **third-party bank payouts**? The
@@ -363,6 +373,9 @@ the prerequisites above are answered and a staging run has passed.
 ---
 
 ## 8. Go-live checklist
+
+Before step 1, Obiex must confirm Business Collections access and answer the
+§6 items in writing.
 
 1. Run the migration (`f1a2b3c4d5e6_add_offramp_withdrawals`).
 2. Set Obiex staging credentials and `REACH_OFFRAMP_ENABLED=true` in staging.

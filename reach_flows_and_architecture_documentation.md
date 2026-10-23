@@ -1,10 +1,18 @@
 # Reach Protocol: Architecture & Flows Documentation (Model 1 Canonical)
 
 This document defines the formal system architecture and operational flows for **Reach Protocol**, incorporating the decision to adopt **Model 1**:
-* **Canonical Settlement Layer:** **Solana** ([`sol-contract/programs/sol-contract`](file:///home/peni/Projects/reach/sol-contract/programs/sol-contract)) executes all task creation, escrow locking, provider collateral deposits, upfront advance releases, and final settlements.
+* **Canonical Settlement Layer:** **Solana** ([`sol-contract/programs/sol-contract`](sol-contract/programs/sol-contract)) executes all task creation, escrow locking, provider collateral deposits, upfront advance releases, and final settlements.
 * **Multichain Routing & Execution:** **NEAR Intents** and **NEAR Chain Signatures (MPC)** enable users on any foreign blockchain (Base, Ethereum, Arbitrum, NEAR, Polygon) to convert assets into Solana SPL stablecoins and sign Solana Anchor transactions seamlessly.
-* **Non-Crypto Gateway:** **FossaPay** collects fiat payments, auto-converts to stablecoins, and triggers the server relayer to call the Solana contract on the user's behalf.
-* **Deprecated:** The standalone NEAR escrow contract ([`near-contract/`](file:///home/peni/Projects/reach/near-contract)) is deprecated to eliminate liquidity fragmentation.
+* **Non-Crypto Gateway:** **Obiex Business Collections** and **FossaPay** collect fiat payments. Obiex supplies the naira-to-USDC leg; FossaPay supplies checkout, KYC, and wallet provisioning. Reach's server relayer then calls the Solana contract on the user's behalf.
+* **Deprecated:** The standalone NEAR escrow contract ([`near-contract/`](near-contract)) is deprecated to eliminate liquidity fragmentation.
+
+> **Implementation status (2026-10-23):** the Model 1 backend is implemented on
+> `feat/fossapay-payments`. The Solana funding/release path and treasury are
+> built; provider naira off-ramp is built but disabled behind
+> `REACH_OFFRAMP_ENABLED=false` pending Obiex confirmations. The provider
+> on-chain `apply` / `complete_task` wallet flow and the frontend payment UI are
+> still outstanding. See `docs/REACH_MODEL1_PAYMENTS_PLAN.md` and
+> `docs/REACH_NAIRA_OFFRAMP.md`.
 
 ---
 
@@ -20,7 +28,7 @@ flowchart TD
 
     subgraph Ingestion_Layer["Ingestion & Orchestration Layer"]
         W_Sol["Solana Wallet Adapter (@solana/wallet-adapter)"]
-        FP["FossaPay Gateway (Fiat to SPL USDC Conversion)"]
+        FP["Obiex / FossaPay Fiat Collection"]
         NI["NEAR Intents (Defuse Cross-Chain Solver Network)"]
         CS["NEAR Chain Signatures (Threshold MPC Signer)"]
         Relayer["Reach Server Relayer (FastAPI Keypair Engine)"]
@@ -35,7 +43,7 @@ flowchart TD
     subgraph Server_Database["Backend Server & Metadata (FastAPI + PostgreSQL)"]
         API["FastAPI App (/jobs, /businesses, /chats)"]
         DB["PostgreSQL + PostGIS (Spatial Matching & Jobs DB)"]
-        Webhook["FossaPay Webhook Receiver"]
+        Webhook["FossaPay + Obiex Webhook Receiver"]
     end
 
     U1 -->|1. Sign Native Tx| W_Sol
@@ -97,26 +105,26 @@ sequenceDiagram
 
 ---
 
-### Flow 2: Non-Crypto User (FossaPay + Server Relayer)
+### Flow 2: Non-Crypto User (Fiat Collection + Server Relayer)
 
 ```mermaid
 sequenceDiagram
     autonumber
     actor Creator as Non-Crypto User
     participant Client as Frontend (Next.js)
-    participant FP as FossaPay Gateway
+    participant FP as Fiat Collection (Obiex / FossaPay)
     participant Server as Backend Relayer (FastAPI)
     participant Sol as Solana Program (Anchor)
     participant Vault as Task Vault PDA
 
     Creator->>Client: Fill Details & Select "Pay with Card / Bank"
-    Client->>Server: POST /jobs/fiat-checkout (Create Job + Payment Request)
-    Server->>FP: Initialize FossaPay Checkout (Total = Budget + Protocol Fee)
-    FP-->>Client: Render FossaPay Modal / Hosted Checkout
+    Client->>Server: POST /jobs, then POST /payments/jobs/{id}/collection
+    Server->>FP: Open FossaPay checkout or Obiex virtual account
+    FP-->>Client: Render checkout / bank-transfer instructions
     Creator->>FP: Authorize Fiat Payment
-    FP->>FP: Convert Fiat to SPL USDC
+    FP->>FP: Collect NGN (no direct USDC conversion)
     FP->>Server: Webhook: payment.completed (Payload contains tx/payout info)
-    Server->>Server: Verify Webhook HMAC Signature
+    Server->>Server: Verify webhook; settle NGN to USDC via Obiex treasury
     Server->>Sol: Relayer Keypair calls create_task(task_id = job.id, terms)
     Sol->>Vault: Relayer SPL Account transfers Escrow to Task Vault
     Sol-->>Server: On-chain Task Initialized
@@ -125,9 +133,9 @@ sequenceDiagram
 ```
 
 1. **User Experience:** The non-crypto user pays with local fiat (debit card, bank transfer, mobile money).
-2. **FossaPay Ingestion:** FossaPay processes the fiat deposit and auto-converts to SPL USDC.
-3. **Webhook Verification:** FossaPay dispatches an encrypted webhook (`payment.completed`) to `POST /api/webhooks/fossapay`.
-4. **Relayer Execution:** The backend relayer holds an automated Solana keypair. Upon verifying the payment receipt, the relayer submits `create_task` to the Solana program on behalf of the user.
+2. **Fiat Ingestion:** FossaPay checkout or Obiex Business Collections collects the naira. Obiex supplies the conversion to USDC; FossaPay does not convert fiat to stablecoins.
+3. **Webhook Verification:** The provider dispatches a signed webhook to `POST /webhooks/fossapay` or `POST /webhooks/obiex`.
+4. **Relayer Execution:** The backend relayer holds an automated Solana keypair. Once the treasury has the USDC, the relayer submits `create_task` to the Solana program on behalf of the user.
 5. **Custodial Authority:** The server records `payer_type = "custodial"`. When the user later clicks "Approve Work" in the UI, the backend authorizes and signs the corresponding Solana transaction (`approve_work`).
 
 ---
@@ -207,34 +215,34 @@ To fulfill Model 1, the following surgical updates have been applied to the code
 ### 1. `near-contract/README.md`
 Marked the standalone NEAR escrow contract as **DEPRECATED** with an official architecture notice directing development to `sol-contract` and NEAR Chain Signatures.
 
-### 2. Backend SQLAlchemy Models ([`backend/models/jobs.py`](file:///home/peni/Projects/reach/backend/models/jobs.py))
+### 2. Backend SQLAlchemy Models ([`backend/models/jobs.py`](backend/models/jobs.py))
 * Added `onchain_task_id: Mapped[int | None] = mapped_column(Integer, nullable=True)`
 * Added `onchain_tx_hash: Mapped[str | None] = mapped_column(String(128), nullable=True)`
 * Retained `near_task_id` as a deprecated property alias pointing to `onchain_task_id` for backwards compatibility.
 * Added `onchain_application_id` to `JobApplication` with a deprecated `near_application_id` property alias.
 
-### 3. Backend Schemas ([`backend/schemas/jobs.py`](file:///home/peni/Projects/reach/backend/schemas/jobs.py))
+### 3. Backend Schemas ([`backend/schemas/jobs.py`](backend/schemas/jobs.py))
 * Replaced mandatory `near_task_id: int` with optional `onchain_task_id: int | None = None` and `onchain_tx_hash: str | None = None`.
 * Marked `near_task_id` and `near_application_id` as optional and deprecated, resolving the FastAPI Pydantic serialization crash.
 
-### 4. Backend Routers ([`backend/routers/jobs.py`](file:///home/peni/Projects/reach/backend/routers/jobs.py))
+### 4. Backend Routers ([`backend/routers/jobs.py`](backend/routers/jobs.py))
 * Updated `PATCH /jobs/{id}/link-chain` to accept `onchain_task_id` and `onchain_tx_hash`, falling back to `near_task_id` if supplied by legacy clients.
 * Updated `PATCH /jobs/applications/{id}/link-chain` to accept `onchain_application_id`.
 
-### 5. Frontend Types & Client ([`frontend/reach/lib/jobs.ts`](file:///home/peni/Projects/reach/frontend/reach/lib/jobs.ts))
+### 5. Frontend Types & Client ([`frontend/reach/lib/jobs.ts`](frontend/reach/lib/jobs.ts))
 * Updated `Job` and `JobApplication` types with `onchain_task_id?: number` and `onchain_tx_hash?: string`.
 * Updated `linkJobChain` and `linkApplicationChain` to transmit both `onchain_task_id` and legacy `near_task_id`.
-* Annotated [`frontend/reach/lib/near/contract-calls.ts`](file:///home/peni/Projects/reach/frontend/reach/lib/near/contract-calls.ts) as deprecated in favor of the Solana Anchor program.
+* Annotated [`frontend/reach/lib/near/contract-calls.ts`](frontend/reach/lib/near/contract-calls.ts) as deprecated in favor of the Solana Anchor program.
 
 ---
 
 ## 4. Smart Contract Patches Applied (`sol-contract/`)
 
-The following critical bugs in [`sol-contract/`](file:///home/peni/Projects/reach/sol-contract/) have been patched and verified via `cargo check --lib`:
+The following critical bugs in [`sol-contract/`](sol-contract/) have been patched and verified via `cargo check --lib`:
 
-1. **Fixed `claim_advance` PDA Seed Mismatch:** In [`application.rs#L205`](file:///home/peni/Projects/reach/sol-contract/programs/sol-contract/src/instructions/application.rs#L205), removed the erroneous `task.creator.as_ref()` from `signer_seeds`, restoring the canonical seeds `[TASK_SEED, task_id.to_le_bytes()]` and preventing runtime CPI signature panics.
-2. **Assigned `stable_coin_mint`:** In [`task.rs#L114`](file:///home/peni/Projects/reach/sol-contract/programs/sol-contract/src/instructions/task.rs#L114), added `task.stable_coin_mint = ctx.accounts.stable_coin_mint.key()` so the mint public key is persisted on-chain.
-3. **Secured `accept_application`:** In [`task.rs#L137`](file:///home/peni/Projects/reach/sol-contract/programs/sol-contract/src/instructions/task.rs#L137):
+1. **Fixed `claim_advance` PDA Seed Mismatch:** In [`application.rs#L205`](sol-contract/programs/sol-contract/src/instructions/application.rs#L205), removed the erroneous `task.creator.as_ref()` from `signer_seeds`, restoring the canonical seeds `[TASK_SEED, task_id.to_le_bytes()]` and preventing runtime CPI signature panics.
+2. **Assigned `stable_coin_mint`:** In [`task.rs#L114`](sol-contract/programs/sol-contract/src/instructions/task.rs#L114), added `task.stable_coin_mint = ctx.accounts.stable_coin_mint.key()` so the mint public key is persisted on-chain.
+3. **Secured `accept_application`:** In [`task.rs#L137`](sol-contract/programs/sol-contract/src/instructions/task.rs#L137):
    * Added `constraint = task.creator == owner.key() @ ErrorCode::NotOwner` to prevent arbitrary third parties from accepting applications.
    * Added `constraint = application.status == ProviderApplicationStatus::Pending @ ErrorCode::ApplicationNotAccepted`.
    * Added `require!(task.status == TaskStatus::Open, ErrorCode::InvalidTaskStatus)` to prevent reassigning providers on in-progress or closed tasks.
@@ -254,7 +262,7 @@ the APIs rather than the assumption.
 | Convert platform naira into USDC | Obiex | `POST /trades/swap` (`NGNX` → `USDC`). |
 | Move USDC into the escrow | Obiex | `POST /wallets/ext/debit/crypto` (`network: SOL`) → the relayer's Solana address. |
 | Per-user Solana address (custodial payer and provider payout) | FossaPay | `POST /api/v1/wallets/crypto/create`. |
-| Cash a provider out to naira | Obiex | `POST /wallets/ext/debit/fiat` (bank account). |
+| Cash a provider out to naira | Obiex | `/payments/offramp`: `POST /addresses/broker` (USDC/SOL deposit) → `POST /trades/swap` → `POST /wallets/ext/debit/fiat`. Live payouts are disabled pending Obiex confirmation. |
 | Identity (NIN / BVN) | FossaPay | `POST /api/v1/kyc/verifications`. |
 | Test environment | Obiex staging | `https://staging.api.obiex.finance/v1` — FossaPay has **no** sandbox, every request reaches production. |
 
@@ -274,3 +282,10 @@ the APIs rather than the assumption.
 3. **Funding happens when the task is created.** The escrow is locked at
    creation, so a task starts in `pending_funding` and becomes `open` once
    its escrow is on-chain. There is no pay-after-acceptance step.
+4. **Provider naira cash-out is a separate, non-custodial request.** The
+   provider keeps their USDC until they choose to off-ramp. Reach creates a
+   one-time Obiex USDC/SOL deposit address, the provider sends USDC to it,
+   Obiex swaps to NGNX, and Reach debits NGNX to the provider's verified bank
+   account. This does not change the escrow rule: `approve_work` remains the
+   only settlement event. The feature is implemented behind
+   `REACH_OFFRAMP_ENABLED=false`; see `docs/REACH_NAIRA_OFFRAMP.md`.

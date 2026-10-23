@@ -4,12 +4,16 @@
 > escrow is locked on Solana when the task is created, the Anchor program is
 > the settlement layer, and settlement is the program's `approve_work`.
 >
-> See `docs/REACH_MODEL1_PAYMENTS_PLAN.md` for the current design and
-> `reach_flows_and_architecture_documentation.md` for the architecture.
+> See `docs/REACH_MODEL1_PAYMENTS_PLAN.md` for the current design,
+> `reach_flows_and_architecture_documentation.md` for the architecture, and
+> `docs/REACH_NAIRA_OFFRAMP.md` for the provider naira cash-out.
+>
+> **Historical only:** the design, endpoints, and data model below describe
+> the pre-Model-1 plan and are not the current implementation.
 
 # Reach Payments — Fiat Escrow Implementation Plan
 
-**Status:** in progress — job checkout, payout release and webhooks are built; escrow ledger, refunds, disputes, KYC and reconciliation are not
+**Status:** historical — superseded by Model 1; the content below records the earlier FossaPay/Postgres-ledger plan only
 **Owner:** Backend
 **Scope:** Jobs/requests, service requests, product orders
 **Provider:** FossaPay (NGN, production-only)
