@@ -61,12 +61,106 @@ def to_kobo(amount) -> int:
     return int(value)
 
 
-def job_budget_naira(job: Job) -> int:
-    """The job's budget in whole naira."""
-    budget = int(round(float(job.budget)))
+def budget_naira(amount) -> int:
+    """Validate a task budget and return it in whole naira.
+
+    Money is never rounded: a fractional budget is a data-entry error, not
+    something to silently change. The minimum comes from `MIN_ESCROW_KOBO`,
+    the same threshold the old rails used.
+    """
+    try:
+        value = Decimal(str(amount))
+    except Exception as exc:  # pragma: no cover - defensive
+        raise FundingError("The job budget is not a valid amount") from exc
+
+    if value != value.to_integral_value():
+        raise FundingError("The job budget must be a whole naira amount")
+
+    budget = int(value)
     if budget <= 0:
         raise FundingError("The job has no budget to fund")
+
+    if budget * 100 < settings.MIN_ESCROW_KOBO:
+        minimum = settings.MIN_ESCROW_KOBO / 100
+        raise FundingError(f"The minimum task budget is ₦{minimum:,.0f}")
+
     return budget
+
+
+def job_budget_naira(job: Job) -> int:
+    """The job's budget in whole naira."""
+    return budget_naira(job.budget)
+
+
+# What each rail needs from the customer before it can be opened.
+# The crypto rail needs nothing: the customer already has a wallet and pays
+# straight to the treasury address. The naira rails need identity, because
+# the provider has to verify the payer.
+RAIL_REQUIREMENTS: dict[FundingRail, tuple[str, ...]] = {
+    FundingRail.CRYPTO: (),
+    FundingRail.OBIEX_FIAT: (
+        "first_name",
+        "last_name",
+        "phone_number",
+        "date_of_birth",
+        "address",
+        "city",
+        "country",
+        "bvn_or_nin",
+    ),
+    FundingRail.FOSSAPAY_CHECKOUT: (
+        "first_name",
+        "last_name",
+        "phone_number",
+        "date_of_birth",
+        "address",
+        "city",
+        "country",
+    ),
+}
+
+
+def missing_fields_for_rail(
+    *,
+    user: User,
+    profile: PaymentProfile | None,
+    rail: FundingRail,
+    customer_provisioned: bool | None = None,
+) -> list[str]:
+    """What the customer still has to give us before this rail can be opened.
+
+    The payment profile is collected when the customer wants to pay, not at
+    signup, so this is what the frontend asks for at that moment.
+    """
+    missing: list[str] = []
+
+    if (
+        rail == FundingRail.FOSSAPAY_CHECKOUT
+        and customer_provisioned is not None
+        and not customer_provisioned
+    ):
+        missing.append("provisioning")
+
+    for field in RAIL_REQUIREMENTS.get(rail, ()):
+        if field == "first_name":
+            if not (user.first_name or "").strip():
+                missing.append(field)
+        elif field == "last_name":
+            if not (user.last_name or "").strip():
+                missing.append(field)
+        elif field == "phone_number":
+            if not (user.phone_number or "").strip():
+                missing.append(field)
+        elif field == "date_of_birth":
+            if profile is None:
+                missing.append(field)
+        elif field == "bvn_or_nin":
+            if profile is None or not (profile.bvn or profile.nin):
+                missing.append(field)
+        elif profile is None or not getattr(profile, field, None):
+            missing.append(field)
+
+    return missing
 
 
 def _reference(prefix: str, job_id: int) -> str:
@@ -82,6 +176,26 @@ async def _existing_intent(
         .where(
             PaymentIntent.job_id == job_id,
             PaymentIntent.rail == rail,
+            PaymentIntent.status == PaymentStatus.PENDING,
+        )
+        .order_by(PaymentIntent.id.desc())
+    )
+    return result.scalars().first()
+
+
+async def latest_pending_intent(
+    db: AsyncSession, job_id: int
+) -> PaymentIntent | None:
+    """Any pending funding intent for a job, whichever rail opened it.
+
+    A task can only have one payment open at a time. Otherwise a payer could
+    open two rails, pay both, and have the second payment captured without an
+    escrow to put it in.
+    """
+    result = await db.execute(
+        select(PaymentIntent)
+        .where(
+            PaymentIntent.job_id == job_id,
             PaymentIntent.status == PaymentStatus.PENDING,
         )
         .order_by(PaymentIntent.id.desc())

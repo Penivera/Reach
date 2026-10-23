@@ -3,9 +3,11 @@
 import hashlib
 import hmac
 import unittest
+from unittest import mock
 
 from core.obiex import (
     STAGING_BASE_URL,
+    ObiexError,
     ObiexNotConfigured,
     sign_request,
     verify_webhook_signature,
@@ -84,6 +86,76 @@ class ObiexClientTests(unittest.IsolatedAsyncioTestCase):
 
         with self.assertRaises(ObiexNotConfigured):
             await client.get_fiat_rates()
+
+    async def test_account_resolve_is_a_get_with_a_sort_code(self):
+        from core.obiex import ObiexClient
+
+        client = ObiexClient(
+            base_url="https://api.obiex.finance/v1",
+            api_key="key",
+            api_secret="secret",
+        )
+        client._request = mock.AsyncMock(return_value={})
+
+        await client.resolve_naira_account(
+            account_number="9012345678", bank_code="058"
+        )
+
+        client._request.assert_awaited_once_with(
+            "GET",
+            "/ngn-payments/accounts/resolve",
+            params={"accountNumber": "9012345678", "sortCode": "058"},
+        )
+
+    async def test_account_resolve_falls_back_to_bank_id(self):
+        from core.obiex import ObiexClient
+
+        client = ObiexClient(
+            base_url="https://api.obiex.finance/v1",
+            api_key="key",
+            api_secret="secret",
+        )
+        client._request = mock.AsyncMock(
+            side_effect=[ObiexError("sortCode rejected"), {"accountName": "Ada Okafor"}]
+        )
+
+        await client.resolve_naira_account(
+            account_number="9012345678", bank_code="058"
+        )
+
+        self.assertEqual(client._request.await_count, 2)
+        self.assertEqual(
+            client._request.await_args_list[1].kwargs["params"],
+            {"accountNumber": "9012345678", "bankId": "058"},
+        )
+
+    async def test_fiat_withdrawal_debits_the_currency_code(self):
+        from core.obiex import ObiexClient
+
+        client = ObiexClient(
+            base_url="https://api.obiex.finance/v1",
+            api_key="key",
+            api_secret="secret",
+        )
+        client._request = mock.AsyncMock(return_value={})
+
+        await client.request_fiat_withdrawal(
+            currency="NGNX",
+            amount=15_000,
+            account_number="9012345678",
+            account_name="Ada Okafor",
+            bank_name="Fake Bank",
+            bank_code="058",
+        )
+
+        method, path = client._request.await_args.args
+        payload = client._request.await_args.kwargs["json"]
+
+        self.assertEqual(method, "POST")
+        self.assertEqual(path, "/wallets/ext/debit/fiat")
+        self.assertEqual(payload["currency"], "NGNX")
+        self.assertEqual(payload["amount"], 15_000)
+        self.assertEqual(payload["destination"]["bankCode"], "058")
 
 
 if __name__ == "__main__":

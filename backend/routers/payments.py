@@ -9,7 +9,7 @@ endpoints here cover the two halves of that:
   `approve_work`, which pays the provider on-chain.
 """
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -38,10 +38,17 @@ from schemas import (
     FundingRail,
     FundingStateResponse,
     FundingStatus,
+    JobStatus,
+    OffRampBankResponse,
+    OffRampCreateRequest,
+    OffRampQuoteRequest,
+    OffRampQuoteResponse,
+    OffRampWithdrawalResponse,
     PaymentProfileResponse,
     PaymentProfileStateResponse,
     PaymentProfileUpsert,
     ProvisioningStatus,
+    UserRole,
 )
 from services import (
     ensure_customer_record,
@@ -55,12 +62,15 @@ from services.chain import (
     release_task_escrow,
 )
 from services.treasury import TreasuryError
+from services import offramp
 from services.funding import (
     FundingError,
     ProfileIncomplete,
     create_crypto_deposit_address,
     create_fossapay_checkout,
     create_obiex_collection,
+    latest_pending_intent,
+    missing_fields_for_rail,
 )
 
 
@@ -303,6 +313,37 @@ async def retry_payment_profile_provisioning(
     return _state(profile, customer, current_user)
 
 
+@router.get("/requirements")
+async def get_payment_requirements(
+    rail: FundingRail = FundingRail.OBIEX_FIAT,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """What the customer has to provide before this rail can be opened.
+
+    The payment profile is collected when the customer wants to pay, so the
+    frontend calls this when they tap pay and asks for what is missing.
+    """
+    profile = await _get_profile(current_user.id, db)
+    customer = await _get_customer(current_user.id, db)
+
+    missing = missing_fields_for_rail(
+        user=current_user,
+        profile=profile,
+        rail=rail,
+        customer_provisioned=bool(
+            customer and customer.status == ProvisioningStatus.PROVISIONED
+        ),
+    )
+
+    return {
+        "rail": rail,
+        "can_pay": not missing,
+        "missing_fields": missing,
+        "profile_completed": profile is not None,
+    }
+
+
 @router.post("/jobs/{job_id}/collection", response_model=FundingIntentResponse)
 async def create_job_collection(
     job_id: int,
@@ -331,13 +372,47 @@ async def create_job_collection(
             detail="This task is already funded",
         )
 
+    if job.funding_status in (FundingStatus.PAID, FundingStatus.HELD):
+        raise HTTPException(
+            status_code=400,
+            detail="This task already has a payment being processed",
+        )
+
+    if job.status in (JobStatus.COMPLETED, JobStatus.CANCELLED):
+        raise HTTPException(
+            status_code=400,
+            detail="This task is closed and cannot be funded",
+        )
+
+    pending = await latest_pending_intent(db, job.id)
+    if pending is not None and pending.rail != rail:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "A payment is already open for this task on another rail. "
+                "Finish or cancel it before choosing a different payment method."
+            ),
+        )
+
     profile = await _get_profile(current_user.id, db)
     customer = await _get_customer(current_user.id, db)
 
-    if not profile:
+    missing = missing_fields_for_rail(
+        user=current_user,
+        profile=profile,
+        rail=rail,
+        customer_provisioned=bool(
+            customer and customer.status == ProvisioningStatus.PROVISIONED
+        ),
+    )
+
+    if missing:
         raise HTTPException(
             status_code=400,
-            detail="Complete your payment profile first",
+            detail={
+                "message": "We need a few more details before you can pay",
+                "missing_fields": missing,
+            },
         )
 
     try:
@@ -349,7 +424,10 @@ async def create_job_collection(
             if not customer or customer.status != ProvisioningStatus.PROVISIONED:
                 raise HTTPException(
                     status_code=400,
-                    detail="Complete your payment profile first",
+                    detail={
+                        "message": "Your payment account is not ready yet",
+                        "missing_fields": ["provisioning"],
+                    },
                 )
             intent = await create_fossapay_checkout(
                 db, job=job, customer=customer
@@ -521,3 +599,219 @@ async def list_job_chain_transactions(
         ChainTransactionResponse.model_validate(record)
         for record in result.scalars().all()
     ]
+
+
+# -- provider naira off-ramp ------------------------------------------------
+
+
+def _offramp_error(exc: offramp.OffRampError) -> HTTPException:
+    if isinstance(exc, offramp.OffRampDisabled):
+        return HTTPException(status_code=503, detail=str(exc))
+    if isinstance(exc, offramp.OffRampNotFound):
+        return HTTPException(status_code=404, detail=str(exc))
+    if isinstance(exc, offramp.OffRampConflict):
+        return HTTPException(status_code=409, detail=str(exc))
+    if isinstance(exc, offramp.OffRampNotReady):
+        return HTTPException(status_code=400, detail=str(exc))
+    if isinstance(exc, offramp.OffRampAmountError):
+        return HTTPException(status_code=400, detail=str(exc))
+    return HTTPException(status_code=400, detail=str(exc))
+
+
+def _require_admin(user: User) -> None:
+    if getattr(user, "role", None) != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+
+@router.get("/offramp/banks", response_model=list[OffRampBankResponse])
+async def list_offramp_banks(current_user=Depends(get_current_user)):
+    """Nigerian banks Obiex can pay a naira withdrawal to."""
+    try:
+        return await offramp.list_banks()
+    except offramp.OffRampError as exc:
+        raise _offramp_error(exc)
+    except (ObiexError, ObiexNotConfigured) as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+
+
+@router.post("/offramp/quote", response_model=OffRampQuoteResponse)
+async def quote_offramp(
+    data: OffRampQuoteRequest,
+    current_user=Depends(get_current_user),
+):
+    """Show the indicative naira amount before the provider sends USDC."""
+    try:
+        return await offramp.quote_offramp(data.amount_usdc)
+    except offramp.OffRampError as exc:
+        raise _offramp_error(exc)
+    except (ObiexError, ObiexNotConfigured) as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+
+
+@router.post("/offramp/reconcile")
+async def reconcile_offramp(
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Expire stale deposit requests and poll in-flight bank payouts."""
+    _require_admin(current_user)
+    try:
+        return await offramp.reconcile(db)
+    except offramp.OffRampError as exc:
+        raise _offramp_error(exc)
+    except (ObiexError, ObiexNotConfigured) as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+
+
+@router.post("/offramp", response_model=OffRampWithdrawalResponse, status_code=201)
+async def create_offramp(
+    data: OffRampCreateRequest,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Create a unique USDC deposit address and a pending naira payout."""
+    try:
+        return await offramp.create_withdrawal(
+            db,
+            user=current_user,
+            amount_usdc=data.amount_usdc,
+            bank_code=data.bank_code,
+            bank_account_number=data.bank_account_number,
+            bank_account_name=data.bank_account_name,
+            idempotency_key=idempotency_key,
+        )
+    except offramp.OffRampError as exc:
+        raise _offramp_error(exc)
+    except (ObiexError, ObiexNotConfigured) as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+
+
+@router.get("/offramp", response_model=list[OffRampWithdrawalResponse])
+async def list_offramp(
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    return await offramp.list_withdrawals(db, user_id=current_user.id)
+
+
+@router.get("/offramp/{withdrawal_id}", response_model=OffRampWithdrawalResponse)
+async def get_offramp(
+    withdrawal_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    owner = None if getattr(current_user, "role", None) == UserRole.ADMIN else current_user.id
+    try:
+        return await offramp.get_withdrawal(
+            db, withdrawal_id, user_id=owner
+        )
+    except offramp.OffRampError as exc:
+        raise _offramp_error(exc)
+
+
+@router.post(
+    "/offramp/{withdrawal_id}/cancel",
+    response_model=OffRampWithdrawalResponse,
+)
+async def cancel_offramp(
+    withdrawal_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    try:
+        withdrawal = await offramp.get_withdrawal(
+            db, withdrawal_id, user_id=current_user.id
+        )
+        return await offramp.cancel_withdrawal(db, withdrawal)
+    except offramp.OffRampError as exc:
+        raise _offramp_error(exc)
+
+
+@router.post(
+    "/offramp/{withdrawal_id}/retry",
+    response_model=OffRampWithdrawalResponse,
+)
+async def retry_offramp(
+    withdrawal_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Re-run settlement for a deposit that stopped before the bank payout."""
+    _require_admin(current_user)
+
+    try:
+        withdrawal = await offramp.get_withdrawal(db, withdrawal_id)
+    except offramp.OffRampError as exc:
+        raise _offramp_error(exc)
+
+    if not withdrawal.received_usdc_units:
+        raise HTTPException(
+            status_code=409,
+            detail="No USDC has arrived on this payout yet",
+        )
+
+    if withdrawal.provider_reference:
+        # Never create a second bank payout while the first one may still be
+        # live. Poll it first. Only a terminal FAILED/REJECTED provider state
+        # clears the reference and allows a fresh payout from the NGNX that
+        # is already in the wallet.
+        try:
+            refreshed = await offramp.refresh_withdrawal(db, withdrawal)
+        except offramp.OffRampError as exc:
+            raise _offramp_error(exc)
+        except (ObiexError, ObiexNotConfigured) as exc:
+            raise HTTPException(status_code=503, detail=str(exc))
+
+        if refreshed.status != offramp.OffRampStatus.FAILED:
+            return refreshed
+
+        withdrawal.provider_reference = None
+        withdrawal.provider_withdrawal_id = None
+        withdrawal.failure_reason = None
+
+    try:
+        offramp.ensure_enabled()
+    except offramp.OffRampError as exc:
+        raise _offramp_error(exc)
+
+    if withdrawal.status != offramp.OffRampStatus.FAILED:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Only a failed payout can be retried. A held payout needs "
+                "manual review before money moves."
+            ),
+        )
+
+    withdrawal.status = offramp.OffRampStatus.DEPOSIT_CONFIRMED
+    withdrawal.failure_reason = None
+    await db.commit()
+
+    try:
+        return await offramp.settle_withdrawal(db, withdrawal)
+    except offramp.OffRampError as exc:
+        raise _offramp_error(exc)
+    except (ObiexError, ObiexNotConfigured) as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+
+
+@router.post(
+    "/offramp/{withdrawal_id}/refund",
+    response_model=OffRampWithdrawalResponse,
+)
+async def refund_offramp(
+    withdrawal_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Return deposited USDC to the provider's Solana address."""
+    _require_admin(current_user)
+
+    try:
+        withdrawal = await offramp.get_withdrawal(db, withdrawal_id)
+        return await offramp.refund_withdrawal(db, withdrawal)
+    except offramp.OffRampError as exc:
+        raise _offramp_error(exc)
+    except (ObiexError, ObiexNotConfigured) as exc:
+        raise HTTPException(status_code=503, detail=str(exc))

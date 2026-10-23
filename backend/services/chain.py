@@ -176,6 +176,23 @@ async def fund_task_escrow(
     """Lock the task's escrow on-chain with `create_task`."""
     relayer = get_relayer()
 
+    idempotency_key = f"create-task-{job.id}"
+
+    existing = (
+        await db.execute(
+            select(ChainTransaction).where(
+                ChainTransaction.idempotency_key == idempotency_key
+            )
+        )
+    ).scalar_one_or_none()
+
+    if existing and existing.status in (
+        ChainTransactionStatus.CONFIRMED,
+        ChainTransactionStatus.FINALIZED,
+    ):
+        # The escrow is already locked; never lock it twice.
+        return existing
+
     escrow_units = escrow_units_for(funded_units, creation_fee_bps)
     terms = build_terms(escrow_units)
 
@@ -193,23 +210,6 @@ async def fund_task_escrow(
         raise InsufficientEscrowFunds(
             "The escrow is waiting for the treasury float to be replenished"
         )
-
-    idempotency_key = f"create-task-{job.id}"
-
-    existing = (
-        await db.execute(
-            select(ChainTransaction).where(
-                ChainTransaction.idempotency_key == idempotency_key
-            )
-        )
-    ).scalar_one_or_none()
-
-    if existing and existing.status in (
-        ChainTransactionStatus.CONFIRMED,
-        ChainTransactionStatus.FINALIZED,
-    ):
-        # The escrow is already locked; never lock it twice.
-        return existing
 
     try:
         confirmation = await relayer.create_task(
@@ -277,6 +277,35 @@ async def release_task_escrow(
         raise EscrowError("The provider does not have a valid Solana address") from exc
 
     idempotency_key = f"approve-work-{job.id}"
+
+    existing = (
+        await db.execute(
+            select(ChainTransaction).where(
+                ChainTransaction.idempotency_key == idempotency_key
+            )
+        )
+    ).scalar_one_or_none()
+
+    if existing and existing.status in (
+        ChainTransactionStatus.CONFIRMED,
+        ChainTransactionStatus.FINALIZED,
+    ):
+        # The escrow was already released; never sign it twice.
+        return existing
+
+    # The program only releases in AwaitingApproval. Check first so the API
+    # explains what is missing instead of returning an opaque program error.
+    try:
+        state = await relayer.read_task(job.id)
+    except SolanaError as exc:
+        raise EscrowError(f"Could not read the task from Solana: {exc}") from exc
+    if state is None:
+        raise EscrowError("The task has no on-chain state to release")
+    if state.status != "AwaitingApproval":
+        raise EscrowError(
+            f"The task is '{state.status}'. The provider must apply, be "
+            "accepted and complete the task on-chain before it can be released."
+        )
 
     # The payout goes to the provider's USDC token account, which does not
     # exist until they have held USDC on Solana. Create it first.
@@ -349,6 +378,8 @@ async def retry_pending_fundings(db: AsyncSession, limit: int = 20) -> list[Job]
     for intent in result.scalars().all():
         job = await db.get(Job, intent.job_id)
         if job is None or job.funding_status == FundingStatus.FUNDED:
+            continue
+        if job.status in (JobStatus.COMPLETED, JobStatus.CANCELLED):
             continue
 
         try:

@@ -8,7 +8,7 @@ from services.chain import (
     build_terms,
     escrow_units_for,
 )
-from services.funding import to_kobo, to_usdc_units
+from services.funding import FundingError, job_budget_naira, to_kobo, to_usdc_units
 
 
 class EscrowMathTests(unittest.TestCase):
@@ -60,6 +60,29 @@ class StatusMappingTests(unittest.TestCase):
         self.assertEqual(
             ONCHAIN_STATUS_TO_JOB_STATUS["Disputed"], JobStatus.IN_PROGRESS
         )
+
+
+class BudgetValidationTests(unittest.TestCase):
+    def _job(self, budget):
+        from types import SimpleNamespace
+
+        return SimpleNamespace(budget=budget)
+
+    def test_a_whole_naira_budget_is_accepted(self):
+        self.assertEqual(job_budget_naira(self._job(5_000)), 5_000)
+
+    def test_a_fractional_budget_is_rejected_not_rounded(self):
+        with self.assertRaises(FundingError):
+            job_budget_naira(self._job(5_000.50))
+
+    def test_a_budget_below_the_minimum_is_rejected(self):
+        # MIN_ESCROW_KOBO is 100000, i.e. NGN 1,000.
+        with self.assertRaises(FundingError):
+            job_budget_naira(self._job(999))
+
+    def test_a_non_positive_budget_is_rejected(self):
+        with self.assertRaises(FundingError):
+            job_budget_naira(self._job(0))
 
 
 class AmountTests(unittest.TestCase):

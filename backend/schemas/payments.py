@@ -1,4 +1,5 @@
 from datetime import date, datetime
+from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -14,6 +15,7 @@ from .enums import (
     FundingRail,
     FundingStatus,
     JobStatus,
+    OffRampStatus,
     PaymentStatus,
     PayerType,
     PayoutStatus,
@@ -196,3 +198,69 @@ class ChainTransactionResponse(BaseModel):
     processed_at: datetime | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class OffRampQuoteRequest(BaseModel):
+    """How much USDC the provider wants to turn into naira."""
+
+    amount_usdc: Decimal = Field(gt=0)
+
+
+class OffRampCreateRequest(OffRampQuoteRequest):
+    """Open a payout. Saved payment-profile bank details are the default."""
+
+    bank_code: str | None = Field(default=None, max_length=20)
+    bank_account_number: str | None = Field(default=None, max_length=30)
+    bank_account_name: str | None = Field(default=None, max_length=150)
+
+
+class OffRampQuoteResponse(BaseModel):
+    amount_usdc_units: int
+    rate_ngn_per_usdc: Decimal
+    gross_ngn_kobo: int
+    fee_kobo: int
+    net_ngn_kobo: int
+    min_ngn_kobo: int
+    expires_at: datetime
+    indicative: bool = True
+
+
+class OffRampWithdrawalResponse(BaseModel):
+    id: int
+    reference: str
+    status: OffRampStatus
+    amount_usdc_units: int
+    received_usdc_units: int
+    quoted_rate: Decimal | None = None
+    gross_ngn_kobo: int | None = None
+    fee_kobo: int
+    net_ngn_kobo: int | None = None
+    bank_name: str | None = None
+    bank_code: str | None = None
+    bank_account_number: str | None = None
+    bank_account_name: str | None = None
+    deposit_address: str | None = None
+    deposit_currency: str | None = None
+    deposit_network: str | None = None
+    deposit_provider_reference: str | None = None
+    deposit_tx_hash: str | None = None
+    swap_reference: str | None = None
+    swapped_at: datetime | None = None
+    provider_withdrawal_id: str | None = None
+    provider_reference: str | None = None
+    refund_reference: str | None = None
+    refund_transaction_id: str | None = None
+    failure_reason: str | None = None
+    expires_at: datetime | None = None
+    deposit_confirmed_at: datetime | None = None
+    paid_at: datetime | None = None
+    refunded_at: datetime | None = None
+    created_at: datetime | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class OffRampBankResponse(BaseModel):
+    name: str
+    code: str
+    bank_id: str | None = None

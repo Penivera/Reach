@@ -14,7 +14,7 @@ Scope: **backend only** (the FossaPay integration). Spec:
 | 3 — chain state mirror | Done | `services/chain.py` maps the program's task status onto the job row. |
 | 4 — payment API | Done | `routers/payments.py` and `routers/webhooks.py` rewritten for the rails; the Obiex webhook is new. |
 | 5 — schema | Done | Migration `a1b2c3d4e5f6`. |
-| 6 — tests | Done | 69 tests, no database required. |
+| 6 — tests | Done | 98 tests, no database required. |
 | 7 — ops | Pending | Needs live credentials, a staging run and a treasury float policy. |
 
 ### Still open
@@ -29,7 +29,12 @@ Scope: **backend only** (the FossaPay integration). Spec:
   accepted for now, and the matched scheme is reported.
 - The on-chain task lifecycle beyond `create_task` and `approve_work`
   (`accept`, `provide_collateral`, `complete_task`, `cancel_task`,
-  `raise_dispute`) is not yet driven by the backend.
+  `raise_dispute`) is not yet driven by the backend. `apply` and
+  `complete_task` require the **provider's** Solana signature, so the next
+  step is a provider wallet flow (build the instruction, sign in the wallet,
+  submit the signed transaction). Until then `approve_work` cannot be reached
+  unless the provider applies and completes out-of-band; the release endpoint
+  now checks for `AwaitingApproval` and returns a clear error.
 
 ---
 
@@ -166,4 +171,4 @@ POST /jobs -> user signs create_task in Phantom -> PATCH /jobs/{id}/link-chain
 | FossaPay webhook signature format unconfirmed | webhooks rejected or forged | support v1+v2, log both, confirm with a real event |
 | Obiex `USDC` on `SOL` availability | escrow funding leg blocked | check `GET /currencies/networks/active` at startup; fall back to a supported network + the FossaPay master wallet |
 | Conversion/float lag | escrow funding delayed | keep a USDC float in the relayer ATA; alert below threshold |
-| Provider cash-out | providers stuck in USDC | Obiex fiat withdrawal behind a request endpoint (phase 2) |
+| Provider cash-out | providers stuck in USDC | Deposit-address off-ramp is implemented (`/payments/offramp`) behind `REACH_OFFRAMP_ENABLED=false`; see `docs/REACH_NAIRA_OFFRAMP.md`. Live enablement needs Obiex confirmation of third-party bank payouts, USDC/SOL deposits, `USDC/NGNX` pair, and withdrawal idempotency. |

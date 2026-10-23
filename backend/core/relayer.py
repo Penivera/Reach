@@ -20,7 +20,6 @@ from dataclasses import dataclass
 from solders.instruction import AccountMeta, Instruction
 from solders.keypair import Keypair
 from solders.pubkey import Pubkey
-from solders.system_program import CreateAccountParams, create_account
 from solders.transaction import VersionedTransaction
 
 from core.solana import (
@@ -126,7 +125,7 @@ class Relayer:
 
     @property
     def address(self) -> Pubkey:
-        return self.keypair.pubkey()()
+        return self.keypair.pubkey()
 
     @property
     def mint(self) -> Pubkey:
@@ -163,24 +162,16 @@ class Relayer:
         if existing is not None:
             return ata
 
-        rent = await self.rpc.get_minimum_balance_for_rent_exemption(165)
-        create = create_account(
-            CreateAccountParams(
-                from_=self.address,
-                to=ata,
-                lamports=rent,
-                space=165,
-                owner=TOKEN_PROGRAM_ID,
-            )
-        )
-        # Associated token program `CreateIdempotent`.
+        # Associated token program `CreateIdempotent` creates and initializes
+        # the account in one instruction. The account order is
+        # [payer, ata, owner, mint, system, token].
         create_ata = Instruction(
             ASSOCIATED_TOKEN_PROGRAM_ID,
             bytes([1]),
             [
                 AccountMeta(self.address, True, True),
-                AccountMeta(owner, False, False),
                 AccountMeta(ata, False, True),
+                AccountMeta(owner, False, False),
                 AccountMeta(self.mint, False, False),
                 AccountMeta(SYSTEM_PROGRAM_ID, False, False),
                 AccountMeta(TOKEN_PROGRAM_ID, False, False),
@@ -188,7 +179,7 @@ class Relayer:
         )
 
         await self.submit(
-            [create, create_ata],
+            [create_ata],
             idempotency_key=f"ata-{ata}",
         )
         return ata

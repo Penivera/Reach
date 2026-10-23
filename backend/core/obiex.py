@@ -213,6 +213,14 @@ class ObiexClient:
 
     # -- trading ----------------------------------------------------------
 
+    async def get_trade_pairs(self) -> list[dict]:
+        data = await self._request("GET", "/trades/pairs")
+        return data if isinstance(data, list) else []
+
+    async def get_tradable_currencies(self) -> list[dict]:
+        data = await self._request("GET", "/currencies/tradeable")
+        return data if isinstance(data, list) else []
+
     async def instant_swap(
         self,
         *,
@@ -268,7 +276,12 @@ class ObiexClient:
         bank_code: str,
         narration: str | None = None,
     ) -> dict:
-        """Withdraw crypto to a Nigerian bank account."""
+        """Withdraw a fiat wallet balance to a Nigerian bank account.
+
+        For an off-ramp the wallet is NGNX: swap USDC to NGNX first, then send
+        the naira amount (not the USDC amount) here. Obiex returns the exact
+        fee and bank payout in `data.payout`.
+        """
         payload: dict[str, Any] = {
             "destination": {
                 "accountNumber": account_number,
@@ -291,12 +304,50 @@ class ObiexClient:
         data = await self._request("GET", "/ngn-payments/banks")
         return data if isinstance(data, list) else []
 
-    async def resolve_naira_account(self, account_number: str) -> dict:
-        data = await self._request(
-            "POST",
-            "/ngn-payments/accounts/resolve",
-            json={"accountNumber": account_number},
-        )
+    async def resolve_naira_account(
+        self,
+        *,
+        account_number: str,
+        bank_code: str | None = None,
+        bank_id: str | None = None,
+    ) -> dict:
+        """Resolve the account holder before a payout.
+
+        Obiex's OpenAPI signs this as a GET with `sortCode` and
+        `accountNumber`. Its Node SDK still uses `bankId`; support both so an
+        account can be resolved whichever identifier the dashboard exposes.
+        """
+        if not bank_id and not bank_code:
+            raise ObiexError("A bank code is required to resolve an account")
+
+        params: dict[str, str] = {"accountNumber": account_number}
+        if bank_id:
+            params["bankId"] = bank_id
+        else:
+            params["sortCode"] = bank_code
+
+        try:
+            data = await self._request(
+                "GET",
+                "/ngn-payments/accounts/resolve",
+                params=params,
+            )
+        except ObiexError:
+            # Obiex's OpenAPI documents `sortCode`, but its current Node SDK
+            # sends `bankId`. The bank list's `uuid` is also a valid bank
+            # identifier, so retry with it before failing the payout.
+            if not bank_code:
+                raise
+            fallback = {
+                "accountNumber": account_number,
+                "bankId": bank_code,
+            }
+            data = await self._request(
+                "GET",
+                "/ngn-payments/accounts/resolve",
+                params=fallback,
+            )
+
         return data if isinstance(data, dict) else {}
 
     # -- transactions -----------------------------------------------------
@@ -307,6 +358,10 @@ class ObiexClient:
 
     async def get_deposit_transactions(self) -> list[dict]:
         data = await self._request("GET", "/transactions/deposits/me")
+        return data if isinstance(data, list) else []
+
+    async def get_payout_transactions(self) -> list[dict]:
+        data = await self._request("GET", "/transactions/withdrawals/me")
         return data if isinstance(data, list) else []
 
 
@@ -359,7 +414,11 @@ class FakeObiexClient:
         }
 
     async def get_wallet_balance(self, currency: str = "USDC") -> dict:
-        return {"currency": currency, "availableBalance": 10000, "balance": 10000}
+        return {
+            "currency": currency,
+            "availableBalance": 100000000,
+            "balance": 100000000,
+        }
 
     async def get_fiat_rates(self) -> list[dict]:
         return [{"currency": "NGNX", "base": "USDT", "buyRate": 1600, "sellRate": 1580}]
@@ -376,7 +435,98 @@ class FakeObiexClient:
                         "isWithdrawable": True,
                     }
                 ],
+            },
+            "NGNX": {
+                "currencyName": "Naira",
+                "networks": [
+                    {
+                        "networkName": "Naira",
+                        "networkCode": "NGN",
+                        "isReceivable": True,
+                        "isWithdrawable": True,
+                    }
+                ],
+            },
+        }
+
+    async def get_trade_pairs(self) -> list[dict]:
+        return [
+            {
+                "id": "fake-usdc-ngnx",
+                "source": {"id": "USDC", "code": "USDC"},
+                "target": {"id": "NGNX", "code": "NGNX"},
+                "isSellable": True,
+                "isBuyable": True,
+            },
+            {
+                "id": "fake-usdc-usdt",
+                "source": {"id": "USDC", "code": "USDC"},
+                "target": {"id": "USDT", "code": "USDT"},
+                "isSellable": True,
+                "isBuyable": True,
+            },
+            {
+                "id": "fake-usdt-ngnx",
+                "source": {"id": "USDT", "code": "USDT"},
+                "target": {"id": "NGNX", "code": "NGNX"},
+                "isSellable": True,
+                "isBuyable": True,
+            },
+        ]
+
+    async def get_tradable_currencies(self) -> list[dict]:
+        return [
+            {
+                "id": "NGNX",
+                "active": True,
+                "name": "Naira",
+                "code": "NGNX",
+                "receivable": True,
+                "withdrawable": True,
+                "minimumWithdrawal": 5000,
+                "maximumWithdrawal": 10000000,
+                "withdrawalFee": 50,
+                "withdrawalFeeType": "FLAT",
+            },
+            {
+                "id": "USDC",
+                "active": True,
+                "name": "USD Coin",
+                "code": "USDC",
+                "receivable": True,
+                "withdrawable": True,
+                "minimumWithdrawal": 5,
+                "maximumWithdrawal": 5000000,
+                "withdrawalFee": 0,
+                "withdrawalFeeType": "FLAT",
+            },
+        ]
+
+    async def instant_swap(
+        self,
+        *,
+        source_id: str,
+        target_id: str,
+        amount: float,
+    ) -> dict:
+        if target_id == "NGNX":
+            rate = 1580
+            received = round(float(amount) * rate, 2)
+            return {
+                "id": "fake_swap_ngnx",
+                "reference": "fake_swap_ngnx",
+                "status": "SUCCESSFUL",
+                "rate": rate,
+                "amount": amount,
+                "amountReceived": received,
             }
+        return {
+            "id": "fake_swap_usdt",
+            "reference": "fake_swap_usdt",
+            "status": "SUCCESSFUL",
+            "rate": 1,
+            "amount": amount,
+            "amountReceived": amount,
         }
 
     async def request_crypto_withdrawal(
@@ -407,15 +557,50 @@ class FakeObiexClient:
         bank_code: str,
         narration: str | None = None,
     ) -> dict:
+        fee = 50
         return {
             "id": "fake_fiat_withdrawal",
             "reference": "fake_fiat_withdrawal_reference",
             "status": "APPROVED",
             "amount": amount,
-            "payout": {"status": "APPROVED"},
+            "payout": {
+                "id": "fake_fiat_payout",
+                "status": "APPROVED",
+                "fee": fee,
+                "payoutAmount": max(float(amount) - fee, 0),
+                "payoutCurrency": "NGNX",
+                "bankAccount": {
+                    "accountNumber": account_number,
+                    "accountName": account_name,
+                    "bankName": bank_name,
+                    "bankCode": bank_code,
+                },
+            },
+        }
+
+    async def get_naira_banks(self) -> list[dict]:
+        return [
+            {"name": "Fake Bank", "uuid": "fake-bank", "sortCode": "058"},
+            {"name": "Fake Microfinance Bank", "uuid": "fake-mfb", "sortCode": "090133"},
+        ]
+
+    async def resolve_naira_account(
+        self,
+        *,
+        account_number: str,
+        bank_code: str | None = None,
+        bank_id: str | None = None,
+    ) -> dict:
+        return {
+            "bankId": bank_id or bank_code,
+            "accountNumber": account_number,
+            "accountName": "Ada Okafor",
         }
 
     async def get_collection_transactions(self) -> list[dict]:
+        return []
+
+    async def get_payout_transactions(self) -> list[dict]:
         return []
 
     async def get_transaction(self, transaction_id: str) -> dict:

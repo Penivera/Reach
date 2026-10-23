@@ -7,8 +7,9 @@ from dependencies import get_db, get_current_user
 from schemas import (JobCreate, JobUpdate, JobResponse, JobApplicationCreate,
                      JobApplicationStatusUpdate, JobApplicationUpdate, JobAppplicationResponse,
                        JobStatus, ApplicationStatus, NearbyJobQuery, MediaType,
-                       FundingStatus)
+                       FundingStatus, PayerType)
 from geoalchemy2.functions import ST_GeogFromText, ST_DWithin, ST_Distance
+from services.funding import FundingError, budget_naira
 
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
@@ -19,6 +20,13 @@ async def create_job(job_data:JobCreate, db:AsyncSession=Depends(get_db), curren
     point = ST_GeogFromText(f"POINT({job_data.longitude} {job_data.latitude})")
     
     data = job_data.model_dump()
+
+    try:
+        # Reject a budget that cannot be funded before the job exists, so the
+        # failure happens at creation rather than at checkout.
+        data["budget"] = float(budget_naira(job_data.budget))
+    except FundingError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
     data.pop("latitude")
     data.pop("longitude")
@@ -85,19 +93,27 @@ async def update_job(job_id:int, job_data:JobUpdate, db:AsyncSession=Depends(get
     
     data = job_data.model_dump(exclude_unset=True)
 
-    update_data = data.model_dump(exclude_unset=True)
+    if "budget" in data:
+        try:
+            data["budget"] = float(budget_naira(data["budget"]))
+        except FundingError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
 
-    if "latitude" in update_data and "longitude" in update_data:
-        point = ST_GeogFromText(
-            f"POINT({update_data['longitude']} {update_data['latitude']})"
-        )
+    if "latitude" in data or "longitude" in data:
+        if "latitude" not in data or "longitude" not in data:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="latitude and longitude must be updated together",
+            )
 
-        update_data.pop("latitude")
-        update_data.pop("longitude")
-        update_data["location"] = point
+        point = ST_GeogFromText(f"POINT({data['longitude']} {data['latitude']})")
+
+        data.pop("latitude")
+        data.pop("longitude")
+        data["location"] = point
 
     for field, value in data.items():
-        setattr(job,field, value)
+        setattr(job, field, value)
 
     try:
         await db.commit()
@@ -143,9 +159,11 @@ async def complete_job(job_id:int, db:AsyncSession=Depends(get_db), current_user
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="you are not involved in this job")
 
 
-    # if check if both worker and employer has confirmed the job completion and commit it
-    if job.client_completed and job.worker_completed:
-        job.status = JobStatus.COMPLETED
+    # Both confirmations are recorded, but the job stays IN_PROGRESS. In
+    # Model 1 the program completes the task when the creator signs
+    # `approve_work`; that is also when the provider is paid. Marking the job
+    # complete before the escrow is released would make the DB claim a
+    # settlement that has not happened.
 
     try:
         await db.commit()
@@ -384,6 +402,20 @@ async def update_application_status(id: int,data: JobApplicationStatusUpdate,
     # Accepting an applicant
     if data.status == ApplicationStatus.ACCEPTED:
 
+        # Model 1: the escrow is locked when the task is created, so a task
+        # cannot be staffed until its funding is on-chain.
+        if job.funding_status != FundingStatus.FUNDED:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="This task is not funded yet. Providers can be accepted once the escrow is on-chain.",
+            )
+
+        if job.status != JobStatus.OPEN:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Only open tasks can accept an applicant.",
+            )
+
         # Prevent accepting another applicant if one is already accepted
         result = await db.execute(select(JobApplication).where(JobApplication.job_id == job.id, JobApplication.status == ApplicationStatus.ACCEPTED, JobApplication.id != application.id))
         
@@ -406,11 +438,10 @@ async def update_application_status(id: int,data: JobApplicationStatusUpdate,
         for pending_application in pending_applications:
             pending_application.status = ApplicationStatus.REJECTED
 
-        # Model 1: the escrow is locked when the task is created, so by the
-        # time an applicant is accepted the funding is already on-chain and
-        # the program owns the task's status. The backend only mirrors it.
-        if job.funding_status != FundingStatus.FUNDED:
-            job.status = JobStatus.IN_PROGRESS
+        # The program moves the task to InProgress when the creator accepts.
+        # This mirrors that state; the on-chain `accept` instruction must be
+        # signed by the creator before the provider can complete the task.
+        job.status = JobStatus.IN_PROGRESS
 
     # Rejecting an applicant
     elif data.status == ApplicationStatus.REJECTED:
@@ -473,7 +504,19 @@ async def link_job_chain(
     
     task_id_val = onchain_task_id if onchain_task_id is not None else near_task_id
     if task_id_val is not None:
+        if task_id_val != job.id:
+            raise HTTPException(
+                status_code=400,
+                detail="onchain_task_id must match the job id",
+            )
         job.onchain_task_id = task_id_val
+        # A native wallet payer signs `create_task` themselves, so this is the
+        # point at which the escrow is known to be on-chain and the task can
+        # open for providers.
+        job.funding_status = FundingStatus.FUNDED
+        job.payer_type = PayerType.WALLET
+        job.onchain_status = "Open"
+        job.status = JobStatus.OPEN
     if onchain_tx_hash is not None:
         job.onchain_tx_hash = onchain_tx_hash
 

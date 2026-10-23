@@ -1,4 +1,5 @@
 from datetime import date, datetime
+from decimal import Decimal
 
 from sqlalchemy import (
     BigInteger,
@@ -6,6 +7,7 @@ from sqlalchemy import (
     DateTime,
     Enum,
     ForeignKey,
+    Numeric,
     String,
     UniqueConstraint,
 )
@@ -15,6 +17,7 @@ from DB.database import Base
 from schemas.enums import (
     ChainTransactionStatus,
     FundingRail,
+    OffRampStatus,
     TreasuryTransferStatus,
     PaymentStatus,
     PayoutStatus,
@@ -353,6 +356,166 @@ class Payout(Base, TimeStampMixin):
     failure_reason: Mapped[str | None] = mapped_column(String(1000), nullable=True)
 
     completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+
+class OffRampWithdrawal(Base, TimeStampMixin):
+    """A provider's USDC-to-NGN payout request.
+
+    The provider sends USDC to a unique Obiex deposit address. Obiex credits
+    Reach's USDC wallet, then Reach swaps to NGNX and withdraws naira to the
+    provider's bank account. The row is the reconciliation record for every
+    provider reference in that chain.
+    """
+
+    __tablename__ = "offramp_withdrawals"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id"),
+        index=True,
+        nullable=False,
+    )
+
+    reference: Mapped[str] = mapped_column(
+        String(100),
+        unique=True,
+        index=True,
+        nullable=False,
+    )
+
+    # Optional client-supplied key so a retried POST does not create two
+    # deposit addresses.
+    idempotency_key: Mapped[str | None] = mapped_column(
+        String(100),
+        unique=True,
+        index=True,
+        nullable=True,
+    )
+
+    status: Mapped[OffRampStatus] = mapped_column(
+        Enum(OffRampStatus),
+        nullable=False,
+        default=OffRampStatus.AWAITING_DEPOSIT,
+        index=True,
+    )
+
+    amount_usdc_units: Mapped[int] = mapped_column(BigInteger, nullable=False)
+
+    received_usdc_units: Mapped[int] = mapped_column(
+        BigInteger,
+        nullable=False,
+        default=0,
+    )
+
+    quoted_rate: Mapped[Decimal | None] = mapped_column(
+        Numeric(18, 6),
+        nullable=True,
+    )
+
+    gross_ngn_kobo: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+
+    fee_kobo: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+
+    net_ngn_kobo: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+
+    # Snapshot of the destination. The account name is the one Obiex resolved,
+    # not whatever the client typed.
+    bank_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    bank_code: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    bank_account_number: Mapped[str | None] = mapped_column(
+        String(30), nullable=True
+    )
+    bank_account_name: Mapped[str | None] = mapped_column(
+        String(150), nullable=True
+    )
+
+    deposit_address: Mapped[str] = mapped_column(
+        String(120),
+        unique=True,
+        index=True,
+        nullable=False,
+    )
+
+    deposit_address_reference: Mapped[str | None] = mapped_column(
+        String(150), nullable=True
+    )
+
+    deposit_currency: Mapped[str] = mapped_column(
+        String(10), nullable=False, default="USDC"
+    )
+
+    deposit_network: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="SOL"
+    )
+
+    deposit_provider_reference: Mapped[str | None] = mapped_column(
+        String(150), index=True, nullable=True
+    )
+
+    deposit_tx_hash: Mapped[str | None] = mapped_column(String(128), nullable=True)
+
+    swap_reference: Mapped[str | None] = mapped_column(String(150), nullable=True)
+
+    swap_rate: Mapped[Decimal | None] = mapped_column(
+        Numeric(18, 6),
+        nullable=True,
+    )
+
+    # Set once the USDC has been swapped. A retry after a failed bank payout
+    # must reuse the naira already in the wallet, never swap the USDC twice.
+    swapped_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    provider_withdrawal_id: Mapped[str | None] = mapped_column(
+        String(150),
+        unique=True,
+        index=True,
+        nullable=True,
+    )
+
+    provider_reference: Mapped[str | None] = mapped_column(
+        String(150),
+        unique=True,
+        index=True,
+        nullable=True,
+    )
+
+    failure_reason: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+
+    refund_reference: Mapped[str | None] = mapped_column(
+        String(150), index=True, nullable=True
+    )
+
+    # Obiex's transaction id, which is what GET /transactions/{id} expects.
+    # `refund_reference` is the webhook/reference field and is not always the
+    # same value.
+    refund_transaction_id: Mapped[str | None] = mapped_column(
+        String(150), index=True, nullable=True
+    )
+
+    expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        index=True,
+    )
+
+    deposit_confirmed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    paid_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    refunded_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
     )

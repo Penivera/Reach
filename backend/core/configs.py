@@ -47,6 +47,29 @@ class Settings(BaseSettings):
     # Obiex's minimum withdrawal, in base units.
     REACH_TREASURY_MIN_WITHDRAWAL_UNITS: int = 10000000
 
+    # Provider naira off-ramp. Live money movement is off until the Obiex
+    # business account has confirmed third-party bank payouts and USDC/SOL
+    # deposits.
+    REACH_OFFRAMP_ENABLED: bool = False
+    REACH_OFFRAMP_SOURCE_CURRENCY: str = "USDC"
+    REACH_OFFRAMP_TARGET_CURRENCY: str = "NGNX"
+    REACH_OFFRAMP_NETWORK: str = "SOL"
+    REACH_OFFRAMP_FALLBACK_CURRENCY: str = "USDT"
+    REACH_OFFRAMP_MIN_USDC_UNITS: int = 5000000
+    REACH_OFFRAMP_MAX_USDC_UNITS: int = 1000000000
+    REACH_OFFRAMP_MIN_NGN_KOBO: int = 500000
+    # The deposit address is ours, not Obiex's one-time collection account;
+    # this is the window in which we ask the provider to fund it.
+    REACH_OFFRAMP_DEPOSIT_TTL_SECONDS: int = 1800
+    REACH_OFFRAMP_QUOTE_TTL_SECONDS: int = 300
+    # If the executed swap is more than this far below the quote, hold the
+    # payout instead of silently paying a worse naira amount.
+    REACH_OFFRAMP_SLIPPAGE_BPS: int = 200
+    # Obiex's fiat withdrawal fee is returned on the withdrawal. This is only
+    # a quote-time estimate until the account confirms the live fee.
+    REACH_OFFRAMP_FIAT_FEE_KOBO: int = 5000
+    REACH_OFFRAMP_REQUIRE_NAME_MATCH: bool = True
+
     PLATFORM_FEE_BPS: int = 500
     MIN_ESCROW_KOBO: int = 100000
 

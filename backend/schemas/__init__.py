@@ -1,4 +1,4 @@
-from .enums import ServiceStatus, ServiceRequestStatus, NotificationType, MediaType, UserRole, VerificationStatus, JobStatus, ApplicationStatus, ReportStatus, ProvisioningStatus, PaymentStatus, PayoutStatus, WebhookStatus, FundingRail, FundingStatus, PayerType, ChainTransactionStatus, TreasuryTransferStatus
+from .enums import ServiceStatus, ServiceRequestStatus, NotificationType, MediaType, UserRole, VerificationStatus, JobStatus, ApplicationStatus, ReportStatus, ProvisioningStatus, PaymentStatus, PayoutStatus, OffRampStatus, WebhookStatus, FundingRail, FundingStatus, PayerType, ChainTransactionStatus, TreasuryTransferStatus
 from .users import UserCreate, UserResponse, ChangePasswordRequest, UserUpdate, UserSignUpResponse, UserPublicResponse, LocationUpdate, OnchainAddressUpdate
 from .verification import EmailVerificationRequest, ForgotPasswordRequest, ResetPasswordRequest, ResendEmailVerificationRequest, FCMTokenUpdate
 from .categories import CategoryCreate, CategoryResponse, CategoryUpdate
@@ -15,6 +15,11 @@ from .payments import (
     FossaPayAccountResponse,
     FundingIntentResponse,
     FundingStateResponse,
+    OffRampBankResponse,
+    OffRampCreateRequest,
+    OffRampQuoteRequest,
+    OffRampQuoteResponse,
+    OffRampWithdrawalResponse,
     PaymentIntentResponse,
     PaymentProfileResponse,
     PaymentProfileStateResponse,

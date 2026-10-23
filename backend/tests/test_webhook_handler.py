@@ -213,7 +213,7 @@ class ObiexWebhookTests(unittest.IsolatedAsyncioTestCase):
             "customerId": "cus_1",
             "status": "COMPLETED",
             "sourceCurrency": "NGNX",
-            "sourceAmount": 5000,
+            "sourceAmount": 10000,
             "targetCurrency": "USDC",
             "targetAmount": 3.12,
         }
@@ -271,7 +271,7 @@ class ObiexWebhookTests(unittest.IsolatedAsyncioTestCase):
             deposit_address="7EcJ1eB6J3ggRrGkQWsT4ZP8dkqPZ4JmW4YRwR7Qp5cY"
         )
         job = make_job()
-        db = FakeSession([None, intent], get_results={(Job, 5): job})
+        db = FakeSession([None, None, intent], get_results={(Job, 5): job})
 
         with mock.patch.object(
             webhooks, "fund_task_escrow", return_value=None
@@ -290,6 +290,123 @@ class ObiexWebhookTests(unittest.IsolatedAsyncioTestCase):
             await obiex_webhook(request, db)
 
         self.assertEqual(ctx.exception.status_code, 401)
+
+
+class OffRampWebhookDispatchTests(unittest.IsolatedAsyncioTestCase):
+    async def test_a_deposit_to_an_offramp_address_goes_to_offramp(self):
+        withdrawal = SimpleNamespace(deposit_address="offramp-address")
+        db = FakeSession([withdrawal])
+
+        with mock.patch.object(
+            webhooks.offramp,
+            "handle_deposit",
+            new=mock.AsyncMock(return_value=withdrawal),
+        ) as handle:
+            await webhooks._sync_deposit(
+                {
+                    "status": "CONFIRMED",
+                    "address": "offramp-address",
+                    "currency": "USDC",
+                    "amount": 10,
+                },
+                db,
+            )
+
+        handle.assert_awaited_once()
+
+    async def test_a_withdrawal_reference_goes_to_offramp_when_not_treasury(self):
+        withdrawal = SimpleNamespace(provider_reference="withdrawal-1")
+        # The treasury lookup returns None, then the off-ramp lookup returns
+        # the row.
+        db = FakeSession([None, withdrawal])
+
+        with mock.patch.object(
+            webhooks.offramp,
+            "handle_withdrawal",
+            new=mock.AsyncMock(return_value=withdrawal),
+        ) as handle:
+            await webhooks._sync_withdrawal(
+                {"status": "SUCCESSFUL", "reference": "withdrawal-1"},
+                db,
+            )
+
+        handle.assert_awaited_once()
+
+    async def test_a_refund_reference_goes_to_the_refund_handler(self):
+        withdrawal = SimpleNamespace(refund_reference="refund-1")
+        # Treasury miss, bank-payout miss, refund hit.
+        db = FakeSession([None, None, withdrawal])
+
+        with mock.patch.object(
+            webhooks.offramp,
+            "handle_refund",
+            new=mock.AsyncMock(return_value=withdrawal),
+        ) as handle:
+            await webhooks._sync_withdrawal(
+                {"status": "SUCCESSFUL", "reference": "refund-1"},
+                db,
+            )
+
+        handle.assert_awaited_once()
+
+
+class FundingGuardTests(unittest.IsolatedAsyncioTestCase):
+    async def test_a_second_payment_for_a_funded_task_is_reversed(self):
+        from routers.webhooks import _fund_intent
+
+        intent = make_intent(status=PaymentStatus.PENDING)
+        job = make_job(funding_status=FundingStatus.FUNDED)
+        db = FakeSession(get_results={(Job, 5): job})
+
+        await _fund_intent(db, intent, usdc_units=1_000_000)
+
+        self.assertEqual(intent.status, PaymentStatus.REVERSED)
+        self.assertIn("already funded", intent.failure_reason)
+        self.assertEqual(job.funding_status, FundingStatus.FUNDED)
+
+    async def test_a_replayed_paid_intent_is_not_refunded_or_refunded_twice(self):
+        from routers.webhooks import _fund_intent
+
+        intent = make_intent(status=PaymentStatus.PAID, usdc_amount=1_000_000)
+        job = make_job(funding_status=FundingStatus.PAID)
+        db = FakeSession(get_results={(Job, 5): job})
+
+        await _fund_intent(db, intent, usdc_units=1_000_000)
+
+        self.assertEqual(intent.status, PaymentStatus.PAID)
+        self.assertEqual(job.funding_status, FundingStatus.PAID)
+
+
+class ObiexAmountGuardTests(unittest.IsolatedAsyncioTestCase):
+    def _body(self, payload):
+        return json.dumps(payload, separators=(",", ":")).encode()
+
+    def _signature(self, raw):
+        return hmac.new(OBIEX_SECRET.encode(), raw, hashlib.sha512).hexdigest()
+
+    async def test_a_mismatched_collection_is_held_not_funded(self):
+        payload = {
+            "type": "COLLECTION",
+            "reference": "col_1",
+            "status": "COMPLETED",
+            "sourceCurrency": "NGNX",
+            "sourceAmount": 5000,
+            "targetCurrency": "USDC",
+            "targetAmount": 3.12,
+        }
+        raw = self._body(payload)
+        request = FakeRequest(raw, {"x-obiex-signature": self._signature(raw)})
+
+        intent = make_intent(provider_reference="col_1", reference="fund-1")
+        job = make_job()
+        db = FakeSession([None, intent], get_results={(Job, 5): job})
+
+        with mock.patch.object(webhooks, "fund_task_escrow") as fund:
+            await obiex_webhook(request, db)
+
+        self.assertEqual(intent.status, PaymentStatus.HELD)
+        self.assertEqual(job.funding_status, FundingStatus.HELD)
+        self.assertFalse(fund.called)
 
 
 if __name__ == "__main__":

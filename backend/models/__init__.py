@@ -12,6 +12,7 @@ from .reviews import Review
 from .payments import (
     ChainTransaction,
     FossaPayCustomer,
+    OffRampWithdrawal,
     PaymentIntent,
     PaymentProfile,
     Payout,

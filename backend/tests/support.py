@@ -30,6 +30,10 @@ os.environ.setdefault("PLATFORM_FEE_BPS", "500")
 os.environ.setdefault("MIN_ESCROW_KOBO", "100000")
 os.environ.setdefault("OBiex_ENABLED", "false")
 os.environ.setdefault("OBiex_WEBHOOK_SECRET", "test-obiex-secret")
+os.environ.setdefault("REACH_OFFRAMP_ENABLED", "true")
+os.environ.setdefault("REACH_OFFRAMP_MIN_USDC_UNITS", "1000000")
+os.environ.setdefault("REACH_OFFRAMP_MAX_USDC_UNITS", "1000000000")
+os.environ.setdefault("REACH_OFFRAMP_MIN_NGN_KOBO", "100000")
 os.environ.setdefault("REACH_CREATION_FEE_BPS", "250")
 os.environ.setdefault("REACH_SOLANA_RPC_URL", "http://localhost:8899")
 os.environ.setdefault("REACH_PROGRAM_ID", "5iCtrxFDsPQf6qyR2nfjkDgUJyuH7oxoA5Lf1qQiDfwY")
@@ -61,7 +65,16 @@ class FakeResult:
         return self
 
     def first(self):
+        if isinstance(self._value, list):
+            return self._value[0] if self._value else None
         return self._value
+
+    def all(self):
+        if self._value is None:
+            return []
+        if isinstance(self._value, list):
+            return self._value
+        return [self._value]
 
 
 class FakeSession:
@@ -193,3 +206,89 @@ class FakeObiex:
             "network": kwargs.get("network", "SOL"),
             "currency": kwargs.get("currency", "USDC"),
         }
+
+    async def get_active_networks(self):
+        self.calls.append("get_active_networks")
+        return {
+            "USDC": {
+                "currencyName": "USD Coin",
+                "networks": [
+                    {
+                        "networkName": "Solana",
+                        "networkCode": "SOL",
+                        "isReceivable": True,
+                    }
+                ],
+            }
+        }
+
+    async def get_naira_banks(self):
+        self.calls.append("get_naira_banks")
+        return [
+            {"name": "Fake Bank", "uuid": "fake-bank", "sortCode": "058"},
+        ]
+
+    async def resolve_naira_account(self, **kwargs):
+        self.calls.append("resolve_naira_account")
+        return {
+            "bankId": kwargs.get("bank_id") or kwargs.get("bank_code"),
+            "accountNumber": kwargs.get("account_number"),
+            "accountName": "Ada Okafor",
+        }
+
+    async def get_trade_pairs(self):
+        self.calls.append("get_trade_pairs")
+        return [
+            {
+                "id": "fake-usdc-ngnx",
+                "source": {"code": "USDC"},
+                "target": {"code": "NGNX"},
+            }
+        ]
+
+    async def instant_swap(self, *, source_id, target_id, amount):
+        self.calls.append("instant_swap")
+        return {
+            "id": "fake_swap_ngnx",
+            "reference": "fake_swap_ngnx",
+            "status": "SUCCESSFUL",
+            "rate": 1580,
+            "amount": amount,
+            "amountReceived": round(float(amount) * 1580, 2),
+        }
+
+    async def get_wallet_balance(self, currency="USDC"):
+        self.calls.append("get_wallet_balance")
+        return {
+            "currency": currency,
+            "availableBalance": 100_000_000,
+            "balance": 100_000_000,
+        }
+
+    async def request_fiat_withdrawal(self, **kwargs):
+        self.calls.append("request_fiat_withdrawal")
+        amount = float(kwargs.get("amount") or 0)
+        return {
+            "id": "fake_fiat_withdrawal",
+            "reference": "fake_fiat_withdrawal_reference",
+            "status": "APPROVED",
+            "payout": {
+                "id": "fake_fiat_payout",
+                "status": "APPROVED",
+                "fee": 50,
+                "payoutAmount": max(amount - 50, 0),
+                "payoutCurrency": "NGNX",
+            },
+        }
+
+    async def request_crypto_withdrawal(self, **kwargs):
+        self.calls.append("request_crypto_withdrawal")
+        return {
+            "id": "fake_withdrawal",
+            "reference": "fake_withdrawal_reference",
+            "status": "APPROVED",
+        }
+
+    async def get_transaction(self, transaction_id):
+        self.calls.append("get_transaction")
+        return {"id": transaction_id, "status": "SUCCESSFUL"}

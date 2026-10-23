@@ -126,6 +126,27 @@ class PayoutStatus(str, Enum):
     REVERSED = "reversed"
 
 
+class OffRampStatus(str, Enum):
+    """A provider's USDC-to-NGN payout request.
+
+    The provider sends USDC to a unique Obiex deposit address. Obiex confirms
+    the deposit, Reach swaps it to NGNX, then withdraws NGN to the provider's
+    bank account.
+    """
+
+    AWAITING_DEPOSIT = "awaiting_deposit"
+    PARTIALLY_FUNDED = "partially_funded"
+    DEPOSIT_CONFIRMED = "deposit_confirmed"
+    WITHDRAWING = "withdrawing"
+    PAID = "paid"
+    HELD = "held"
+    FAILED = "failed"
+    EXPIRED = "expired"
+    CANCELLED = "cancelled"
+    REFUNDING = "refunding"
+    REFUNDED = "refunded"
+
+
 class WebhookStatus(str, Enum):
     RECEIVED = "received"
     PROCESSED = "processed"

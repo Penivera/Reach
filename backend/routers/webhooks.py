@@ -21,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core import settings
 from core.fossapay import FossaPayError, FossaPayNotConfigured, get_fossapay_client
-from core.obiex import verify_webhook_signature
+from core.obiex import ObiexError, verify_webhook_signature
 from dependencies import get_db
 from models import Job, PaymentIntent, Payout, WebhookEvent
 from payment_amounts import AmountError, to_kobo
@@ -33,7 +33,7 @@ from schemas import (
     TreasuryTransferStatus,
     WebhookStatus,
 )
-from services import treasury
+from services import offramp, treasury
 from services.chain import (
     EscrowError,
     InsufficientEscrowFunds,
@@ -41,7 +41,7 @@ from services.chain import (
     fund_task_escrow,
     retry_pending_fundings,
 )
-from services.funding import estimate_usdc_units, to_usdc_units
+from services.funding import FundingError, estimate_usdc_units, to_usdc_units
 
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
@@ -51,6 +51,19 @@ class WebhookProcessingError(Exception):
     pass
 
 
+def _settled_usdc_units(amount) -> int:
+    """Convert a provider's settled amount, turning bad data into a retry."""
+    try:
+        units = to_usdc_units(amount)
+    except FundingError as exc:
+        raise WebhookProcessingError(str(exc))
+
+    if units <= 0:
+        raise WebhookProcessingError("The settled USDC amount is zero")
+
+    return units
+
+
 async def _get_or_create_event(
     db: AsyncSession,
     *,
@@ -58,7 +71,7 @@ async def _get_or_create_event(
     event_type: str | None,
     reference: str | None,
     provider_object_id: str | None,
-) -> WebhookEvent:
+) -> WebhookEvent | None:
     result = await db.execute(
         select(WebhookEvent).where(WebhookEvent.event_id == event_id)
     )
@@ -79,10 +92,27 @@ async def _get_or_create_event(
         await db.commit()
     except IntegrityError:
         await db.rollback()
+
+        # A duplicate delivery can arrive under a new event id (FossaPay), or
+        # collide on (provider_object_id, event_type). Return the record that
+        # already owns the object so the caller treats this as a replay.
         result = await db.execute(
             select(WebhookEvent).where(WebhookEvent.event_id == event_id)
         )
-        return result.scalar_one_or_none()
+        event = result.scalar_one_or_none()
+        if event is not None:
+            return event
+
+        if provider_object_id and event_type:
+            result = await db.execute(
+                select(WebhookEvent).where(
+                    WebhookEvent.provider_object_id == provider_object_id,
+                    WebhookEvent.event_type == event_type,
+                )
+            )
+            return result.scalar_one_or_none()
+
+        return None
 
     await db.refresh(event)
     return event
@@ -124,7 +154,22 @@ async def _fund_intent(
     if job is None:
         raise WebhookProcessingError("The job for this payment no longer exists")
 
-    if intent.status == PaymentStatus.PAID and job.funding_status == FundingStatus.FUNDED:
+    if intent.status == PaymentStatus.PAID:
+        # This intent was already applied by an earlier delivery. A float
+        # shortfall is retried by `retry_pending_fundings`, not by re-funding
+        # a fresh webhook.
+        return
+
+    if job.funding_status in (FundingStatus.PAID, FundingStatus.FUNDED):
+        # A second payment arrived for a task that already has one. The
+        # escrow can only be locked once, so record the extra payment as
+        # reversed with an explicit reason instead of silently keeping it.
+        intent.status = PaymentStatus.REVERSED
+        intent.failure_reason = (
+            "The task was already funded by another payment; this payment is "
+            "queued for refund."
+        )
+        await db.commit()
         return
 
     intent.status = PaymentStatus.PAID
@@ -211,6 +256,11 @@ async def fossapay_webhook(
         reference=reference,
         provider_object_id=provider_object_id,
     )
+
+    if event is None:
+        raise HTTPException(
+            status_code=503, detail="Could not record the webhook event"
+        )
 
     if event.status in (
         WebhookStatus.PROCESSED,
@@ -307,7 +357,10 @@ async def _sync_checkout(data: dict, db: AsyncSession) -> None:
         # The checkout collected naira. The platform converts it with Obiex
         # and escrows the USDC equivalent from its float.
         naira = intent.amount_kobo // 100
-        units = await estimate_usdc_units(naira)
+        try:
+            units = await estimate_usdc_units(naira)
+        except (FundingError, ObiexError) as exc:
+            raise WebhookProcessingError(str(exc))
         await _fund_intent(db, intent, usdc_units=units)
         return
 
@@ -430,13 +483,24 @@ async def obiex_webhook(
         else hashlib.sha256(raw_body).hexdigest()
     )
 
+    # The same collection can move PENDING -> HELD -> COMPLETED, so the
+    # status is part of the dedupe key. Without it the unique
+    # (provider_object_id, event_type) constraint would swallow the later
+    # status change.
+    event_type_key = f"{event_type}:{status}" if event_type and status else event_type
+
     event = await _get_or_create_event(
         db,
         event_id=event_id,
-        event_type=event_type,
+        event_type=event_type_key,
         reference=reference,
         provider_object_id=reference,
     )
+
+    if event is None:
+        raise HTTPException(
+            status_code=503, detail="Could not record the webhook event"
+        )
 
     if event.status in (WebhookStatus.PROCESSED, WebhookStatus.IGNORED):
         return {"received": True}
@@ -500,11 +564,31 @@ async def _sync_collection(payload: dict, db: AsyncSession) -> None:
     if status != "COMPLETED":
         return
 
+    source_amount = payload.get("sourceAmount")
+    if source_amount is not None:
+        try:
+            collected_kobo = to_kobo(source_amount)
+        except AmountError as exc:
+            raise WebhookProcessingError(str(exc))
+
+        if collected_kobo != intent.amount_kobo:
+            intent.status = PaymentStatus.HELD
+            intent.failure_reason = (
+                "The amount collected does not match the task budget. "
+                "Support is reviewing this payment."
+            )
+            job = await db.get(Job, intent.job_id)
+            if job:
+                job.funding_status = FundingStatus.HELD
+            await db.commit()
+            return
+
     target_amount = payload.get("targetAmount")
     if target_amount is None:
         raise WebhookProcessingError("The collection has no settled amount")
 
-    units = to_usdc_units(target_amount)
+    units = _settled_usdc_units(target_amount)
+
     await _fund_intent(db, intent, usdc_units=units)
 
 
@@ -517,6 +601,17 @@ async def _sync_deposit(payload: dict, db: AsyncSession) -> None:
         raise WebhookProcessingError("The deposit has no address")
 
     if status != "CONFIRMED":
+        return
+
+    # Off-ramp deposits use a unique per-payout address. Check those before
+    # the task-funding intent, because both share the same USDC/SOL rail.
+    withdrawal = await offramp.get_by_deposit_address(db, address)
+
+    if withdrawal is not None:
+        try:
+            await offramp.handle_deposit(db, withdrawal, payload)
+        except offramp.OffRampError as exc:
+            raise WebhookProcessingError(str(exc))
         return
 
     intent = (
@@ -534,7 +629,7 @@ async def _sync_deposit(payload: dict, db: AsyncSession) -> None:
     if amount is None:
         raise WebhookProcessingError("The deposit has no amount")
 
-    units = to_usdc_units(amount)
+    units = _settled_usdc_units(amount)
     await _fund_intent(db, intent, usdc_units=units)
 
 
@@ -553,6 +648,42 @@ async def _sync_withdrawal(payload: dict, db: AsyncSession) -> None:
     transfer = await treasury.get_transfer(db, reference)
 
     if transfer is None:
+        # Off-ramp bank payouts carry the provider withdrawal reference.
+        withdrawal = await offramp.get_by_provider_reference(db, reference)
+        if withdrawal is not None:
+            try:
+                await offramp.handle_withdrawal(db, withdrawal, payload)
+            except offramp.OffRampError as exc:
+                raise WebhookProcessingError(str(exc))
+            return
+
+        # A refund is a separate USDC crypto withdrawal.
+        refund = await offramp.get_by_refund_reference(db, reference)
+        if refund is not None:
+            try:
+                await offramp.handle_refund(db, refund, payload)
+            except offramp.OffRampError as exc:
+                raise WebhookProcessingError(str(exc))
+            return
+
+        # Obiex sometimes exposes the transaction id rather than the
+        # reference. Match it as a secondary key, never as the first choice.
+        withdrawal = await offramp.get_by_provider_transaction_id(db, reference)
+        if withdrawal is not None:
+            try:
+                await offramp.handle_withdrawal(db, withdrawal, payload)
+            except offramp.OffRampError as exc:
+                raise WebhookProcessingError(str(exc))
+            return
+
+        refund = await offramp.get_by_refund_transaction_id(db, reference)
+        if refund is not None:
+            try:
+                await offramp.handle_refund(db, refund, payload)
+            except offramp.OffRampError as exc:
+                raise WebhookProcessingError(str(exc))
+            return
+
         # Not one of ours (a treasury sweep we did not record, say).
         return
 

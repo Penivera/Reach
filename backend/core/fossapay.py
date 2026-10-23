@@ -27,6 +27,7 @@ class FossaPayClient:
         method: str,
         path: str,
         json: dict | None = None,
+        params: dict | None = None,
         idempotency_key: str | None = None,
     ):
         headers = {
@@ -43,6 +44,7 @@ class FossaPayClient:
                     f"{self.api_url}/{path.lstrip('/')}",
                     headers=headers,
                     json=json,
+                    params=params,
                 )
         except httpx.HTTPError as exc:
             raise FossaPayError(f"FossaPay request failed: {exc}") from exc
