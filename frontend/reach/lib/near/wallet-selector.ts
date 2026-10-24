@@ -4,7 +4,8 @@ import { setupWalletSelector } from "@near-wallet-selector/core";
 import type { WalletSelector } from "@near-wallet-selector/core";
 import { setupModal } from "@near-wallet-selector/modal-ui";
 import { setupMyNearWallet } from "@near-wallet-selector/my-near-wallet";
-import { setupMeteorWallet } from "@near-wallet-selector/meteor-wallet";
+// import { setupMeteorWallet } from "@near-wallet-selector/meteor-wallet"; 
+//comment out if error occurs
 
 let selectorInstance: WalletSelector | null = null;
 let modalInstance: ReturnType<typeof setupModal> | null = null;
@@ -14,7 +15,7 @@ export async function getWalletSelector() {
 
   selectorInstance = await setupWalletSelector({
     network: "testnet",
-    modules: [setupMyNearWallet(), setupMeteorWallet()],
+    modules: [setupMyNearWallet(), ], //setupMeteorWallet() Todo reinstate after meteor wallet is fixed
   });
 
   modalInstance = setupModal(selectorInstance, {

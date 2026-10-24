@@ -2,11 +2,12 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ImageSquareIcon } from "@phosphor-icons/react";
+import { CloudArrowDown } from "@phosphor-icons/react";
 import Input from "../ui/Input";
 import Button from "../ui/Button";
 import { useCategories } from "@/context/CategoriesContext";
 import { createJob, updateJob, Job } from "@/lib/jobs";
+import { api } from "@/lib/api";
 
 const URGENCY_OPTIONS = [
   { value: "asap", label: "Asap / Today" },
@@ -15,23 +16,21 @@ const URGENCY_OPTIONS = [
 ];
 
 const FIELD_STYLE = `
-  w-full px-3.5 py-2.5 rounded-md bg-transparent
-  text-sm text-foreground placeholder:text-muted-foreground/50
-  border border-foreground
-  focus:outline-none focus:ring-0
-  focus-visible:outline-none focus-visible:ring-0
-  focus:border-primary
+  w-full px-4 py-3.5 rounded-[12px] bg-white
+  text-[15px] text-foreground placeholder:text-muted-foreground/60
+  border border-stroke
+  focus:outline-none focus:ring-0 focus:border-[#E25C43]
   transition-all duration-200
   disabled:opacity-50 disabled:cursor-not-allowed
 `;
 
-const LABEL_STYLE = "text-sm font-medium text-foreground/80";
+const LABEL_STYLE = "text-[13px] font-bold text-foreground block mb-2";
 
 function pillClass(active: boolean) {
-  return `rounded-md border px-3 py-2.5 text-sm font-semibold text-center transition-colors ${
+  return `flex items-center justify-center rounded-[12px] border px-3 py-3.5 text-[13px] font-bold transition-colors ${
     active
-      ? "border-primary bg-primary/10 text-primary"
-      : "border-foreground/30 bg-transparent text-muted-foreground hover:border-foreground"
+      ? "border-[#E25C43] bg-[#FFF1ED] text-[#E25C43]"
+      : "border-stroke bg-white text-muted-foreground hover:bg-neutral-50"
   }`;
 }
 
@@ -76,9 +75,17 @@ export default function PostRequestForm({ mode = "create", jobId, initialData }:
           longitude: initialData?.longitude ?? 7.9128,
           location_name: initialData?.location_name ?? "",
         });
+
+        // Upload image if a new one was selected
+        if (photo) {
+          const formData = new FormData();
+          formData.append("file", photo);
+          await api(`/jobs/${jobId}/images`, { method: "POST", body: formData });
+        }
+
         router.push(`/requests/${jobId}`);
       } else {
-        await createJob({
+        const newJob = await createJob({
           title,
           description: details,
           budget: Number(budget),
@@ -87,6 +94,14 @@ export default function PostRequestForm({ mode = "create", jobId, initialData }:
           longitude: 7.9128,
           location_name: "",
         });
+
+        // Upload image immediately after job creation
+        if (photo && newJob?.id) {
+          const formData = new FormData();
+          formData.append("file", photo);
+          await api(`/jobs/${newJob.id}/images`, { method: "POST", body: formData });
+        }
+
         router.push("/requests");
       }
     } catch (err: any) {
@@ -97,20 +112,21 @@ export default function PostRequestForm({ mode = "create", jobId, initialData }:
   };
 
   return (
-    <form className="space-y-4" onSubmit={handleSubmit}>
-      <Input
-        id="title"
-        label="What do you need done?"
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        placeholder="e.g. Repair laundry washing machine"
-        required
-      />
+    <form className="space-y-5" onSubmit={handleSubmit}>
+      <div>
+        <label htmlFor="title" className={LABEL_STYLE}>What do you need done?</label>
+        <input
+          id="title"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="e.g. Repair laundry washing machine"
+          required
+          className={FIELD_STYLE}
+        />
+      </div>
 
-      <div className="space-y-1.5 text-left">
-        <label htmlFor="category" className={LABEL_STYLE}>
-          Category
-        </label>
+      <div>
+        <label htmlFor="category" className={LABEL_STYLE}>Category</label>
         <select
           id="category"
           value={category ?? ""}
@@ -125,33 +141,33 @@ export default function PostRequestForm({ mode = "create", jobId, initialData }:
             </option>
           ))}
         </select>
-        {mode === "edit" && (
-          <p className="text-xs text-muted-foreground">Category can't be changed after posting.</p>
-        )}
       </div>
 
-      <div className="flex gap-2 items-end">
-        <div className="flex-1">
-          <Input
-            id="budget"
-            label="Estimated Budget"
-            value={budget}
-            onChange={(e) => setBudget(e.target.value.replace(/[^\d]/g, ""))}
-            inputMode="numeric"
-            placeholder="10,000"
-            startAdornment="₦"
-          />
+      <div>
+        <label htmlFor="budget" className={LABEL_STYLE}>Estimated Budget</label>
+        <div className="flex gap-3 items-center">
+          <div className="flex-1 relative">
+            <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-foreground">₦</span>
+            <input
+              id="budget"
+              value={budget}
+              onChange={(e) => setBudget(e.target.value.replace(/[^\d]/g, ""))}
+              inputMode="numeric"
+              placeholder="10,000"
+              className={`${FIELD_STYLE} pl-9`}
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => setNegotiable((v) => !v)}
+            className={`shrink-0 min-w-27.5 ${pillClass(negotiable)}`}
+          >
+            Negotiable
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={() => setNegotiable((v) => !v)}
-          className={`shrink-0 ${pillClass(negotiable)}`}
-        >
-          Negotiable
-        </button>
       </div>
 
-      <div className="space-y-1.5 text-left">
+      <div>
         <label className={LABEL_STYLE}>Request urgency</label>
         <div className="flex gap-2">
           {URGENCY_OPTIONS.map((option) => (
@@ -167,10 +183,8 @@ export default function PostRequestForm({ mode = "create", jobId, initialData }:
         </div>
       </div>
 
-      <div className="space-y-1.5 text-left">
-        <label htmlFor="details" className={LABEL_STYLE}>
-          Add details (e.g. specific issue, tools needed)
-        </label>
+      <div>
+        <label htmlFor="details" className={LABEL_STYLE}>Add details (e.g. specific issue, tools needed)</label>
         <textarea
           id="details"
           value={details}
@@ -181,11 +195,11 @@ export default function PostRequestForm({ mode = "create", jobId, initialData }:
         />
       </div>
 
-      <div className="space-y-1.5 text-left">
+      <div>
         <label className={LABEL_STYLE}>Add photo of the issue (optional)</label>
-        <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-md border border-dashed border-foreground/30 bg-transparent px-4 py-10 text-center hover:border-foreground transition-colors">
-          <ImageSquareIcon size={24} className="text-muted-foreground" />
-          <span className="text-sm font-medium text-foreground">
+        <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-[14px] border-2 border-dashed border-stroke bg-[#FAFAFA] px-4 py-8 text-center hover:bg-neutral-50 transition-colors">
+          <CloudArrowDown size={28} weight="regular" className="text-foreground" />
+          <span className="text-[13px] font-medium text-muted-foreground">
             {photo ? photo.name : "Upload a reference photo"}
           </span>
           <input type="file" accept="image/*" className="hidden" onChange={(e) => setPhoto(e.target.files?.[0] ?? null)} />
@@ -193,10 +207,15 @@ export default function PostRequestForm({ mode = "create", jobId, initialData }:
       </div>
 
       {submitError && (
-        <p className="text-sm font-medium text-destructive text-center">{submitError}</p>
+        <p className="text-[13px] font-medium text-[#D32F2F] text-center">{submitError}</p>
       )}
 
-      <Button type="submit" intent="form" variant="primary" className="mt-2" loading={submitting}>
+      <Button 
+        type="submit" 
+        intent="form" 
+        className="mt-6 w-full h-13.5 rounded-[14px] text-[16px] font-semibold tracking-wide bg-[#E25C43] hover:bg-[#D44E36] text-white" 
+        loading={submitting}
+      >
         {mode === "edit" ? "Save Changes" : "Publish Request Post"}
       </Button>
     </form>

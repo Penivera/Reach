@@ -50,7 +50,7 @@ export default function LocationPage() {
   }) => {
     persistLocation(coords);
 
-    router.push("/auth/interests");
+    router.push("/auth/interest");
   };
 
   const handleGetLocation = () => {

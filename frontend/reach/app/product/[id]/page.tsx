@@ -99,28 +99,31 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
 
   if (loading) {
     return (
-      <div className="flex min-h-screen flex-col bg-background pb-28">
-         <div className="relative aspect-square w-full bg-shade animate-pulse" />
-         <div className="px-5 pt-5 space-y-4">
+      <div className="flex min-h-screen bg-background md:bg-[#F8F9FA] justify-center md:py-12 md:px-6">
+        <div className="w-full max-w-5xl bg-white md:shadow-lg md:rounded-3xl md:border md:border-neutral-100 flex flex-col md:flex-row overflow-hidden">
+          <div className="w-full md:w-1/2 relative aspect-square md:aspect-auto md:min-h-125 bg-shade animate-pulse" />
+          <div className="w-full md:w-1/2 px-5 pt-5 pb-32 md:p-10 space-y-4">
             <div className="h-7 w-3/4 rounded bg-shade animate-pulse" />
             <div className="h-4 w-1/4 rounded bg-shade animate-pulse" />
             <div className="h-10 w-1/3 rounded bg-shade animate-pulse mt-4" />
-         </div>
+          </div>
+        </div>
       </div>
     );
   }
 
   if (!productData) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4 text-center">
-        <h1 className="text-xl font-bold text-foreground">Product not found</h1>
-        <p className="mt-2 text-sm text-muted-foreground">The item you are looking for does not exist.</p>
-        <Button onClick={() => router.back()} className="mt-6" variant="primary">Go Back</Button>
+      <div className="flex min-h-screen flex-col items-center justify-center bg-background md:bg-[#F8F9FA] md:py-12">
+        <div className="w-full max-w-md bg-white md:shadow-lg md:rounded-3xl md:border md:border-neutral-100 flex flex-col items-center justify-center min-h-[50vh] px-4 text-center">
+          <h1 className="text-xl font-bold text-foreground">Product not found</h1>
+          <p className="mt-2 text-sm text-muted-foreground">The item you are looking for does not exist.</p>
+          <Button onClick={() => router.back()} className="mt-6" variant="primary">Go Back</Button>
+        </div>
       </div>
     );
   }
 
-  // Pre-configured payload block for future API connection
   const product = {
     images: productData.imageSrc ? [productData.imageSrc] : [],
     name: productData.title,
@@ -151,115 +154,142 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
       : `${product.distanceKm.toFixed(1)} km away`;
 
   return (
-    <div className="min-h-screen bg-background pb-28">
-      {/* Top Image Carousel */}
-      <div className="relative aspect-square w-full bg-muted">
-        {product.images.length > 0 ? (
-          <img src={product.images[activeImage]} alt={product.name} className="h-full w-full object-cover" />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#F5EFE6] to-[#E6F4F4] text-sm text-muted-foreground">
-            No image available
-          </div>
-        )}
-
-        {/* Back Button */}
-        <button
-          onClick={() => router.back()}
-          aria-label="Go back"
-          className="absolute left-4 top-4 flex h-[38px] w-[38px] items-center justify-center rounded-full bg-white text-foreground shadow-sm active:scale-95 transition-transform"
-        >
-          <BackIcon className="h-[18px] w-[18px]" />
-        </button>
-
-        {/* Top Right Action Icons */}
-        <div className="absolute right-4 top-4 flex gap-2.5">
-          <button className="flex h-[38px] w-[38px] items-center justify-center rounded-full bg-white text-foreground shadow-sm active:scale-95 transition-transform">
-            <HeartIcon className="h-5 w-5" />
-          </button>
-          <button className="flex h-[38px] w-[38px] items-center justify-center rounded-full bg-white text-foreground shadow-sm active:scale-95 transition-transform">
-            <ShareBadgeIcon className="h-[18px] w-[18px]" />
-          </button>
-        </div>
-
-        {/* Carousel Indicators */}
-        {product.images.length > 1 && (
-          <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 gap-1.5">
-            {product.images.map((_, i) => (
-              <button
-                key={i}
-                onClick={() => setActiveImage(i)}
-                aria-label={`Image ${i + 1}`}
-                className={`h-1.5 rounded-full transition-all ${i === activeImage ? "w-5 bg-white" : "w-1.5 bg-white/50"}`}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Main Details Section */}
-      <div className="px-5 pt-5">
-        <h1 className="text-[22px] font-bold text-foreground leading-tight">{product.name}</h1>
-
-        <div className="mt-1.5 flex items-center gap-1.5 text-[13px] text-muted-foreground font-medium">
-          <StarIcon className="h-3.5 w-3.5 text-[#333333]" />
-          <span className="text-[#333333]">{product.rating.toFixed(1)}</span>
-          <span>({product.reviewCount} reviews)</span>
-        </div>
-
-        <p className="mt-3 text-[32px] font-bold text-foreground tracking-tight">{formattedPrice}</p>
-
-        <p className="mt-1 text-[13px] text-muted-foreground font-medium">
-          {distanceLabel} &middot; {product.walkMinutes} min walk
-        </p>
-
-        {/* Map Placeholder */}
-        <div className="mt-6 flex h-[140px] w-full items-center justify-center rounded-[20px] bg-gradient-to-br from-[#E8F5E9]/50 to-[#FFEBEE]/50 border border-neutral-100/50">
-          <MapPinIcon className="h-8 w-8 text-[#FF5A5F]" />
-        </div>
-
-        {/* Provider Profile Card */}
-        <Link
-          href={`/provider/${product.business.id}`}
-          className="mt-6 flex items-center gap-3.5 transition-colors active:opacity-70"
-        >
-          <div className="flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-full bg-[#F5F7F7] text-[15px] font-bold text-foreground">
-            {product.business.initials}
-          </div>
-          <div className="flex min-w-0 flex-1 flex-col justify-center">
-            <div className="flex items-center gap-1.5">
-              <span className="truncate text-[15px] font-bold text-foreground">{product.business.name}</span>
-              {product.business.verified && <CheckBadge className="h-[15px] w-[15px] text-[#00897B] shrink-0" />}
-            </div>
-            <div className="flex items-center gap-1.5 text-[12px] text-muted-foreground font-medium mt-0.5">
-              <span>Replies in {product.business.replyTime}</span>
-              <span>&middot;</span>
-              <div className="flex items-center gap-0.5">
-                <StarIcon className="h-3 w-3 text-[#FFC107]" />
-                <span>{product.business.rating}</span>
-              </div>
-              <span>&middot;</span>
-              <span>{product.business.jobs} jobs</span>
-            </div>
-          </div>
-          <ChevronRightIcon className="h-5 w-5 shrink-0 text-muted-foreground/50" />
-        </Link>
+    <div className="min-h-screen bg-background md:bg-[#F8F9FA] flex justify-center md:py-12 md:px-6">
+      
+      {/* Container switches from a stacked column to a side-by-side flex row on md+ */}
+      <div className="w-full max-w-5xl bg-white relative md:shadow-xl md:rounded-3xl md:border md:border-neutral-200 flex flex-col md:flex-row md:overflow-hidden">
         
-        <h2 className="mt-5 text-[17px] font-bold text-foreground">About this listing</h2>
+        {/* Top/Left Section: Image Carousel */}
+        <div className="w-full md:w-1/2 relative aspect-square md:aspect-auto md:min-h-125 bg-muted shrink-0 md:border-r border-stroke">
+          {product.images.length > 0 ? (
+            <img src={product.images[activeImage]} alt={product.name} className="absolute inset-0 h-full w-full object-cover" />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center bg-linear-to-br from-[#F5EFE6] to-[#E6F4F4] text-sm text-muted-foreground">
+              No image available
+            </div>
+          )}
+
+          {/* Desktop Back Button */}
+          <button
+            onClick={() => router.back()}
+            aria-label="Go back"
+            className="absolute left-4 top-4 md:left-6 md:top-6 flex h-9.5 w-9.5 items-center justify-center rounded-full bg-white text-foreground shadow-sm active:scale-95 transition-transform"
+          >
+            <BackIcon className="h-4.5 w-4.5" />
+          </button>
+
+          {/* Top Right Action Icons */}
+          <div className="absolute right-4 top-4 md:right-6 md:top-6 flex gap-2.5">
+            <button className="flex h-9.5 w-9.5 items-center justify-center rounded-full bg-white text-foreground shadow-sm active:scale-95 transition-transform">
+              <HeartIcon className="h-5 w-5" />
+            </button>
+            <button className="flex h-9.5 w-9.5 items-center justify-center rounded-full bg-white text-foreground shadow-sm active:scale-95 transition-transform">
+              <ShareBadgeIcon className="h-4.5 w-4.5" />
+            </button>
+          </div>
+
+          {/* Carousel Indicators */}
+          {product.images.length > 1 && (
+            <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 gap-1.5">
+              {product.images.map((_, i) => (
+                <button
+                  key={i}
+                  onClick={() => setActiveImage(i)}
+                  aria-label={`Image ${i + 1}`}
+                  className={`h-1.5 rounded-full transition-all ${i === activeImage ? "w-5 bg-white" : "w-1.5 bg-white/50"}`}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Bottom/Right Section: Main Details */}
+        <div className="w-full md:w-1/2 px-5 pt-5 pb-32 md:pb-8 md:px-10 md:py-8 flex flex-col bg-white">
+          <div className="flex-1">
+            <h1 className="text-2xl md:text-3xl font-bold text-foreground leading-tight">{product.name}</h1>
+
+            <div className="mt-1.5 flex items-center gap-1.5 text-sm text-muted-foreground font-medium">
+              <StarIcon className="h-3.5 w-3.5 text-neutral-800" />
+              <span className="text-neutral-800">{product.rating.toFixed(1)}</span>
+              <span>({product.reviewCount} reviews)</span>
+            </div>
+
+            <p className="mt-4 text-4xl md:text-5xl font-bold text-foreground tracking-tight">{formattedPrice}</p>
+
+            <p className="mt-1.5 text-sm text-muted-foreground font-medium">
+              {distanceLabel} &middot; {product.walkMinutes} min walk
+            </p>
+
+            {/* Map Placeholder */}
+            <div className="mt-8 flex h-35 md:h-45 w-full items-center justify-center rounded-3xl bg-linear-to-br from-[#E8F5E9]/50 to-[#FFEBEE]/50 border border-neutral-100/50">
+              <MapPinIcon className="h-8 w-8 md:h-10 md:w-10 text-[#FF5A5F]" />
+            </div>
+
+            {/* Provider Profile Card */}
+            <Link
+              href={`/provider/${product.business.id}`}
+              className="mt-8 flex items-center gap-3.5 transition-colors active:opacity-70 hover:bg-neutral-50 p-2 -mx-2 rounded-xl"
+            >
+              <div className="flex h-11.5 w-11.5 md:h-13 md:w-13 shrink-0 items-center justify-center rounded-full bg-slate-100 text-base font-bold text-foreground">
+                {product.business.initials}
+              </div>
+              <div className="flex min-w-0 flex-1 flex-col justify-center">
+                <div className="flex items-center gap-1.5">
+                  <span className="truncate text-base font-bold text-foreground">{product.business.name}</span>
+                  {product.business.verified && <CheckBadge className="h-4 w-4 text-[#00897B] shrink-0" />}
+                </div>
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium mt-0.5">
+                  <span>Replies in {product.business.replyTime}</span>
+                  <span>&middot;</span>
+                  <div className="flex items-center gap-0.5">
+                    <StarIcon className="h-3 w-3 text-[#FFC107]" />
+                    <span>{product.business.rating}</span>
+                  </div>
+                  <span>&middot;</span>
+                  <span>{product.business.jobs} jobs</span>
+                </div>
+              </div>
+              <ChevronRightIcon className="h-5 w-5 shrink-0 text-muted-foreground/50" />
+            </Link>
+            
+            <h2 className="mt-8 text-lg font-bold text-foreground">About this listing</h2>
+            <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
+              This is a standard service provided by {product.business.name}. Contact the provider directly if you have custom requirements or questions before requesting.
+            </p>
+          </div>
+
+          {/* Desktop-Only Action Buttons */}
+          <div className="hidden md:flex items-center gap-3.5 mt-10 border-t border-stroke pt-6">
+            <Link
+              href="/chat"
+              aria-label="Open chat"
+              className="flex h-13.5 w-16 shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-foreground hover:bg-slate-200 transition-colors"
+            >
+              <ChatIcon className="h-6 w-6 text-neutral-800" />
+            </Link>
+            
+            <div className="flex-1">
+              <Button intent="form" href={`/payment/${id}`} className="w-full h-13.5 rounded-2xl text-base font-semibold tracking-wide bg-[#E25C43] hover:bg-[#D44E36] text-white">
+                Request &middot; {formattedPrice}
+              </Button>
+            </div>
+          </div>
+        </div>
+
       </div>
 
-      {/* Sticky Footer */}
-      <div className="fixed inset-x-0 bottom-0 flex items-center gap-3.5 border-t border-stroke bg-background px-5 py-3 pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-[0_-4px_12px_rgba(0,0,0,0.02)]">
-        {/* Chat button moved to left */}
+      {/* Mobile-Only Sticky Footer */}
+      <div className="md:hidden fixed inset-x-0 bottom-0 flex items-center gap-3.5 border-t border-stroke bg-white px-5 py-3 pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-[0_-4px_12px_rgba(0,0,0,0.02)] z-10 w-full">
         <Link
-          href="/chat"
+          href="/chats"
           aria-label="Open chat"
-          className="flex h-[52px] w-[60px] shrink-0 items-center justify-center rounded-[14px] bg-[#F5F7F7] text-foreground transition-transform active:scale-95"
+          className="flex h-13 w-15 shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-foreground transition-transform active:scale-95"
         >
-          <ChatIcon className="h-6 w-6 text-[#333333]" />
+          <ChatIcon className="h-6 w-6 text-neutral-800" />
         </Link>
         
         <div className="flex-1">
-          <Button intent="form" href={`/payment/${id}`} className="w-full h-[52px] rounded-[14px] text-[16px] font-semibold tracking-wide bg-[#E25C43] hover:bg-[#D44E36]">
+          <Button intent="form" href={`/payment/${id}`} className="w-full h-13 rounded-2xl text-base font-semibold tracking-wide bg-[#E25C43] hover:bg-[#D44E36] text-white">
             Request &middot; {formattedPrice}
           </Button>
         </div>
