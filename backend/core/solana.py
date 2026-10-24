@@ -24,6 +24,7 @@ from typing import Any, Iterable
 import httpx
 from solders.hash import Hash
 from solders.instruction import AccountMeta, Instruction
+from solders.keypair import Keypair
 from solders.message import Message, MessageV0
 from solders.pubkey import Pubkey
 from solders.system_program import ID as SYSTEM_PROGRAM_ID
@@ -656,9 +657,12 @@ class SolanaRpc:
             "getAccountInfo",
             [str(address), {"encoding": "base64", "commitment": "confirmed"}],
         )
-        if not result:
+        # getAccountInfo returns {context, value}; value is null when the
+        # account does not exist.
+        account = (result or {}).get("value")
+        if not account:
             return None
-        data = result.get("data")
+        data = account.get("data")
         if not data:
             return None
         encoded = data[0] if isinstance(data, list) else data
@@ -697,8 +701,8 @@ class SolanaRpc:
         deadline = asyncio.get_running_loop().time() + timeout_seconds
         while True:
             statuses = await self.get_signature_statuses(signature)
-            if statuses:
-                status = statuses[0]
+            status = statuses[0] if statuses else None
+            if status:
                 if status.get("err"):
                     return TransactionConfirmation(
                         signature=signature,
@@ -721,10 +725,21 @@ class SolanaRpc:
 
 
 def build_versioned_transaction(
-    payer: Pubkey, instructions: list[Instruction], blockhash: Hash
+    payer: Pubkey,
+    instructions: list[Instruction],
+    blockhash: Hash,
+    signers: Iterable[Keypair] = (),
 ) -> VersionedTransaction:
-    message = MessageV0.try_compile(payer, instructions, [])
-    return VersionedTransaction(message, [])
+    """Compile and sign a versioned transaction.
+
+    solders' ``VersionedTransaction`` constructor takes keypairs and signs
+    during construction; it has no separate ``sign`` method. Pass the payer
+    (and any other signers) in ``signers``.
+    """
+    message = MessageV0.try_compile(payer, instructions, [], blockhash)
+    if signers:
+        return VersionedTransaction(message, list(signers))
+    return VersionedTransaction.populate(message, [])
 
 
 def build_legacy_transaction(
