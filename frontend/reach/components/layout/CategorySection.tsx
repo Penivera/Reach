@@ -39,7 +39,10 @@ const CategorySection = () => {
     );
   }
 
-  const displayCategories = categories.length > 0 ? categories : FALLBACK_CATEGORIES;
+  // const displayCategories = categories.length > 0 ? categories : FALLBACK_CATEGORIES;
+  const displayCategories = categories.length > 0 
+    ? [...categories.slice(0, 7), { id: 'btn-more', name: 'More' } as any] 
+    : FALLBACK_CATEGORIES;
 
   return (
     <section className="mb-10">

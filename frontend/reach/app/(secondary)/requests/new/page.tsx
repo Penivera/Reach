@@ -8,15 +8,15 @@ export default function PostRequestPage() {
   const router = useRouter();
 
   return (
-    <div className="min-h-screen bg-background md:bg-[#F8F9FA] flex flex-col items-center pb-[100px] md:py-12">
-      <div className="w-full max-w-lg bg-white md:shadow-lg md:rounded-[24px] md:border md:border-neutral-100 overflow-hidden">
+    <div className="min-h-screen bg-background md:bg-[#F8F9FA] flex flex-col items-center pb-25 md:py-12">
+      <div className="w-full max-w-lg bg-white md:shadow-lg md:rounded-3xl md:border md:border-neutral-100 overflow-hidden">
         {/* Header */}
         <div className="sticky top-0 z-10 flex items-center gap-3 bg-white px-5 py-4 border-b border-stroke md:border-none">
           <button
             type="button"
             onClick={() => router.back()}
             aria-label="Go back"
-            className="flex h-[38px] w-[38px] items-center justify-center rounded-full bg-[#F5F7F7] text-foreground active:scale-95 transition-transform hover:bg-[#E8EAEA]"
+            className="flex h-9.5 w-9.5 items-center justify-center rounded-full bg-[#F5F7F7] text-foreground active:scale-95 transition-transform hover:bg-[#E8EAEA]"
           >
             <ArrowLeftIcon size={18} weight="bold" />
           </button>
