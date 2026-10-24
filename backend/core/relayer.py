@@ -235,9 +235,8 @@ class Relayer:
 
         blockhash = await self.rpc.get_latest_blockhash()
         transaction: VersionedTransaction = build_versioned_transaction(
-            self.address, instructions, blockhash
+            self.address, instructions, blockhash, [self.keypair]
         )
-        transaction.sign([self.keypair])
 
         signature = await self.rpc.send_transaction(transaction)
 

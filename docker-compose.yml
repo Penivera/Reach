@@ -1,21 +1,119 @@
+name: reach
 
 services:
-  postgres:
-    image: postgis/postgis:16-3.5
-    container_name: work_near_db
+  backend:
+    build:
+      context: ./backend
+    container_name: reach_backend
+
+    restart: unless-stopped
+
+    # Optional: values in backend/.env are used for anything not overridden
+    # below. Copy backend/.env.example to backend/.env first if you want to
+    # keep provider keys (FossaPay, Obiex, Solana, SMTP, Cloudinary) in a file.
+    env_file:
+      - path: ./backend/.env
+        required: false
+
+    environment:
+      # --- App ---
+      SECRET_KEY: ${SECRET_KEY:-dev-only-change-me-before-deploying}
+      ALGORITHM: ${ALGORITHM:-HS256}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-15}
+      BACKEND_URL: ${BACKEND_URL:-http://localhost:8000}
+
+      # --- Database ---
+      # PostGIS is not part of this stack. Set DATABASE_URL in the root .env
+      # (Compose reads it automatically) or export it before `docker compose up`.
+      # Use an address the container can reach:
+      #   remote: postgresql+asyncpg://user:pass@db.example.com:5432/work_near
+      #   host:   postgresql+asyncpg://postgres:postgres@host.docker.internal:5432/work_near
+      # `localhost` inside the container is the container itself, not your host.
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required (postgresql+asyncpg://user:pass@host:5432/work_near)}
+
+      # --- Email / SMTP (ZeptoMail) ---
+      SMTP_HOST: ${SMTP_HOST:-smtp.zeptomail.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_START_TLS: ${SMTP_START_TLS:-true}
+      SMTP_USERNAME: ${SMTP_USERNAME:-emailapikey}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM_NAME: ${SMTP_FROM_NAME:-Reach}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-no-reply@example.com}
+
+      # --- Cloudinary ---
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:-}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-}
+
+      # --- Payments ---
+      FOSSAPAY_ENABLED: ${FOSSAPAY_ENABLED:-false}
+      PAYMENT_PROVIDER: ${PAYMENT_PROVIDER:-fake}
+      FOSSAPAY_API_URL: ${FOSSAPAY_API_URL:-https://api-production.fossapay.com/api/v1}
+      FOSSAPAY_API_KEY: ${FOSSAPAY_API_KEY:-}
+      FOSSAPAY_WEBHOOK_SECRET: ${FOSSAPAY_WEBHOOK_SECRET:-}
+      PLATFORM_FEE_BPS: ${PLATFORM_FEE_BPS:-500}
+      MIN_ESCROW_KOBO: ${MIN_ESCROW_KOBO:-100000}
+
+      # --- Solana (Model 1 settlement layer) ---
+      REACH_SOLANA_RPC_URL: ${REACH_SOLANA_RPC_URL:-}
+      REACH_PROGRAM_ID: ${REACH_PROGRAM_ID:-5iCtrxFDsPQf6qyR2nfjkDgUJyuH7oxoA5Lf1qQiDfwY}
+      REACH_STABLE_MINT: ${REACH_STABLE_MINT:-EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v}
+      REACH_RELAYER_SECRET_KEY: ${REACH_RELAYER_SECRET_KEY:-}
+      REACH_OFFRAMP_ENABLED: ${REACH_OFFRAMP_ENABLED:-false}
+
+    # Lets the container reach a PostGIS instance published on the host
+    # through host.docker.internal (Linux included).
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/', timeout=3)",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  frontend:
+    build:
+      context: ./frontend/reach
+      args:
+        # Baked into the client bundle at build time. Use a URL the browser
+        # can reach (not the Docker service name).
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+        NEXT_PUBLIC_NOMINATIM_EMAIL: ${NEXT_PUBLIC_NOMINATIM_EMAIL:-contact@example.com}
+    container_name: reach_frontend
 
     restart: unless-stopped
 
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: work_near
+      NODE_ENV: production
+      NEXT_TELEMETRY_DISABLED: "1"
 
     ports:
-      - "5432:5432"
+      - "${FRONTEND_PORT:-3000}:3000"
 
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
+    depends_on:
+      backend:
+        condition: service_healthy
 
-volumes:
-  postgres_data:
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:3000').then((r) => { if (!r.ok) process.exit(1); }).catch(() => process.exit(1));",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s

@@ -8,11 +8,12 @@ was built with the wrong account order (and created the account twice).
 import unittest
 from unittest import mock
 
+from solders.hash import Hash
 from solders.keypair import Keypair
 from solders.pubkey import Pubkey
 
 from core.relayer import Relayer, RelayerConfig
-from core.solana import ASSOCIATED_TOKEN_PROGRAM_ID
+from core.solana import ASSOCIATED_TOKEN_PROGRAM_ID, TransactionConfirmation
 
 USDC = Pubkey.from_string("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
 PROGRAM_ID = "5iCtrxFDsPQf6qyR2nfjkDgUJyuH7oxoA5Lf1qQiDfwY"
@@ -96,6 +97,48 @@ class EnsureTokenAccountTests(unittest.IsolatedAsyncioTestCase):
             await relayer.ensure_token_account(owner)
 
         submit.assert_not_awaited()
+
+
+class SubmitTests(unittest.IsolatedAsyncioTestCase):
+    async def test_submit_signs_with_the_relayer_and_confirms(self):
+        relayer = build_relayer()
+        blockhash = Hash.new_unique()
+        sent = {}
+
+        async def latest_blockhash(commitment="confirmed"):
+            return blockhash
+
+        async def send_transaction(transaction, skip_preflight=False):
+            sent["transaction"] = transaction
+            return "sig-1"
+
+        async def confirm_transaction(signature, timeout_seconds=60, poll_interval=2):
+            return TransactionConfirmation(
+                signature=signature, slot=3, status="confirmed"
+            )
+
+        relayer.rpc.get_latest_blockhash = latest_blockhash
+        relayer.rpc.send_transaction = send_transaction
+        relayer.rpc.confirm_transaction = confirm_transaction
+
+        instruction = relayer.program.build_instruction(
+            "initialize",
+            accounts={"owner": relayer.address},
+            args={"owner_name": "Relayer"},
+        )
+
+        confirmation = await relayer.submit(
+            [instruction], idempotency_key="initialize"
+        )
+
+        self.assertEqual(confirmation.status, "confirmed")
+        transaction = sent["transaction"]
+        self.assertEqual(transaction.message.recent_blockhash, blockhash)
+        self.assertEqual(
+            transaction.message.account_keys[0], relayer.address
+        )
+        self.assertEqual(len(transaction.signatures), 1)
+        self.assertTrue(all(transaction.verify_with_results()))
 
 
 if __name__ == "__main__":

@@ -274,19 +274,19 @@ fn test_happy_path() {
     let application = ProviderApplication::try_deserialize(&mut &app_acc.data[..]).unwrap();
     assert_eq!(application.status, ProviderApplicationStatus::Pending);
 
-    // 7. Accept Application (signed by state owner)
+    // 7. Accept Application (signed by the task creator)
     let accept_ix = Instruction::new_with_bytes(
         program_id,
         &sol_contract::instruction::Accept { task_id, provider: provider.pubkey() }.data(),
         sol_contract::accounts::AcceptApplication {
-            owner: owner.pubkey(),
+            owner: creator.pubkey(),
             task: task_pda,
             application: application_pda,
         }.to_account_metas(None),
     );
     let tx = VersionedTransaction::try_new(
-        VersionedMessage::Legacy(Message::new_with_blockhash(&[accept_ix], Some(&owner.pubkey()), &svm.latest_blockhash())),
-        &[&owner],
+        VersionedMessage::Legacy(Message::new_with_blockhash(&[accept_ix], Some(&creator.pubkey()), &svm.latest_blockhash())),
+        &[&creator],
     ).unwrap();
     svm.send_transaction(tx).unwrap();
 
