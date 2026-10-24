@@ -1,0 +1,14 @@
+[project]
+name = "work-near-backend"
+version = "0.1.0"
+dynamic = ["dependencies"]
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
+
+[tool.fastapi]
+entrypoint = "app:app"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["*"]

@@ -116,6 +116,7 @@ pub fn create_task(
 
     task.id = task_id;
     task.creator = ctx.accounts.creator.key();
+    task.stable_coin_mint = ctx.accounts.stable_coin_mint.key();
     task.status = TaskStatus::Open;
     task.created_at = clock.unix_timestamp;
     task.updated_at = clock.unix_timestamp;
@@ -140,22 +141,26 @@ pub struct AcceptApplication<'info> {
     #[account(
         mut,
         seeds = [TASK_SEED, task_id.to_le_bytes().as_ref()],
-        bump
+        bump,
+        constraint = task.creator == owner.key() @ ErrorCode::NotOwner,
     )]
     pub task: Account<'info, Task>,
 
     #[account(
         mut,
         seeds = [APPLICATION_SEED, provider.as_ref(), task.key().as_ref()],
-        bump
+        bump,
+        constraint = application.status == ProviderApplicationStatus::Pending @ ErrorCode::ApplicationNotAccepted,
     )]
     pub application: Account<'info, ProviderApplication>,
 }
 
 #[allow(unused_variables)]
 pub fn accept_application(ctx: Context<AcceptApplication>, task_id: u64, provider: Pubkey) -> Result<()> {
-    let application = &mut ctx.accounts.application;
     let task = &mut ctx.accounts.task;
+    require!(task.status == TaskStatus::Open, ErrorCode::InvalidTaskStatus);
+
+    let application = &mut ctx.accounts.application;
     task.provider = Some(provider);
     
     if task.terms.required_provider_collateral > 0 {

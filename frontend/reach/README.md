@@ -28,19 +28,23 @@ The platform is meant to support two core experiences:
 
 The current frontend includes:
 
-- a landing page
-- sign-in and sign-up flows
-- authentication UI connected to the backend API
+- a landing page and authentication flows (sign-in, sign-up, location)
+- home, chat, request, order, product, and payment routes
+- profile and account flows, including becoming a provider
+- provider dashboard, listings, job detail, and payout screens
+- API helpers for auth, jobs, services, users, and provider profiles
 - reusable UI components for forms and buttons
-- API helpers for auth-related endpoints
 
-Planned or expected product areas include:
+Still not integrated:
 
-- comparing prices for services and goods
-- posting services for hire
-- posting tasks that need to be completed
-- user dashboards and profile flows
-- richer listings and booking experiences
+- the Model 1 payment profile and funding/checkout screens
+- the provider naira off-ramp UI
+- the Solana provider wallet flow for `apply` / `complete_task`
+- a one-click USDC withdrawal to the off-ramp deposit address
+
+The existing `lib/near/*` wallet integration is legacy and is not the current
+settlement path. The backend payment APIs are implemented, but the frontend
+still needs to be wired to them.
 
 ## Tech stack
 
@@ -75,15 +79,11 @@ Then open http://localhost:3000 in your browser.
 
 ## Environment variables
 
-The app uses the following environment variable:
+The app uses the following environment variables:
 
-- NEXT_PUBLIC_API_URL
-
-If it is not provided, the app defaults to:
-
-```bash
-http://localhost:8000
-```
+- `NEXT_PUBLIC_API_URL` — backend base URL; defaults to `http://localhost:8000`
+- `NEXT_PUBLIC_NOMINATIM_EMAIL` — contact email for the Nominatim geocoder;
+  defaults to `contact@example.com`
 
 ## Project structure
 
@@ -96,11 +96,16 @@ A quick overview of the frontend structure:
 
 ## Backend note
 
-The backend is expected to be run from the full repository. If you are working in the monorepo, follow the backend README for setup and start instructions.
+The backend lives in `../../backend/`. There is no backend README; use the
+FastAPI app entry point (`backend/app.py`), `backend/.env.example`, and the
+payment docs in `../../docs/`.
 
 ## Development notes
 
-This frontend is already wired for authentication flows and uses the backend API through a small shared API layer. The product experience is still expanding, so expect additional routes and features as the marketplace evolves.
+This frontend is wired for authentication and marketplace flows and uses the
+backend API through a shared API layer. Payment and off-ramp integration is
+still in progress; do not infer payment success from a client-side action.
+Only the backend state is authoritative.
 
 
 Reach is currently in an early but active stage, with authentication and core frontend structure in place and the broader marketplace experience still being built out.

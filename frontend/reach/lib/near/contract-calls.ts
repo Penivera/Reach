@@ -1,8 +1,22 @@
+/**
+ * @deprecated
+ * MODEL 1 ARCHITECTURE MIGRATION NOTICE:
+ * Direct invocation of the standalone NEAR escrow contract (reach.testnet) is DEPRECATED.
+ * Reach utilizes Model 1:
+ * - Canonical Settlement Engine: Solana Anchor Program (sol-contract/programs/sol-contract)
+ * - Multichain Execution: NEAR Intents + NEAR Chain Signatures (MPC) routing into Solana
+ *
+ * These helper methods are preserved temporarily for backwards compatibility with legacy UI components.
+ */
+
 import type { WalletSelector } from "@near-wallet-selector/core";
 
 const REACH_CONTRACT = "reach.testnet";
 const STABLECOIN_CONTRACT = "usdc.fakes.testnet";
 
+/**
+ * @deprecated Use Solana Anchor program create_task instruction instead.
+ */
 export async function createTaskOnChain(
   selector: WalletSelector,
   accountId: string,

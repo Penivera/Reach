@@ -4,6 +4,7 @@ from DB.database import Base
 from schemas import ServiceStatus, ServiceRequestStatus
 from geoalchemy2.elements import WKBElement
 from geoalchemy2 import Geography
+from geoalchemy2.shape import to_shape
 from .mixins import TimeStampMixin
 
 class Service(Base, TimeStampMixin):
@@ -34,6 +35,14 @@ class Service(Base, TimeStampMixin):
     requests = relationship("ServiceRequest", back_populates="service",cascade="all, delete-orphan")
 
     media = relationship("Media", back_populates="service", cascade="all, delete-orphan")
+
+    @property
+    def latitude(self) -> float:
+        return to_shape(self.location).y
+
+    @property
+    def longitude(self) -> float:
+        return to_shape(self.location).x
 
 
 class ServiceRequest(Base, TimeStampMixin):

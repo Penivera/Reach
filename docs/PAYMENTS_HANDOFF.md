@@ -1,3 +1,17 @@
+> **Superseded.** This document describes the pay-after-acceptance fiat
+> flow (FossaPay checkout after an applicant is accepted, a naira payout with a
+> 5% commission, and an escrow ledger in Postgres). Model 1 replaced it: the
+> escrow is locked on Solana when the task is created, the Anchor program is
+> the settlement layer, and settlement is the program's `approve_work`.
+>
+> See `docs/REACH_MODEL1_PAYMENTS_PLAN.md` for the current design,
+> `reach_flows_and_architecture_documentation.md` for the architecture, and
+> `docs/REACH_NAIRA_OFFRAMP.md` for the provider naira cash-out.
+>
+> **Historical only:** the flow, endpoints, test counts, and migration list
+> below describe the pre-Model-1 implementation and are not the current API
+> reference.
+
 # Payments Handoff
 
 Companion to `PAYMENTS_IMPLEMENTATION_PLAN.md`. This file is the working document: what is already built, what the frontend has to do, what is still missing on the backend, and the full reference for the new endpoints.
@@ -364,7 +378,7 @@ cd backend
 venv/bin/python -m unittest discover -s tests -v
 ```
 
-29 tests, no database required:
+At the time of this historical document, 29 tests, no database required:
 
 - `test_payment_amounts.py` — kobo/naira conversion, commission rounding
 - `test_payment_signatures.py` — exact raw `data` extraction, signature verification

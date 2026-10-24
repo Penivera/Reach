@@ -10,10 +10,13 @@ from .notifications import Notification
 from .reports import Report
 from .reviews import Review
 from .payments import (
+    ChainTransaction,
     FossaPayCustomer,
+    OffRampWithdrawal,
     PaymentIntent,
     PaymentProfile,
     Payout,
+    TreasuryTransfer,
     WebhookEvent,
 )
 from .mixins import TimeStampMixin

@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, HTTPException, status, Depends, Response
 from models import User, EmailVerificationToken, PasswordResetToken
 from schemas import (UserCreate, UserResponse, EmailVerificationRequest, 
@@ -12,6 +14,7 @@ from geoalchemy2.functions import ST_GeogFromText
 
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+logger = logging.getLogger(__name__)
 
 @router.post("/create-user", response_model=UserSignUpResponse)
 async def create_user(user_data: UserCreate, db: AsyncSession =Depends(get_db)):
@@ -67,6 +70,15 @@ async def create_user(user_data: UserCreate, db: AsyncSession =Depends(get_db)):
     except Exception:
         await db.rollback()
         raise
+
+    # The account and token are already committed. A mail outage must not roll
+    # the signup back; the user can retry with /auth/resend-verification.
+    try:
+        await send_verification_email(new_user.email, token)
+    except Exception:
+        logger.exception(
+            "Could not send the verification email to %s", new_user.email
+        )
 
     return new_user
 
@@ -137,7 +149,16 @@ async def resend_verification(data: ResendEmailVerificationRequest, db: AsyncSes
         await db.rollback()
         raise
 
-    await send_verification_email(user.email, token)
+    try:
+        await send_verification_email(user.email, token)
+    except Exception as exc:
+        logger.exception(
+            "Could not resend the verification email to %s", user.email
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Could not send the verification email. Try again later.",
+        ) from exc
 
     return {"message": "check your email for verification link"}
 
@@ -206,7 +227,12 @@ async def forgot_password(data: ForgotPasswordRequest, db: AsyncSession = Depend
         await db.rollback()
         raise
 
-    await send_reset_password_email(user_exist.email, token)
+    try:
+        await send_reset_password_email(user_exist.email, token)
+    except Exception:
+        logger.exception(
+            "Could not send the password reset email to %s", user_exist.email
+        )
 
     return {"message": "password reset link has been sent to your email"}
 

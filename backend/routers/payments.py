@@ -1,12 +1,21 @@
-from datetime import datetime, timezone
-from uuid import uuid4
+"""Payment and funding endpoints.
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+Model 1 funds a task when it is created, and settles it on-chain. The
+endpoints here cover the two halves of that:
+
+* **funding** — the customer opens a collection (naira), a deposit address
+  (USDC) or a checkout, and the money arrives;
+* **release** — the creator approves the work and the relayer signs
+  `approve_work`, which pays the provider on-chain.
+"""
+
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core import settings
-from core.fossapay import FossaPayError, FossaPayNotConfigured, get_fossapay_client
+from core.fossapay import FossaPayError, FossaPayNotConfigured
+from core.obiex import ObiexError, ObiexNotConfigured
+from core.relayer import RelayerError
 from dependencies import get_current_user, get_db
 from models import (
     FossaPayCustomer,
@@ -14,10 +23,8 @@ from models import (
     JobApplication,
     PaymentIntent,
     PaymentProfile,
-    Payout,
     User,
 )
-from payment_amounts import AmountError, commission_kobo, to_kobo, to_ngn
 from payment_validation import (
     PaymentProfileValidationError,
     normalize_phone_number,
@@ -25,21 +32,49 @@ from payment_validation import (
 )
 from schemas import (
     ApplicationStatus,
+    BankResolveRequest,
+    BankResolveResponse,
+    ChainTransactionResponse,
     FossaPayAccountResponse,
+    FundingIntentResponse,
+    FundingRail,
+    FundingStateResponse,
+    FundingStatus,
     JobStatus,
-    PaymentIntentResponse,
+    OffRampBankResponse,
+    OffRampCreateRequest,
+    OffRampQuoteRequest,
+    OffRampQuoteResponse,
+    OffRampWithdrawalResponse,
+    PayerType,
     PaymentProfileResponse,
     PaymentProfileStateResponse,
     PaymentProfileUpsert,
     PaymentStatus,
-    PayoutResponse,
-    PayoutStatus,
     ProvisioningStatus,
+    UserRole,
 )
 from services import (
     ensure_customer_record,
     provision_user,
     provision_user_by_id,
+)
+from services.chain import (
+    EscrowError,
+    InsufficientEscrowFunds,
+    RelayerUnavailable,
+    release_task_escrow,
+)
+from services.treasury import TreasuryError
+from services import offramp
+from services.funding import (
+    FundingError,
+    ProfileIncomplete,
+    create_crypto_deposit_address,
+    create_fossapay_checkout,
+    create_obiex_collection,
+    latest_pending_intent,
+    missing_fields_for_rail,
 )
 
 
@@ -89,6 +124,17 @@ async def _get_job_for_participant(
     return job
 
 
+async def _latest_intent(
+    job_id: int, db: AsyncSession
+) -> PaymentIntent | None:
+    result = await db.execute(
+        select(PaymentIntent)
+        .where(PaymentIntent.job_id == job_id)
+        .order_by(PaymentIntent.id.desc())
+    )
+    return result.scalars().first()
+
+
 def _state(profile, customer, user) -> PaymentProfileStateResponse:
     missing_fields: list[str] = []
 
@@ -110,6 +156,11 @@ def _state(profile, customer, user) -> PaymentProfileStateResponse:
     except PaymentProfileValidationError:
         missing_fields.append("phone_number")
 
+    if profile and not (profile.bvn or profile.nin):
+        # Obiex needs a Nigerian identity number before it can open a
+        # collection for a customer.
+        missing_fields.append("bvn_or_nin")
+
     return PaymentProfileStateResponse(
         profile_completed=profile is not None,
         can_pay=bool(
@@ -127,6 +178,21 @@ def _state(profile, customer, user) -> PaymentProfileStateResponse:
             FossaPayAccountResponse.model_validate(customer)
             if customer
             else None
+        ),
+    )
+
+
+def _funding_state(job: Job, intent: PaymentIntent | None) -> FundingStateResponse:
+    return FundingStateResponse(
+        job_id=job.id,
+        job_status=job.status,
+        funding_status=job.funding_status,
+        payer_type=job.payer_type,
+        onchain_task_id=job.onchain_task_id,
+        onchain_tx_hash=job.onchain_tx_hash,
+        onchain_status=job.onchain_status,
+        intent=(
+            FundingIntentResponse.model_validate(intent) if intent else None
         ),
     )
 
@@ -174,7 +240,7 @@ async def upsert_payment_profile(
         ):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Your FossaPay account is already provisioned. Contact support to change your identity details.",
+                detail="Your payment account is already provisioned. Contact support to change your identity details.",
             )
 
     current_user.first_name = first_name
@@ -191,7 +257,7 @@ async def upsert_payment_profile(
     ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Your FossaPay account is already provisioned. Contact support to change your date of birth.",
+            detail="Your payment account is already provisioned. Contact support to change your date of birth.",
         )
 
     if profile:
@@ -200,6 +266,11 @@ async def upsert_payment_profile(
         profile.address = data.address
         profile.city = data.city
         profile.country = data.country
+        profile.bvn = data.bvn
+        profile.nin = data.nin
+        profile.bank_code = data.bank_code
+        profile.bank_account_number = data.bank_account_number
+        profile.bank_account_name = data.bank_account_name
     else:
         profile = PaymentProfile(
             user_id=current_user.id,
@@ -208,6 +279,11 @@ async def upsert_payment_profile(
             address=data.address,
             city=data.city,
             country=data.country,
+            bvn=data.bvn,
+            nin=data.nin,
+            bank_code=data.bank_code,
+            bank_account_number=data.bank_account_number,
+            bank_account_name=data.bank_account_name,
         )
         db.add(profile)
 
@@ -241,21 +317,49 @@ async def retry_payment_profile_provisioning(
     return _state(profile, customer, current_user)
 
 
-def _parse_expiry(value) -> datetime | None:
-    if not value:
-        return None
-    try:
-        return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
-    except ValueError:
-        return None
-
-
-@router.post("/jobs/{job_id}/checkout", response_model=PaymentIntentResponse)
-async def create_job_checkout(
-    job_id: int,
+@router.get("/requirements")
+async def get_payment_requirements(
+    rail: FundingRail = FundingRail.OBIEX_FIAT,
     db: AsyncSession = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
+    """What the customer has to provide before this rail can be opened.
+
+    The payment profile is collected when the customer wants to pay, so the
+    frontend calls this when they tap pay and asks for what is missing.
+    """
+    profile = await _get_profile(current_user.id, db)
+    customer = await _get_customer(current_user.id, db)
+
+    missing = missing_fields_for_rail(
+        user=current_user,
+        profile=profile,
+        rail=rail,
+        customer_provisioned=bool(
+            customer and customer.status == ProvisioningStatus.PROVISIONED
+        ),
+    )
+
+    return {
+        "rail": rail,
+        "can_pay": not missing,
+        "missing_fields": missing,
+        "profile_completed": profile is not None,
+    }
+
+
+@router.post("/jobs/{job_id}/collection", response_model=FundingIntentResponse)
+async def create_job_collection(
+    job_id: int,
+    rail: FundingRail = FundingRail.OBIEX_FIAT,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Open a payment for a task.
+
+    Model 1 funds the escrow when the task is created, so this is called
+    while the job is still waiting for its funding.
+    """
     job = (
         await db.execute(select(Job).where(Job.id == job_id))
     ).scalar_one_or_none()
@@ -266,146 +370,129 @@ async def create_job_checkout(
     if job.owner_id != current_user.id:
         raise HTTPException(status_code=403, detail="Only the job owner can pay")
 
-    if job.status != JobStatus.AWAITING_PAYMENT:
+    if job.funding_status == FundingStatus.FUNDED:
         raise HTTPException(
             status_code=400,
-            detail="Accept an applicant before creating a payment",
+            detail="This task is already funded",
         )
+
+    if job.funding_status in (FundingStatus.PAID, FundingStatus.HELD):
+        raise HTTPException(
+            status_code=400,
+            detail="This task already has a payment being processed",
+        )
+
+    if job.status in (JobStatus.COMPLETED, JobStatus.CANCELLED):
+        raise HTTPException(
+            status_code=400,
+            detail="This task is closed and cannot be funded",
+        )
+
+    pending = await latest_pending_intent(db, job.id)
+    if pending is not None and pending.rail != rail:
+        # A wallet funding attempt that never reached the chain is only a
+        # stale intent; let the customer switch to a fiat rail. Never discard
+        # a pending fiat collection, because the virtual account may already
+        # have been shown to the payer.
+        if pending.rail == FundingRail.WALLET and job.onchain_task_id is None:
+            pending.status = PaymentStatus.EXPIRED
+            await db.commit()
+        else:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "A payment is already open for this task on another rail. "
+                    "Finish or cancel it before choosing a different payment method."
+                ),
+            )
 
     profile = await _get_profile(current_user.id, db)
     customer = await _get_customer(current_user.id, db)
 
-    if (
-        not profile
-        or not customer
-        or customer.status != ProvisioningStatus.PROVISIONED
-    ):
+    missing = missing_fields_for_rail(
+        user=current_user,
+        profile=profile,
+        rail=rail,
+        customer_provisioned=bool(
+            customer and customer.status == ProvisioningStatus.PROVISIONED
+        ),
+    )
+
+    if missing:
         raise HTTPException(
             status_code=400,
-            detail="Complete your payment profile first",
-        )
-
-    application = (
-        await db.execute(
-            select(JobApplication).where(
-                JobApplication.job_id == job.id,
-                JobApplication.status == ApplicationStatus.ACCEPTED,
-            )
-        )
-    ).scalar_one_or_none()
-
-    if not application:
-        raise HTTPException(status_code=400, detail="No accepted applicant")
-
-    now = datetime.now(timezone.utc)
-    existing = (
-        await db.execute(
-            select(PaymentIntent)
-            .where(
-                PaymentIntent.job_id == job.id,
-                PaymentIntent.status == PaymentStatus.PENDING,
-            )
-            .order_by(PaymentIntent.id.desc())
-        )
-    ).scalars().first()
-
-    if existing:
-        if existing.expires_at is None or existing.expires_at > now:
-            return existing
-        existing.status = PaymentStatus.EXPIRED
-        await db.commit()
-
-    try:
-        amount_kobo = to_kobo(application.proposed_price)
-        amount_ngn = to_ngn(amount_kobo)
-    except AmountError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
-
-    if amount_kobo < settings.MIN_ESCROW_KOBO:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Minimum job payment is ₦{settings.MIN_ESCROW_KOBO // 100:,}",
-        )
-
-    reference = f"job-{job.id}-{uuid4().hex[:12]}"
-
-    try:
-        checkout = await get_fossapay_client().create_checkout(
-            amount_ngn=amount_ngn,
-            reference=reference,
-            customer={
-                "name": f"{current_user.first_name} {current_user.last_name}".strip(),
-                "email": current_user.email,
-                "phoneNumber": current_user.phone_number,
+            detail={
+                "message": "We need a few more details before you can pay",
+                "missing_fields": missing,
             },
         )
+
+    try:
+        if rail == FundingRail.CRYPTO:
+            intent = await create_crypto_deposit_address(
+                db, job=job, user=current_user
+            )
+        elif rail == FundingRail.FOSSAPAY_CHECKOUT:
+            if not customer or customer.status != ProvisioningStatus.PROVISIONED:
+                raise HTTPException(
+                    status_code=400,
+                    detail={
+                        "message": "Your payment account is not ready yet",
+                        "missing_fields": ["provisioning"],
+                    },
+                )
+            intent = await create_fossapay_checkout(
+                db, job=job, customer=customer
+            )
+        else:
+            intent = await create_obiex_collection(
+                db, job=job, user=current_user, profile=profile
+            )
+    except HTTPException:
+        raise
+    except ProfileIncomplete as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except FundingError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except ObiexNotConfigured as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    except ObiexError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
     except FossaPayNotConfigured as exc:
         raise HTTPException(status_code=503, detail=str(exc))
     except FossaPayError as exc:
         raise HTTPException(status_code=502, detail=str(exc))
 
-    account = checkout.get("account") or {}
+    job.funding_status = FundingStatus.PENDING
 
-    try:
-        amount_payable_kobo = to_kobo(
-            checkout.get("amountPayable") or amount_ngn
-        )
-    except AmountError:
-        amount_payable_kobo = amount_kobo
+    await db.commit()
+    await db.refresh(intent)
 
-    intent = PaymentIntent(
-        job_id=job.id,
-        reference=reference,
-        amount_kobo=amount_kobo,
-        amount_payable_kobo=amount_payable_kobo,
-        status=PaymentStatus.PENDING,
-        provider_checkout_id=str(checkout["id"]),
-        bank_name=account.get("bankName"),
-        account_name=account.get("accountName"),
-        account_number=account.get("accountNumber"),
-        expires_at=_parse_expiry(checkout.get("expiresAt")),
-    )
-
-    db.add(intent)
-
-    try:
-        await db.commit()
-        await db.refresh(intent)
-    except Exception:
-        await db.rollback()
-        raise
-
-    return intent
+    return FundingIntentResponse.model_validate(intent)
 
 
-@router.get("/jobs/{job_id}", response_model=PaymentIntentResponse)
-async def get_job_payment(
+@router.get("/jobs/{job_id}", response_model=FundingStateResponse)
+async def get_job_funding(
     job_id: int,
     db: AsyncSession = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
     job = await _get_job_for_participant(job_id, current_user.id, db)
-
-    intent = (
-        await db.execute(
-            select(PaymentIntent)
-            .where(PaymentIntent.job_id == job.id)
-            .order_by(PaymentIntent.id.desc())
-        )
-    ).scalars().first()
-
-    if not intent:
-        raise HTTPException(status_code=404, detail="No payment found")
-
-    return intent
+    intent = await _latest_intent(job.id, db)
+    return _funding_state(job, intent)
 
 
-@router.post("/jobs/{job_id}/release", response_model=PayoutResponse)
+@router.post("/jobs/{job_id}/release", response_model=ChainTransactionResponse)
 async def release_job_payment(
     job_id: int,
     db: AsyncSession = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
+    """Approve the work and release the escrow to the provider.
+
+    The relayer signs `approve_work`; the program moves the escrow to the
+    provider's token account.
+    """
     job = (
         await db.execute(select(Job).where(Job.id == job_id))
     ).scalar_one_or_none()
@@ -414,36 +501,31 @@ async def release_job_payment(
         raise HTTPException(status_code=404, detail="Job not found")
 
     if job.owner_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Only the job owner can release funds")
+        raise HTTPException(status_code=403, detail="Only the job owner can release")
+
+    if job.payer_type == PayerType.WALLET:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "This escrow was created by the client's wallet. Release it "
+                f"from that wallet via POST /jobs/{job.id}/onchain/release."
+            ),
+        )
+
+    if job.funding_status != FundingStatus.FUNDED:
+        raise HTTPException(
+            status_code=400,
+            detail="This task has no funded escrow to release",
+        )
 
     if not (job.client_completed and job.worker_completed):
         raise HTTPException(
             status_code=400,
-            detail="Both parties must confirm completion before release",
+            detail=(
+                "Both the creator and the provider must confirm completion "
+                "before the escrow can be released"
+            ),
         )
-
-    intent = (
-        await db.execute(
-            select(PaymentIntent)
-            .where(
-                PaymentIntent.job_id == job.id,
-                PaymentIntent.status == PaymentStatus.PAID,
-            )
-            .order_by(PaymentIntent.id.desc())
-        )
-    ).scalars().first()
-
-    if not intent:
-        raise HTTPException(status_code=400, detail="Job has not been funded")
-
-    existing = (
-        await db.execute(
-            select(Payout).where(Payout.payment_intent_id == intent.id)
-        )
-    ).scalar_one_or_none()
-
-    if existing:
-        return existing
 
     application = (
         await db.execute(
@@ -458,105 +540,325 @@ async def release_job_payment(
         raise HTTPException(status_code=400, detail="No accepted applicant")
 
     provider = await db.get(User, application.applicant_id)
-    provider_account = (
-        await _get_customer(provider.id, db) if provider else None
-    )
 
-    if (
-        not provider_account
-        or provider_account.status != ProvisioningStatus.PROVISIONED
-        or not provider_account.account_number
-        or not provider_account.account_name
-        or not provider_account.bank_name
-        or not provider_account.bank_code
-    ):
+    provider_address = getattr(provider, "onchain_address", None)
+
+    if not provider_address:
         raise HTTPException(
             status_code=400,
-            detail="Provider's FossaPay wallet is not ready",
+            detail=(
+                "The provider has not added a Solana address yet, so the "
+                "payment cannot be released"
+            ),
         )
 
-    fee_kobo = commission_kobo(intent.amount_kobo, settings.PLATFORM_FEE_BPS)
-    provider_payout_kobo = intent.amount_kobo - fee_kobo
-
-    if provider_payout_kobo <= 0:
-        raise HTTPException(status_code=400, detail="Payout amount is too small")
-
-    reference = f"payout-job-{job.id}-{intent.id}"
-
-    payout = Payout(
-        payment_intent_id=intent.id,
-        payee_id=provider.id,
-        reference=reference,
-        amount_kobo=intent.amount_kobo,
-        commission_kobo=fee_kobo,
-        provider_payout_kobo=provider_payout_kobo,
-        status=PayoutStatus.PROCESSING,
-    )
-    db.add(payout)
-
     try:
-        await db.commit()
-        await db.refresh(payout)
-    except Exception:
-        await db.rollback()
-        raise
-
-    try:
-        result = await get_fossapay_client().create_payout(
-            amount_ngn=to_ngn(provider_payout_kobo),
-            reference=reference,
-            destination={
-                "bank_code": provider_account.bank_code,
-                "bank_name": provider_account.bank_name,
-                "account_name": provider_account.account_name,
-                "account_number": provider_account.account_number,
-            },
+        transaction = await release_task_escrow(
+            db,
+            job,
+            provider_address=provider_address,
         )
-    except FossaPayNotConfigured as exc:
-        payout.status = PayoutStatus.FAILED
-        payout.failure_reason = str(exc)
-        await db.commit()
+    except RelayerUnavailable as exc:
         raise HTTPException(status_code=503, detail=str(exc))
-    except FossaPayError as exc:
-        payout.status = PayoutStatus.FAILED
-        payout.failure_reason = str(exc)
-        await db.commit()
+    except InsufficientEscrowFunds as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except EscrowError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except RelayerError as exc:
         raise HTTPException(status_code=502, detail=str(exc))
 
-    payout.provider_payout_id = str(result["id"])
-    provider_status = result.get("status")
-
-    if provider_status == "completed":
-        payout.status = PayoutStatus.COMPLETED
-        payout.completed_at = datetime.now(timezone.utc)
-    elif provider_status == "failed":
-        payout.status = PayoutStatus.FAILED
-    elif provider_status == "reversed":
-        payout.status = PayoutStatus.REVERSED
-
-    await db.commit()
-    await db.refresh(payout)
-    return payout
+    return ChainTransactionResponse.model_validate(transaction)
 
 
-@router.get("/jobs/{job_id}/payout", response_model=PayoutResponse)
-async def get_job_payout(
+@router.post("/treasury/top-up")
+async def top_up_treasury(
+    required_units: int = 0,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Move USDC from the provider into the on-chain escrow float.
+
+    Normally the treasury tops itself up when a collection arrives and the
+    float is short. This endpoint is for moving a balance deliberately, for
+    example after a collection settles without anyone waiting on it.
+    """
+    from services import treasury
+    from services.chain import retry_pending_fundings
+
+    try:
+        plan = await treasury.plan_top_up(required_units=required_units)
+    except (RelayerUnavailable, ObiexNotConfigured, ObiexError) as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+
+    if plan["withdraw_units"]:
+        try:
+            await treasury.request_withdrawal(
+                db, amount_units=plan["withdraw_units"]
+            )
+        except TreasuryError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+
+    funded = await retry_pending_fundings(db)
+
+    return {
+        "onchain_units": plan["onchain_units"],
+        "provider_units": plan["provider_units"],
+        "withdraw_units": plan["withdraw_units"],
+        "funded_jobs": [job.id for job in funded],
+    }
+
+
+@router.get("/jobs/{job_id}/transactions", response_model=list[ChainTransactionResponse])
+async def list_job_chain_transactions(
     job_id: int,
     db: AsyncSession = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
+    """The on-chain transactions recorded for a task."""
+    from models import ChainTransaction
+
     job = await _get_job_for_participant(job_id, current_user.id, db)
 
-    payout = (
-        await db.execute(
-            select(Payout)
-            .join(PaymentIntent, PaymentIntent.id == Payout.payment_intent_id)
-            .where(PaymentIntent.job_id == job.id)
-            .order_by(Payout.id.desc())
+    result = await db.execute(
+        select(ChainTransaction)
+        .where(ChainTransaction.job_id == job.id)
+        .order_by(ChainTransaction.id.desc())
+    )
+
+    return [
+        ChainTransactionResponse.model_validate(record)
+        for record in result.scalars().all()
+    ]
+
+
+# -- provider naira off-ramp ------------------------------------------------
+
+
+def _offramp_error(exc: offramp.OffRampError) -> HTTPException:
+    if isinstance(exc, offramp.OffRampDisabled):
+        return HTTPException(status_code=503, detail=str(exc))
+    if isinstance(exc, offramp.OffRampNotFound):
+        return HTTPException(status_code=404, detail=str(exc))
+    if isinstance(exc, offramp.OffRampConflict):
+        return HTTPException(status_code=409, detail=str(exc))
+    if isinstance(exc, offramp.OffRampNotReady):
+        return HTTPException(status_code=400, detail=str(exc))
+    if isinstance(exc, offramp.OffRampAmountError):
+        return HTTPException(status_code=400, detail=str(exc))
+    return HTTPException(status_code=400, detail=str(exc))
+
+
+def _require_admin(user: User) -> None:
+    if getattr(user, "role", None) != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+
+@router.get("/offramp/banks", response_model=list[OffRampBankResponse])
+async def list_offramp_banks(current_user=Depends(get_current_user)):
+    """Nigerian banks Obiex can pay a naira withdrawal to."""
+    try:
+        return await offramp.list_banks()
+    except offramp.OffRampError as exc:
+        raise _offramp_error(exc)
+    except (ObiexError, ObiexNotConfigured) as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+
+
+@router.post("/offramp/resolve-account", response_model=BankResolveResponse)
+async def resolve_offramp_account(
+    data: BankResolveRequest,
+    current_user=Depends(get_current_user),
+):
+    """Resolve a bank account name before creating a payout."""
+    try:
+        return await offramp.resolve_account(
+            bank_code=data.bank_code,
+            account_number=data.account_number,
         )
-    ).scalars().first()
+    except offramp.OffRampError as exc:
+        raise _offramp_error(exc)
+    except (ObiexError, ObiexNotConfigured) as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
 
-    if not payout:
-        raise HTTPException(status_code=404, detail="No payout found")
 
-    return payout
+@router.post("/offramp/quote", response_model=OffRampQuoteResponse)
+async def quote_offramp(
+    data: OffRampQuoteRequest,
+    current_user=Depends(get_current_user),
+):
+    """Show the indicative naira amount before the provider sends USDC."""
+    try:
+        return await offramp.quote_offramp(data.amount_usdc)
+    except offramp.OffRampError as exc:
+        raise _offramp_error(exc)
+    except (ObiexError, ObiexNotConfigured) as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+
+
+@router.post("/offramp/reconcile")
+async def reconcile_offramp(
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Expire stale deposit requests and poll in-flight bank payouts."""
+    _require_admin(current_user)
+    try:
+        return await offramp.reconcile(db)
+    except offramp.OffRampError as exc:
+        raise _offramp_error(exc)
+    except (ObiexError, ObiexNotConfigured) as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+
+
+@router.post("/offramp", response_model=OffRampWithdrawalResponse, status_code=201)
+async def create_offramp(
+    data: OffRampCreateRequest,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Create a unique USDC deposit address and a pending naira payout."""
+    try:
+        return await offramp.create_withdrawal(
+            db,
+            user=current_user,
+            amount_usdc=data.amount_usdc,
+            bank_code=data.bank_code,
+            bank_account_number=data.bank_account_number,
+            bank_account_name=data.bank_account_name,
+            idempotency_key=idempotency_key,
+        )
+    except offramp.OffRampError as exc:
+        raise _offramp_error(exc)
+    except (ObiexError, ObiexNotConfigured) as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+
+
+@router.get("/offramp", response_model=list[OffRampWithdrawalResponse])
+async def list_offramp(
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    return await offramp.list_withdrawals(db, user_id=current_user.id)
+
+
+@router.get("/offramp/{withdrawal_id}", response_model=OffRampWithdrawalResponse)
+async def get_offramp(
+    withdrawal_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    owner = None if getattr(current_user, "role", None) == UserRole.ADMIN else current_user.id
+    try:
+        return await offramp.get_withdrawal(
+            db, withdrawal_id, user_id=owner
+        )
+    except offramp.OffRampError as exc:
+        raise _offramp_error(exc)
+
+
+@router.post(
+    "/offramp/{withdrawal_id}/cancel",
+    response_model=OffRampWithdrawalResponse,
+)
+async def cancel_offramp(
+    withdrawal_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    try:
+        withdrawal = await offramp.get_withdrawal(
+            db, withdrawal_id, user_id=current_user.id
+        )
+        return await offramp.cancel_withdrawal(db, withdrawal)
+    except offramp.OffRampError as exc:
+        raise _offramp_error(exc)
+
+
+@router.post(
+    "/offramp/{withdrawal_id}/retry",
+    response_model=OffRampWithdrawalResponse,
+)
+async def retry_offramp(
+    withdrawal_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Re-run settlement for a deposit that stopped before the bank payout."""
+    _require_admin(current_user)
+
+    try:
+        withdrawal = await offramp.get_withdrawal(db, withdrawal_id)
+    except offramp.OffRampError as exc:
+        raise _offramp_error(exc)
+
+    if not withdrawal.received_usdc_units:
+        raise HTTPException(
+            status_code=409,
+            detail="No USDC has arrived on this payout yet",
+        )
+
+    if withdrawal.provider_reference:
+        # Never create a second bank payout while the first one may still be
+        # live. Poll it first. Only a terminal FAILED/REJECTED provider state
+        # clears the reference and allows a fresh payout from the NGNX that
+        # is already in the wallet.
+        try:
+            refreshed = await offramp.refresh_withdrawal(db, withdrawal)
+        except offramp.OffRampError as exc:
+            raise _offramp_error(exc)
+        except (ObiexError, ObiexNotConfigured) as exc:
+            raise HTTPException(status_code=503, detail=str(exc))
+
+        if refreshed.status != offramp.OffRampStatus.FAILED:
+            return refreshed
+
+        withdrawal.provider_reference = None
+        withdrawal.provider_withdrawal_id = None
+        withdrawal.failure_reason = None
+
+    try:
+        offramp.ensure_enabled()
+    except offramp.OffRampError as exc:
+        raise _offramp_error(exc)
+
+    if withdrawal.status != offramp.OffRampStatus.FAILED:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Only a failed payout can be retried. A held payout needs "
+                "manual review before money moves."
+            ),
+        )
+
+    withdrawal.status = offramp.OffRampStatus.DEPOSIT_CONFIRMED
+    withdrawal.failure_reason = None
+    await db.commit()
+
+    try:
+        return await offramp.settle_withdrawal(db, withdrawal)
+    except offramp.OffRampError as exc:
+        raise _offramp_error(exc)
+    except (ObiexError, ObiexNotConfigured) as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+
+
+@router.post(
+    "/offramp/{withdrawal_id}/refund",
+    response_model=OffRampWithdrawalResponse,
+)
+async def refund_offramp(
+    withdrawal_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Return deposited USDC to the provider's Solana address."""
+    _require_admin(current_user)
+
+    try:
+        withdrawal = await offramp.get_withdrawal(db, withdrawal_id)
+        return await offramp.refund_withdrawal(db, withdrawal)
+    except offramp.OffRampError as exc:
+        raise _offramp_error(exc)
+    except (ObiexError, ObiexNotConfigured) as exc:
+        raise HTTPException(status_code=503, detail=str(exc))

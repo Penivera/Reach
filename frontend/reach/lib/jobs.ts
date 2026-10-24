@@ -14,7 +14,10 @@ export type Job = {
   latitude: number;
   longitude: number;
   location_name: string;
-  near_task_id: number;
+  onchain_task_id?: number;
+  onchain_tx_hash?: string;
+  /** @deprecated Deprecated in favor of onchain_task_id (Model 1: Solana is canonical) */
+  near_task_id?: number;
   created_at: string;
   updated_at: string;
 };
@@ -45,7 +48,9 @@ export type JobApplication = {
   proposal_text: string;
   proposed_price: number;
   status: ApplicationStatus;
-  near_application_id: number;
+  onchain_application_id?: number;
+  /** @deprecated Deprecated in favor of onchain_application_id (Model 1: Solana is canonical) */
+  near_application_id?: number;
   created_at: string;
   updated_at: string;
 };
@@ -166,11 +171,27 @@ export function getAcceptedApplication(jobId: number): Promise<JobApplication> {
   });
 }
 
-export function linkJobChain(jobId: number, near_task_id: number) {
-  return api(`/jobs/${jobId}/link-chain?near_task_id=${near_task_id}`, { method: "PATCH" });
+/**
+ * Link on-chain task ID to job.
+ * @param onchain_task_id - Canonical Solana Anchor task ID (or legacy NEAR task ID)
+ */
+export function linkJobChain(jobId: number, onchain_task_id: number, onchain_tx_hash?: string) {
+  const params = new URLSearchParams({
+    onchain_task_id: onchain_task_id.toString(),
+    near_task_id: onchain_task_id.toString(), // backward compatibility
+  });
+  if (onchain_tx_hash) {
+    params.append("onchain_tx_hash", onchain_tx_hash);
+  }
+  return api(`/jobs/${jobId}/link-chain?${params.toString()}`, { method: "PATCH" });
 }
-export function linkApplicationChain(id: number, near_application_id: number) {
-  return api(`/jobs/applications/${id}/link-chain?near_application_id=${near_application_id}`, { method: "PATCH" });
+
+export function linkApplicationChain(id: number, onchain_application_id: number) {
+  const params = new URLSearchParams({
+    onchain_application_id: onchain_application_id.toString(),
+    near_application_id: onchain_application_id.toString(), // backward compatibility
+  });
+  return api(`/jobs/applications/${id}/link-chain?${params.toString()}`, { method: "PATCH" });
 }
 export function completeJob(jobId: number): Promise<Job> {
   return api(`/jobs/${jobId}/completion`, { method: "PATCH" });

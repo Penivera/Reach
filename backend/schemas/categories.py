@@ -15,6 +15,6 @@ class CategoryResponse(BaseModel):
 
     name: str
 
-    description: str
+    description: str | None = None
 
     model_config = ConfigDict(from_attributes=True)

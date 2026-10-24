@@ -50,6 +50,12 @@ class UserUpdate(BaseModel):
 class LocationUpdate(BaseLocation):
     pass
 
+
+class OnchainAddressUpdate(BaseModel):
+    """The Solana address a user's escrow payout is released to."""
+
+    onchain_address: str = Field(min_length=32, max_length=44)
+
 class UserLogin(BaseModel):
     username: str
     password: str
@@ -76,6 +82,9 @@ class UserResponse(BaseModel):
     phone_number: str | None = None
 
     profile_image: str | None = None
+
+    # Where this user's escrow payout is released.
+    onchain_address: str | None = None
 
     is_email_verified: bool
 
@@ -109,5 +118,7 @@ class UserPublicResponse(BaseModel):
     bio: str | None = None
 
     profile_picture: str | None = None
+
+    onchain_address: str | None = None
 
     model_config = ConfigDict(from_attributes=True)

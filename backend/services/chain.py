@@ -1,0 +1,458 @@
+"""Escrow orchestration against the Reach Solana program.
+
+Model 1 makes the Anchor program the source of truth for a task's escrow.
+This module is the bridge between the backend's records and the chain:
+
+* it locks a task's escrow with `create_task` once the money has arrived;
+* it releases the escrow with `approve_work` when the creator approves;
+* it mirrors the program's task status back onto the job row.
+
+Every transaction is recorded in `chain_transactions` with an idempotency key
+so a retry can never lock or release the same escrow twice.
+"""
+
+from __future__ import annotations
+
+from datetime import datetime, timezone
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from core.relayer import (
+    FinancialTerms,
+    Relayer,
+    RelayerError,
+    relayer_from_env,
+)
+from core import settings
+from core.solana import SolanaError, TaskState
+from models import ChainTransaction, Job
+from schemas.enums import (
+    ChainTransactionStatus,
+    FundingStatus,
+    JobStatus,
+    PayerType,
+)
+
+# USDC has six decimals.
+USDC_DECIMALS = 6
+USDC_UNIT = 10**USDC_DECIMALS
+
+
+class EscrowError(RuntimeError):
+    pass
+
+
+class RelayerUnavailable(EscrowError):
+    """The relayer is not configured, so the escrow cannot be touched."""
+
+
+class InsufficientEscrowFunds(EscrowError):
+    """The relayer does not hold enough USDC to back the task."""
+
+
+# How the program's task status maps onto the backend's job status.
+ONCHAIN_STATUS_TO_JOB_STATUS = {
+    "Open": JobStatus.OPEN,
+    "InProgress": JobStatus.IN_PROGRESS,
+    "AwaitingEscrow": JobStatus.IN_PROGRESS,
+    "AwaitingApproval": JobStatus.IN_PROGRESS,
+    "Completed": JobStatus.COMPLETED,
+    "Disputed": JobStatus.IN_PROGRESS,
+    "Refunded": JobStatus.CANCELLED,
+}
+
+
+def get_relayer() -> Relayer:
+    """Build the relayer from the environment."""
+    return relayer_from_env()
+
+
+def escrow_units_for(amount_units: int, creation_fee_bps: int) -> int:
+    """How much escrow can be locked with `amount_units` of USDC.
+
+    The program charges the creation fee on top of the escrow, so the escrow
+    has to be scaled down to leave room for the fee.
+    """
+    if amount_units <= 0:
+        raise EscrowError("The funded amount must be positive")
+
+    return (amount_units * 10000) // (10000 + creation_fee_bps)
+
+
+def build_terms(escrow_units: int) -> FinancialTerms:
+    """Split a funded amount into the program's financial terms.
+
+    Reach sells one job price, so the whole budget is treated as labour
+    until the product grows material and collateral terms.
+    """
+    return FinancialTerms(
+        labor_fee=escrow_units,
+        material_cost=0,
+        upfront_release_pct=0,
+        required_provider_collateral=0,
+    )
+
+
+async def _record_transaction(
+    db: AsyncSession,
+    *,
+    job_id: int | None,
+    kind: str,
+    idempotency_key: str,
+    signature: str | None,
+    status: ChainTransactionStatus,
+    slot: int | None = None,
+    error: str | None = None,
+) -> ChainTransaction:
+    result = await db.execute(
+        select(ChainTransaction).where(
+            ChainTransaction.idempotency_key == idempotency_key
+        )
+    )
+    record = result.scalar_one_or_none()
+
+    if record is None:
+        record = ChainTransaction(
+            job_id=job_id,
+            kind=kind,
+            idempotency_key=idempotency_key,
+            status=status,
+        )
+        db.add(record)
+
+    record.signature = signature or record.signature
+    record.status = status
+    record.slot = slot
+    record.error = error
+    record.processed_at = datetime.now(timezone.utc)
+
+    await db.commit()
+    await db.refresh(record)
+    return record
+
+
+async def notify_nearby_providers(db: AsyncSession, job: Job) -> None:
+    """Tell nearby providers the task is open.
+
+    The architecture doc puts this after the escrow is locked, not when the
+    task is drafted: providers should only see tasks that are funded.
+    """
+    try:
+        from geoalchemy2.functions import ST_DWithin, ST_GeogFromText
+
+        from models import User
+        from utils import send_job_notification
+
+        radius = 30000  # 30km
+        point = ST_GeogFromText(f"POINT({job.longitude} {job.latitude})")
+
+        result = await db.execute(
+            select(User).where(
+                ST_DWithin(User.location, point, radius),
+                User.id != job.owner_id,
+                User.location.is_not(None),
+            )
+        )
+
+        for user in result.scalars().all():
+            if user.fcm_token:
+                send_job_notification(
+                    user.fcm_token, job.title, job.location_name, job.id
+                )
+    except Exception:  # pragma: no cover - notifications are best effort
+        return
+
+
+async def fund_task_escrow(
+    db: AsyncSession,
+    job: Job,
+    *,
+    funded_units: int,
+    creation_fee_bps: int,
+    tag: str | None = None,
+    desc: str | None = None,
+) -> ChainTransaction:
+    """Lock the task's escrow on-chain with `create_task`."""
+    relayer = get_relayer()
+
+    idempotency_key = f"create-task-{job.id}"
+
+    existing = (
+        await db.execute(
+            select(ChainTransaction).where(
+                ChainTransaction.idempotency_key == idempotency_key
+            )
+        )
+    ).scalar_one_or_none()
+
+    if existing and existing.status in (
+        ChainTransactionStatus.CONFIRMED,
+        ChainTransactionStatus.FINALIZED,
+    ):
+        # The escrow is already locked; never lock it twice.
+        return existing
+
+    escrow_units = escrow_units_for(funded_units, creation_fee_bps)
+    terms = build_terms(escrow_units)
+
+    await relayer.ensure_token_account()
+
+    balance = await relayer.token_balance()
+    if balance < escrow_units:
+        # The customer's money has already been collected, so the escrow is
+        # not failed: the treasury moves USDC from the provider onto Solana
+        # and the escrow is locked once it lands.
+        from services.treasury import top_up
+
+        await top_up(db, required_units=escrow_units)
+
+        raise InsufficientEscrowFunds(
+            "The escrow is waiting for the treasury float to be replenished"
+        )
+
+    try:
+        confirmation = await relayer.create_task(
+            task_id=job.id,
+            terms=terms,
+            tag=tag,
+            desc=desc,
+            idempotency_key=idempotency_key,
+        )
+    except RelayerError as exc:
+        await _record_transaction(
+            db,
+            job_id=job.id,
+            kind="create_task",
+            idempotency_key=idempotency_key,
+            signature=None,
+            status=ChainTransactionStatus.FAILED,
+            error=str(exc)[:1000],
+        )
+        raise
+
+    if confirmation.status == "failed":
+        await _record_transaction(
+            db,
+            job_id=job.id,
+            kind="create_task",
+            idempotency_key=idempotency_key,
+            signature=confirmation.signature,
+            status=ChainTransactionStatus.FAILED,
+            slot=confirmation.slot,
+            error=(confirmation.error or "The create_task transaction failed")[:1000],
+        )
+        raise EscrowError(
+            confirmation.error or "The create_task transaction failed on-chain."
+        )
+
+    transaction = await _record_transaction(
+        db,
+        job_id=job.id,
+        kind="create_task",
+        idempotency_key=idempotency_key,
+        signature=confirmation.signature,
+        status=(
+            ChainTransactionStatus.FINALIZED
+            if confirmation.status == "finalized"
+            else ChainTransactionStatus.CONFIRMED
+        ),
+        slot=confirmation.slot,
+    )
+
+    job.onchain_task_id = job.id
+    job.onchain_tx_hash = confirmation.signature
+    job.onchain_status = "Open"
+    job.payer_type = PayerType.CUSTODIAL
+    job.funding_status = FundingStatus.FUNDED
+    job.status = JobStatus.OPEN
+
+    await db.commit()
+    await db.refresh(job)
+
+    await notify_nearby_providers(db, job)
+
+    return transaction
+
+
+async def release_task_escrow(
+    db: AsyncSession,
+    job: Job,
+    *,
+    provider_address: str,
+) -> ChainTransaction:
+    """Release the escrow to the provider with `approve_work`."""
+    relayer = get_relayer()
+
+    from solders.pubkey import Pubkey
+
+    try:
+        provider = Pubkey.from_string(provider_address)
+    except Exception as exc:
+        raise EscrowError("The provider does not have a valid Solana address") from exc
+
+    idempotency_key = f"approve-work-{job.id}"
+
+    existing = (
+        await db.execute(
+            select(ChainTransaction).where(
+                ChainTransaction.idempotency_key == idempotency_key
+            )
+        )
+    ).scalar_one_or_none()
+
+    if existing and existing.status in (
+        ChainTransactionStatus.CONFIRMED,
+        ChainTransactionStatus.FINALIZED,
+    ):
+        # The escrow was already released; never sign it twice.
+        return existing
+
+    # The program only releases in AwaitingApproval. Check first so the API
+    # explains what is missing instead of returning an opaque program error.
+    try:
+        state = await relayer.read_task(job.id)
+    except SolanaError as exc:
+        raise EscrowError(f"Could not read the task from Solana: {exc}") from exc
+    if state is None:
+        raise EscrowError("The task has no on-chain state to release")
+    if state.status != "AwaitingApproval":
+        raise EscrowError(
+            f"The task is '{state.status}'. The provider must apply, be "
+            "accepted and complete the task on-chain before it can be released."
+        )
+    if state.provider != provider:
+        raise EscrowError(
+            "The provider's on-chain address does not match the address the "
+            "task was accepted for. Use the same wallet that applied."
+        )
+
+    # The payout goes to the provider's USDC token account, which does not
+    # exist until they have held USDC on Solana. Create it first.
+    await relayer.ensure_token_account(provider)
+
+    try:
+        confirmation = await relayer.approve_work(
+            task_id=job.id,
+            provider_address=provider,
+            idempotency_key=idempotency_key,
+        )
+    except RelayerError as exc:
+        await _record_transaction(
+            db,
+            job_id=job.id,
+            kind="approve_work",
+            idempotency_key=idempotency_key,
+            signature=None,
+            status=ChainTransactionStatus.FAILED,
+            error=str(exc)[:1000],
+        )
+        raise
+
+    if confirmation.status == "failed":
+        await _record_transaction(
+            db,
+            job_id=job.id,
+            kind="approve_work",
+            idempotency_key=idempotency_key,
+            signature=confirmation.signature,
+            status=ChainTransactionStatus.FAILED,
+            slot=confirmation.slot,
+            error=(confirmation.error or "The approve_work transaction failed")[:1000],
+        )
+        raise EscrowError(
+            confirmation.error or "The approve_work transaction failed on-chain."
+        )
+
+    transaction = await _record_transaction(
+        db,
+        job_id=job.id,
+        kind="approve_work",
+        idempotency_key=idempotency_key,
+        signature=confirmation.signature,
+        status=(
+            ChainTransactionStatus.FINALIZED
+            if confirmation.status == "finalized"
+            else ChainTransactionStatus.CONFIRMED
+        ),
+        slot=confirmation.slot,
+    )
+
+    job.onchain_status = "Completed"
+    job.status = JobStatus.COMPLETED
+
+    await db.commit()
+    await db.refresh(job)
+
+    return transaction
+
+
+async def retry_pending_fundings(db: AsyncSession, limit: int = 20) -> list[Job]:
+    """Lock the escrows that are waiting for the treasury float.
+
+    A collection that arrives while the float is short is not a failure: the
+    customer's money is safe with the provider and the escrow is locked as
+    soon as the float covers it. This runs after a treasury withdrawal lands,
+    and on demand.
+    """
+    from models import PaymentIntent
+    from schemas.enums import PaymentStatus
+
+    result = await db.execute(
+        select(PaymentIntent)
+        .where(
+            PaymentIntent.status == PaymentStatus.PAID,
+            PaymentIntent.usdc_amount.is_not(None),
+        )
+        .order_by(PaymentIntent.id)
+        .limit(limit)
+    )
+
+    funded: list[Job] = []
+
+    for intent in result.scalars().all():
+        job = await db.get(Job, intent.job_id)
+        if job is None or job.funding_status == FundingStatus.FUNDED:
+            continue
+        if job.status in (JobStatus.COMPLETED, JobStatus.CANCELLED):
+            continue
+
+        try:
+            await fund_task_escrow(
+                db,
+                job,
+                funded_units=int(intent.usdc_amount),
+                creation_fee_bps=settings.REACH_CREATION_FEE_BPS,
+                tag=(job.title or "")[:30],
+                desc=(job.description or "")[:200],
+            )
+        except (InsufficientEscrowFunds, RelayerUnavailable, EscrowError):
+            continue
+
+        funded.append(job)
+
+    return funded
+
+
+async def sync_job_from_chain(db: AsyncSession, job: Job) -> TaskState | None:
+    relayer = get_relayer()
+
+    try:
+        state = await relayer.read_task(job.id)
+    except SolanaError:
+        return None
+
+    if state is None:
+        return None
+
+    job.onchain_status = state.status
+    job.onchain_task_id = job.onchain_task_id or job.id
+
+    mapped = ONCHAIN_STATUS_TO_JOB_STATUS.get(state.status)
+    if mapped is not None:
+        job.status = mapped
+
+    await db.commit()
+    await db.refresh(job)
+
+    return state
