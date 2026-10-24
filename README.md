@@ -47,11 +47,57 @@ providers, and settling completed work with on-chain escrow.
 - `sol-contract/` — Anchor escrow program (canonical)
 - `near-contract/` — deprecated standalone NEAR escrow contract
 
-## Local development
+## Docker
+
+The app stack runs with Docker Compose:
+
+| Service | URL | Notes |
+|---|---|---|
+| `frontend` | http://localhost:3000 | Next.js production build |
+| `backend` | http://localhost:8000 | FastAPI; runs migrations on start |
+
+PostGIS is **not** part of this Compose file. The backend expects a reachable
+`DATABASE_URL` for an existing PostGIS database.
 
 ```bash
-docker compose up -d postgres
+# Optional: put provider keys and real SMTP/Cloudinary values in backend/.env.
+cp backend/.env.example backend/.env
 
+# Required: the PostGIS connection string (Compose reads this file).
+cat > .env <<'EOF'
+DATABASE_URL=postgresql+asyncpg://postgres:postgres@host.docker.internal:5432/work_near
+EOF
+
+docker compose up --build
+```
+
+Use `host.docker.internal` when PostGIS runs on your host; the backend service
+is configured to resolve it on Linux too. For a database in another container
+or host, use an address reachable from inside the backend container (not
+`localhost`). `DATABASE_URL` may also be exported in your shell instead of
+being written to the root `.env`.
+
+`backend/.env` is optional and supplies provider/SMTP/Cloudinary settings;
+`DATABASE_URL` must be in the root `.env` or the shell because Compose
+interpolates it. `NEXT_PUBLIC_API_URL` is baked into the frontend at build
+time, so rebuild the frontend after changing it:
+
+```bash
+NEXT_PUBLIC_API_URL=https://api.example.com docker compose up -d --build frontend
+```
+
+Useful commands:
+
+```bash
+docker compose logs -f backend   # follow API logs
+docker compose exec backend alembic upgrade head
+docker compose down              # stop the stack
+```
+
+For backend-only local development, run your PostGIS instance separately and
+point `DATABASE_URL` at it:
+
+```bash
 cd backend
 venv/bin/alembic upgrade head
 ```

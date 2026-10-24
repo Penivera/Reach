@@ -1,0 +1,17 @@
+node_modules/
+.next/
+out/
+build/
+coverage/
+.env
+.env.*
+!.env.example
+npm-debug.log*
+pnpm-debug.log*
+.git/
+.gitignore
+Dockerfile
+.dockerignore
+README.md
+AGENTS.md
+throwaway.txt
