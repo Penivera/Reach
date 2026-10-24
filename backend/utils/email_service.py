@@ -2,42 +2,40 @@ import aiosmtplib
 from email.message import EmailMessage
 from core import settings
 
+
 class EmailService:
-    
-    async def send_email(self, to_email:str, subject:str, html:str):
-        
+    async def send_email(self, to_email: str, subject: str, html: str):
         message = EmailMessage()
 
         message["From"] = f"{settings.SMTP_FROM_NAME} <{settings.SMTP_FROM_EMAIL}>"
-
         message["To"] = to_email
-
-        message["subject"] = subject
+        message["Subject"] = subject
 
         message.set_content("Please use an HTML email client to view this message.")
-
         message.add_alternative(html, subtype="html")
 
-        await aiosmtplib.send(
-            message,
-            hostname=settings.SMTP_HOST,
-            port=settings.SMTP_PORT,
-            username=settings.SMTP_USERNAME,
-            password=settings.SMTP_PASSWORD,
-            start_tls=True,
-        )
-        
+        send_options = {
+            "hostname": settings.SMTP_HOST,
+            "port": settings.SMTP_PORT,
+            "start_tls": settings.SMTP_START_TLS,
+        }
+
+        # Local mail catchers usually have no authentication. Only pass
+        # credentials when they are actually configured, otherwise aiosmtplib
+        # may try to AUTH against a server that does not support it.
+        username = (settings.SMTP_USERNAME or "").strip()
+        if username:
+            send_options["username"] = username
+            send_options["password"] = settings.SMTP_PASSWORD
+
+        await aiosmtplib.send(message, **send_options)
+
 
 email_service = EmailService()
 
-async def send_verification_email(
-    email: str,
-    token: str,
-) -> None:
 
-    verification_link = (
-        f"{settings.BACKEND_URL}/auth/verify-email?token={token}"
-    )
+async def send_verification_email(email: str, token: str) -> None:
+    verification_link = f"{settings.BACKEND_URL}/auth/verify-email?token={token}"
 
     html = f"""
     <h2>Welcome to WorkNear</h2>
@@ -58,15 +56,8 @@ async def send_verification_email(
     )
 
 
-
-async def send_reset_password_email(
-    email: str,
-    token: str,
-) -> None:
-
-    reset_link = (
-        f"{settings.BACKEND_URL}/auth/reset-password?token={token}"
-    )
+async def send_reset_password_email(email: str, token: str) -> None:
+    reset_link = f"{settings.BACKEND_URL}/auth/reset-password?token={token}"
 
     html = f"""
     <h2>Password Reset</h2>

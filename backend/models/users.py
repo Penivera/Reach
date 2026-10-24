@@ -48,6 +48,13 @@ class User(Base, TimeStampMixin):
 
     fcm_token: Mapped[str | None] = mapped_column(String, nullable=True)
 
+    # Where this user's escrow payout is released. A provider sets their own
+    # Solana address; the release moves USDC straight to it.
+    onchain_address: Mapped[str | None] = mapped_column(
+        String(120),
+        nullable=True,
+    )
+
     profile_image: Mapped[str | None] = mapped_column(String(500))
 
     average_rating: Mapped[float] = mapped_column(
@@ -99,4 +106,18 @@ class User(Base, TimeStampMixin):
     conversations = relationship("ConversationParticipant", back_populates="user", cascade="all, delete-orphan")
 
     messages = relationship("Message", back_populates="sender", cascade="all, delete-orphan")
+
+    payment_profile = relationship(
+        "PaymentProfile",
+        back_populates="user",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
+
+    fossapay_customer = relationship(
+        "FossaPayCustomer",
+        back_populates="user",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
 

@@ -1,0 +1,279 @@
+from datetime import date, datetime
+from decimal import Decimal
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from payment_validation import (
+    PaymentProfileValidationError,
+    normalize_phone_number,
+    validate_date_of_birth,
+    validate_single_name,
+)
+
+from .enums import (
+    ChainTransactionStatus,
+    FundingRail,
+    FundingStatus,
+    JobStatus,
+    OffRampStatus,
+    PaymentStatus,
+    PayerType,
+    PayoutStatus,
+    ProvisioningStatus,
+)
+
+
+class PaymentProfileUpsert(BaseModel):
+    # Optional overrides so a compound name or local-format phone captured at
+    # signup can be corrected in the payment-profile step.
+    first_name: str | None = Field(default=None, max_length=100)
+    last_name: str | None = Field(default=None, max_length=100)
+    phone_number: str | None = Field(default=None, max_length=20)
+    middle_name: str | None = Field(default=None, max_length=100)
+    date_of_birth: date
+    address: str = Field(min_length=5, max_length=255)
+    city: str = Field(min_length=2, max_length=100)
+    country: str = Field(default="Nigeria", min_length=2, max_length=100)
+    # Nigerian identity, required by the Obiex collection rail.
+    bvn: str | None = Field(default=None, max_length=20)
+    nin: str | None = Field(default=None, max_length=20)
+    # Bank details, used to cash a provider's USDC out to naira.
+    bank_code: str | None = Field(default=None, max_length=20)
+    bank_account_number: str | None = Field(default=None, max_length=30)
+    bank_account_name: str | None = Field(default=None, max_length=150)
+
+    @field_validator("first_name", "last_name", "middle_name")
+    @classmethod
+    def validate_name_fields(cls, value, info):
+        if value is None or not value.strip():
+            return None
+        try:
+            return validate_single_name(value, info.field_name)
+        except PaymentProfileValidationError as exc:
+            raise ValueError(str(exc))
+
+    @field_validator("phone_number")
+    @classmethod
+    def validate_phone(cls, value):
+        if value is None or not value.strip():
+            return None
+        try:
+            return normalize_phone_number(value)
+        except PaymentProfileValidationError as exc:
+            raise ValueError(str(exc))
+
+    @field_validator("date_of_birth")
+    @classmethod
+    def validate_dob(cls, value):
+        try:
+            return validate_date_of_birth(value)
+        except PaymentProfileValidationError as exc:
+            raise ValueError(str(exc))
+
+    @field_validator("address", "city", "country")
+    @classmethod
+    def strip_required_text(cls, value):
+        value = value.strip()
+        if not value:
+            raise ValueError("This field is required")
+        return value
+
+
+class PaymentProfileResponse(BaseModel):
+    id: int
+    user_id: int
+    middle_name: str | None = None
+    date_of_birth: date
+    address: str
+    city: str
+    country: str
+    bvn: str | None = None
+    nin: str | None = None
+    bank_code: str | None = None
+    bank_account_number: str | None = None
+    bank_account_name: str | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class FossaPayAccountResponse(BaseModel):
+    status: ProvisioningStatus
+    provider_customer_id: str | None = None
+    wallet_id: str | None = None
+    account_number: str | None = None
+    account_name: str | None = None
+    bank_name: str | None = None
+    bank_code: str | None = None
+    last_error: str | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PaymentProfileStateResponse(BaseModel):
+    profile_completed: bool
+    can_pay: bool
+    missing_fields: list[str] = Field(default_factory=list)
+    profile: PaymentProfileResponse | None = None
+    provisioning: FossaPayAccountResponse | None = None
+
+
+class PaymentIntentResponse(BaseModel):
+    id: int
+    job_id: int
+    reference: str
+    amount_kobo: int
+    amount_payable_kobo: int
+    status: PaymentStatus
+    provider_checkout_id: str | None = None
+    bank_name: str | None = None
+    account_name: str | None = None
+    account_number: str | None = None
+    expires_at: datetime | None = None
+    paid_at: datetime | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PayoutResponse(BaseModel):
+    id: int
+    payment_intent_id: int
+    reference: str
+    amount_kobo: int
+    commission_kobo: int
+    provider_payout_kobo: int
+    status: PayoutStatus
+    provider_payout_id: str | None = None
+    failure_reason: str | None = None
+    completed_at: datetime | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class FundingIntentResponse(BaseModel):
+    """How a customer is paying for a task, and how far along it is."""
+
+    id: int
+    job_id: int
+    reference: str
+    rail: FundingRail
+    status: PaymentStatus
+    amount_kobo: int
+    amount_payable_kobo: int
+    usdc_amount: int | None = None
+    bank_name: str | None = None
+    account_name: str | None = None
+    account_number: str | None = None
+    deposit_address: str | None = None
+    network: str | None = None
+    provider_reference: str | None = None
+    expires_at: datetime | None = None
+    paid_at: datetime | None = None
+    failure_reason: str | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class FundingStateResponse(BaseModel):
+    """The full funding picture for a task."""
+
+    job_id: int
+    job_status: JobStatus
+    funding_status: FundingStatus
+    payer_type: PayerType | None = None
+    onchain_task_id: int | None = None
+    onchain_tx_hash: str | None = None
+    onchain_status: str | None = None
+    intent: FundingIntentResponse | None = None
+
+
+class ChainTransactionResponse(BaseModel):
+    id: int
+    job_id: int | None = None
+    kind: str
+    idempotency_key: str
+    signature: str | None = None
+    status: ChainTransactionStatus
+    slot: int | None = None
+    error: str | None = None
+    processed_at: datetime | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class OffRampQuoteRequest(BaseModel):
+    """How much USDC the provider wants to turn into naira."""
+
+    amount_usdc: Decimal = Field(gt=0)
+
+
+class OffRampCreateRequest(OffRampQuoteRequest):
+    """Open a payout. Saved payment-profile bank details are the default."""
+
+    bank_code: str | None = Field(default=None, max_length=20)
+    bank_account_number: str | None = Field(default=None, max_length=30)
+    bank_account_name: str | None = Field(default=None, max_length=150)
+
+
+class OffRampQuoteResponse(BaseModel):
+    amount_usdc_units: int
+    rate_ngn_per_usdc: Decimal
+    gross_ngn_kobo: int
+    fee_kobo: int
+    net_ngn_kobo: int
+    min_ngn_kobo: int
+    expires_at: datetime
+    indicative: bool = True
+
+
+class OffRampWithdrawalResponse(BaseModel):
+    id: int
+    reference: str
+    status: OffRampStatus
+    amount_usdc_units: int
+    received_usdc_units: int
+    quoted_rate: Decimal | None = None
+    gross_ngn_kobo: int | None = None
+    fee_kobo: int
+    net_ngn_kobo: int | None = None
+    bank_name: str | None = None
+    bank_code: str | None = None
+    bank_account_number: str | None = None
+    bank_account_name: str | None = None
+    deposit_address: str | None = None
+    deposit_currency: str | None = None
+    deposit_network: str | None = None
+    deposit_provider_reference: str | None = None
+    deposit_tx_hash: str | None = None
+    swap_reference: str | None = None
+    swapped_at: datetime | None = None
+    provider_withdrawal_id: str | None = None
+    provider_reference: str | None = None
+    refund_reference: str | None = None
+    refund_transaction_id: str | None = None
+    failure_reason: str | None = None
+    expires_at: datetime | None = None
+    deposit_confirmed_at: datetime | None = None
+    paid_at: datetime | None = None
+    refunded_at: datetime | None = None
+    created_at: datetime | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class OffRampBankResponse(BaseModel):
+    name: str
+    code: str
+    bank_id: str | None = None
+
+
+class BankResolveRequest(BaseModel):
+    bank_code: str = Field(min_length=1, max_length=20)
+    account_number: str = Field(min_length=5, max_length=30)
+
+
+class BankResolveResponse(BaseModel):
+    account_name: str
+    account_number: str
+    bank_name: str
+    bank_code: str
+    bank_id: str | None = None

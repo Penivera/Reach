@@ -1,6 +1,11 @@
 # Cancellation Methods & Fee Structure
 
-This document outlines the design and implementation of the centralized fee structure, task cancellation methods, and provider abandonment mechanics in the Reach Task-Escrow contract.
+> **Historical / deprecated.** This document describes the standalone NEAR
+> escrow contract, which has been replaced by the Solana Anchor program in
+> [`sol-contract/`](../sol-contract/). Use the Solana program as the source of
+> truth. See [`near-contract/README.md`](README.md) for the deprecation notice.
+
+This document outlines the design and implementation of the centralized fee structure, task cancellation methods, and provider abandonment mechanics in the legacy Reach NEAR task-escrow contract.
 
 ## 1. Fee Structure
 * **Basis Points (BPS):** Fees are represented as basis points (where `100` = 1%, `1,000` = 10%, and `10,000` = 100% maximum). These are configured via the state variables `creation_fee_pct` and `cancellation_fee_pct` on `ReachContract`.

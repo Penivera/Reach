@@ -1,7 +1,7 @@
 from sqlalchemy import String, Integer, ForeignKey, Enum, Float, Boolean
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from DB.database import Base
-from schemas import ApplicationStatus, JobStatus
+from schemas import ApplicationStatus, FundingStatus, JobStatus, PayerType
 from .mixins import TimeStampMixin
 from geoalchemy2 import Geography
 from geoalchemy2.elements import WKBElement
@@ -31,6 +31,22 @@ class Job(Base, TimeStampMixin):
     # On-chain tracking (Model 1: Solana Anchor program is canonical)
     onchain_task_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     onchain_tx_hash: Mapped[str | None] = mapped_column(String(128), nullable=True)
+
+    # Model 1 lifecycle: a task is created waiting for its escrow to be
+    # locked on-chain, then it opens for providers.
+    funding_status: Mapped[FundingStatus] = mapped_column(
+        Enum(FundingStatus),
+        nullable=False,
+        default=FundingStatus.PENDING,
+    )
+
+    payer_type: Mapped[PayerType | None] = mapped_column(
+        Enum(PayerType),
+        nullable=True,
+    )
+
+    # The task's status as reported by the Solana program.
+    onchain_status: Mapped[str | None] = mapped_column(String(40), nullable=True)
 
     @property
     def near_task_id(self) -> int | None:

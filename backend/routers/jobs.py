@@ -1,31 +1,144 @@
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+from solders.pubkey import Pubkey
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
-from models import Job, JobApplication, User, Media
-from utils import send_job_notification, upload_image
+from core.relayer import RelayerNotConfigured
+from models import Category, Job, JobApplication, Media, User
+from utils import upload_image
 from dependencies import get_db, get_current_user
-from schemas import (JobCreate, JobUpdate, JobResponse, JobApplicationCreate, 
+from schemas import (JobCreate, JobUpdate, JobResponse, JobApplicationCreate,
                      JobApplicationStatusUpdate, JobApplicationUpdate, JobAppplicationResponse,
-                       JobStatus, ApplicationStatus, NearbyJobQuery, MediaResponse, MediaType)
-from fastapi import BackgroundTasks
+                       JobOnchainPrepareResponse, JobOnchainSubmitRequest,
+                       JobOnchainFundRequest, JobOnchainStateResponse,
+                       JobStatus, ApplicationStatus, NearbyJobQuery, MediaType,
+                       FundingStatus, PayerType, ProviderAction, ChainTransactionResponse)
 from geoalchemy2.functions import ST_GeogFromText, ST_DWithin, ST_Distance
+from services.chain import get_relayer, notify_nearby_providers
+from services.funding import FundingError, budget_naira, to_usdc_units
+from services.provider_flow import (
+    ProviderFlowError,
+    ProviderStateError,
+    ProviderTransactionInvalid,
+    ProviderWalletMissing,
+    accept_application_onchain,
+    prepare_provider_transaction,
+    submit_provider_transaction,
+)
+from services.creator_flow import (
+    CreatorFlowError,
+    CreatorStateError,
+    CreatorTransactionInvalid,
+    CreatorWalletMissing,
+    prepare_accept,
+    prepare_create_task,
+    prepare_release,
+    read_task_state,
+    submit_accept,
+    submit_create_task,
+    submit_release,
+)
 
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
+
+def _provider_flow_error(exc: ProviderFlowError) -> HTTPException:
+    if isinstance(exc, ProviderWalletMissing):
+        return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    if isinstance(exc, ProviderTransactionInvalid):
+        return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    if isinstance(exc, ProviderStateError):
+        return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
+    if isinstance(exc, RelayerNotConfigured):
+        return HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc))
+    return HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc))
+
+
+def _creator_flow_error(exc: CreatorFlowError) -> HTTPException:
+    if isinstance(exc, CreatorWalletMissing):
+        return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    if isinstance(exc, CreatorTransactionInvalid):
+        return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    if isinstance(exc, CreatorStateError):
+        return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
+    if isinstance(exc, RelayerNotConfigured):
+        return HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc))
+    return HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc))
+
+
+def _creator_prepare_response(prepared) -> JobOnchainPrepareResponse:
+    return JobOnchainPrepareResponse(
+        action=prepared.action.value,
+        job_id=prepared.job_id,
+        task_id=prepared.task_id,
+        signer_address=prepared.signer_address,
+        provider_address=prepared.provider_address,
+        transaction=prepared.transaction,
+        recent_blockhash=prepared.recent_blockhash,
+        amount_units=prepared.amount_units,
+        escrow_units=prepared.escrow_units,
+        creation_fee_units=prepared.creation_fee_units,
+        already_done=prepared.already_done,
+    )
+
+
+async def _get_job_or_404(job_id: int, db: AsyncSession) -> Job:
+    job = (await db.execute(select(Job).where(Job.id == job_id))).scalar_one_or_none()
+    if not job:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="job not found")
+    return job
+
+
+async def _get_accepted_application_or_400(
+    job_id: int, db: AsyncSession
+) -> JobApplication:
+    application = (
+        await db.execute(
+            select(JobApplication).where(
+                JobApplication.job_id == job_id,
+                JobApplication.status == ApplicationStatus.ACCEPTED,
+            )
+        )
+    ).scalar_one_or_none()
+    if not application:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="no accepted applicant for this job",
+        )
+    return application
+
 @router.post("", response_model=JobResponse)
 async def create_job(job_data:JobCreate, db:AsyncSession=Depends(get_db), current_user = Depends(get_current_user)):
     
+    category = (
+        await db.execute(select(Category).where(Category.id == job_data.category_id))
+    ).scalar_one_or_none()
+    if not category:
+        raise HTTPException(status_code=404, detail="Category not found")
+
     point = ST_GeogFromText(f"POINT({job_data.longitude} {job_data.latitude})")
     
     data = job_data.model_dump()
+
+    try:
+        # Reject a budget that cannot be funded before the job exists, so the
+        # failure happens at creation rather than at checkout.
+        data["budget"] = float(budget_naira(job_data.budget))
+    except FundingError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
     data.pop("latitude")
     data.pop("longitude")
     data["location"] = point
 
-    new_job = Job(**data, owner_id=current_user.id)
-    
+    new_job = Job(
+        **data,
+        owner_id=current_user.id,
+        # Model 1: a task is created waiting for its escrow to be locked.
+        # It opens for providers once the funding is on-chain.
+        status=JobStatus.PENDING_FUNDING,
+    )
+
 
     db.add(new_job)
     try:
@@ -36,30 +149,20 @@ async def create_job(job_data:JobCreate, db:AsyncSession=Depends(get_db), curren
         await db.rollback()
         raise
 
-    
-
-    #Find users nearby
-
-    radius = 30000 #30km
-    result = await db.execute(select(User).where(
-        ST_DWithin(User.location, point, radius),
-        User.id != current_user.id,
-        User.location.is_not(None)))
-
-    nearby_users = result.scalars().all()
-
-    for user in nearby_users:
-        if user.fcm_token:
-            send_job_notification(user.fcm_token,
-                                  new_job.title,
-                                  new_job.location_name,
-                                  new_job.id)
-
     return new_job
 
 @router.get("", response_model=list[JobResponse])
 async def get_jobs(db:AsyncSession=Depends(get_db), current_user=Depends(get_current_user)):
-    result = await db.execute(select(Job))
+    # Only funded, open tasks belong in the provider-facing feed. Drafts and
+    # tasks whose escrow has not been locked yet stay private to the owner.
+    result = await db.execute(
+        select(Job)
+        .where(
+            Job.status == JobStatus.OPEN,
+            Job.funding_status == FundingStatus.FUNDED,
+        )
+        .order_by(Job.created_at.desc())
+    )
 
     jobs = result.scalars().all()
 
@@ -72,6 +175,29 @@ async def my_jobs(db:AsyncSession=Depends(get_db), current_user=Depends(get_curr
     my_jobs = result.scalars().all()
 
     return my_jobs
+
+
+@router.get("/nearby", response_model=list[JobResponse])
+async def get_nearby_jobs(data: NearbyJobQuery = Depends(), db: AsyncSession = Depends(get_db)):
+    search_point = func.ST_GeogFromText(f"POINT({data.longitude} {data.latitude})")
+
+    query = select(Job).where(
+        Job.status == JobStatus.OPEN,
+        Job.funding_status == FundingStatus.FUNDED,
+        ST_DWithin(Job.location, search_point, data.radius * 1000),
+    )
+
+    if data.category_id is not None:
+        query = query.where(Job.category_id == data.category_id)
+
+    query = query.order_by(ST_Distance(Job.location, search_point))
+
+    result = await db.execute(query)
+
+    jobs = result.scalars().all()
+
+    return jobs
+
 
 @router.get("/{job_id}",response_model=JobResponse)
 async def get_job(job_id:int, db:AsyncSession=Depends(get_db), current_user=Depends(get_current_user)):
@@ -98,19 +224,27 @@ async def update_job(job_id:int, job_data:JobUpdate, db:AsyncSession=Depends(get
     
     data = job_data.model_dump(exclude_unset=True)
 
-    update_data = data.model_dump(exclude_unset=True)
+    if "budget" in data:
+        try:
+            data["budget"] = float(budget_naira(data["budget"]))
+        except FundingError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
 
-    if "latitude" in update_data and "longitude" in update_data:
-        point = ST_GeogFromText(
-            f"POINT({update_data['longitude']} {update_data['latitude']})"
-        )
+    if "latitude" in data or "longitude" in data:
+        if "latitude" not in data or "longitude" not in data:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="latitude and longitude must be updated together",
+            )
 
-        update_data.pop("latitude")
-        update_data.pop("longitude")
-        update_data["location"] = point
+        point = ST_GeogFromText(f"POINT({data['longitude']} {data['latitude']})")
+
+        data.pop("latitude")
+        data.pop("longitude")
+        data["location"] = point
 
     for field, value in data.items():
-        setattr(job,field, value)
+        setattr(job, field, value)
 
     try:
         await db.commit()
@@ -150,15 +284,27 @@ async def complete_job(job_id:int, db:AsyncSession=Depends(get_db), current_user
         job.client_completed = True
 
     elif current_user.id == application.applicant_id:
+        # The provider's completion is an on-chain instruction they sign with
+        # their own wallet. Do not let the DB claim the work is complete before
+        # the task has actually moved to AwaitingApproval.
+        if job.onchain_status != "AwaitingApproval":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    "Complete the task on-chain from your Solana wallet first."
+                ),
+            )
         job.worker_completed = True
 
     else:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="you are not involved in this job")
 
 
-    # if check if both worker and employer has confirmed the job completion and commit it
-    if job.client_completed and job.worker_completed:
-        job.status = JobStatus.COMPLETED
+    # Both confirmations are recorded, but the job stays IN_PROGRESS. In
+    # Model 1 the program completes the task when the creator signs
+    # `approve_work`; that is also when the provider is paid. Marking the job
+    # complete before the escrow is released would make the DB claim a
+    # settlement that has not happened.
 
     try:
         await db.commit()
@@ -270,22 +416,547 @@ async def create_job_application(job_id:int, data: JobApplicationCreate, db:Asyn
 
     return application
 
-@router.get("/nearby", response_model=list[JobResponse])
-async def get_nearby_jobs(data:NearbyJobQuery=Depends(), db:AsyncSession=Depends(get_db)):
-    search_point = func.ST_GeogFromText(f"POINT({data.longitude} {data.latitude})")
+@router.post(
+    "/{job_id}/onchain/apply",
+    response_model=JobOnchainPrepareResponse,
+)
+async def prepare_onchain_application(
+    job_id: int,
+    data: JobApplicationCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Create the DB application and return the `apply` transaction to sign.
 
-    query = select(Job).where(ST_DWithin(Job.location, search_point, data.radius*1000))
+    `apply` requires the provider's own Solana key. The backend creates the
+    local application row, builds the instruction, and returns it as a legacy
+    transaction for the provider's wallet. Call
+    `POST /jobs/{job_id}/onchain/apply/submit` with the signed bytes.
+    """
+    job = await _get_job_or_404(job_id, db)
 
-    if data.category_id is not None:
-        query = query.where(Job.category_id == data.category_id)
+    if job.owner_id == current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="you cannot apply to your own job",
+        )
 
-    query = query.order_by(ST_Distance(Job.location, search_point))
+    if job.status != JobStatus.OPEN or job.funding_status != FundingStatus.FUNDED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This job is not open for applications on-chain yet",
+        )
 
-    result = await db.execute(query)
-    
-    jobs = result.scalars().all()
+    existing = (
+        await db.execute(
+            select(JobApplication).where(
+                JobApplication.job_id == job.id,
+                JobApplication.applicant_id == current_user.id,
+            )
+        )
+    ).scalar_one_or_none()
 
-    return jobs
+    if existing and existing.status != ApplicationStatus.PENDING:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This application can no longer be changed",
+        )
+
+    try:
+        prepared = await prepare_provider_transaction(
+            db,
+            job=job,
+            user=current_user,
+            action=ProviderAction.APPLY,
+        )
+    except ProviderFlowError as exc:
+        raise _provider_flow_error(exc)
+    except RelayerNotConfigured as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
+        )
+
+    application = existing
+    if application is None:
+        application = JobApplication(
+            **data.model_dump(),
+            job_id=job.id,
+            applicant_id=current_user.id,
+        )
+        db.add(application)
+
+        try:
+            await db.commit()
+            await db.refresh(application)
+        except Exception:
+            await db.rollback()
+            raise
+
+    return JobOnchainPrepareResponse(
+        action=prepared.action.value,
+        job_id=prepared.job_id,
+        task_id=prepared.task_id,
+        provider_address=prepared.provider_address,
+        transaction=prepared.transaction,
+        recent_blockhash=prepared.recent_blockhash,
+        expires_at=prepared.expires_at,
+        escrow_units=prepared.escrow_units,
+        already_done=prepared.already_done,
+        application=JobAppplicationResponse.model_validate(application),
+    )
+
+
+@router.post(
+    "/{job_id}/onchain/apply/submit",
+    response_model=ChainTransactionResponse,
+)
+async def submit_onchain_application(
+    job_id: int,
+    data: JobOnchainSubmitRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Submit the provider-signed `apply` transaction."""
+    job = await _get_job_or_404(job_id, db)
+
+    application = (
+        await db.execute(
+            select(JobApplication).where(
+                JobApplication.job_id == job.id,
+                JobApplication.applicant_id == current_user.id,
+                JobApplication.status == ApplicationStatus.PENDING,
+            )
+        )
+    ).scalar_one_or_none()
+
+    if not application:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Create the application before submitting it on-chain",
+        )
+
+    try:
+        transaction = await submit_provider_transaction(
+            db,
+            job=job,
+            user=current_user,
+            action=ProviderAction.APPLY,
+            signed_transaction=data.signed_transaction,
+        )
+    except ProviderFlowError as exc:
+        raise _provider_flow_error(exc)
+    except RelayerNotConfigured as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
+        )
+
+    return ChainTransactionResponse.model_validate(transaction)
+
+
+@router.post(
+    "/{job_id}/onchain/complete",
+    response_model=JobOnchainPrepareResponse,
+)
+async def prepare_onchain_completion(
+    job_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Return the `complete_task` transaction for the accepted provider."""
+    job = await _get_job_or_404(job_id, db)
+    application = await _get_accepted_application_or_400(job.id, db)
+
+    if application.applicant_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the accepted provider can complete this task",
+        )
+
+    try:
+        prepared = await prepare_provider_transaction(
+            db,
+            job=job,
+            user=current_user,
+            action=ProviderAction.COMPLETE,
+        )
+    except ProviderFlowError as exc:
+        raise _provider_flow_error(exc)
+    except RelayerNotConfigured as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
+        )
+
+    return JobOnchainPrepareResponse(
+        action=prepared.action.value,
+        job_id=prepared.job_id,
+        task_id=prepared.task_id,
+        provider_address=prepared.provider_address,
+        transaction=prepared.transaction,
+        recent_blockhash=prepared.recent_blockhash,
+        expires_at=prepared.expires_at,
+        escrow_units=prepared.escrow_units,
+        already_done=prepared.already_done,
+    )
+
+
+@router.post(
+    "/{job_id}/onchain/complete/submit",
+    response_model=ChainTransactionResponse,
+)
+async def submit_onchain_completion(
+    job_id: int,
+    data: JobOnchainSubmitRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Submit the provider-signed `complete_task` transaction."""
+    job = await _get_job_or_404(job_id, db)
+    application = await _get_accepted_application_or_400(job.id, db)
+
+    if application.applicant_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the accepted provider can complete this task",
+        )
+
+    try:
+        transaction = await submit_provider_transaction(
+            db,
+            job=job,
+            user=current_user,
+            action=ProviderAction.COMPLETE,
+            signed_transaction=data.signed_transaction,
+        )
+    except ProviderFlowError as exc:
+        raise _provider_flow_error(exc)
+    except RelayerNotConfigured as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
+        )
+
+    return ChainTransactionResponse.model_validate(transaction)
+
+
+# -- creator-signed (wallet-funded) escrow --------------------------------
+
+
+@router.post(
+    "/{job_id}/onchain/fund",
+    response_model=JobOnchainPrepareResponse,
+)
+async def prepare_onchain_funding(
+    job_id: int,
+    data: JobOnchainFundRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Return the ``create_task`` transaction for the client's wallet.
+
+    The client becomes the on-chain creator, so the escrow is funded directly
+    from their USDC token account. Sign the returned transaction and call
+    ``POST /jobs/{job_id}/onchain/fund/submit`` with the signed bytes.
+    """
+    job = await _get_job_or_404(job_id, db)
+
+    if job.owner_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the job owner can fund this task",
+        )
+
+    try:
+        units = to_usdc_units(data.usdc_amount)
+    except FundingError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+    try:
+        prepared = await prepare_create_task(
+            db,
+            job=job,
+            user=current_user,
+            usdc_units=units,
+        )
+    except (CreatorFlowError, RelayerNotConfigured) as exc:
+        raise _creator_flow_error(exc)
+
+    return _creator_prepare_response(prepared)
+
+
+@router.post(
+    "/{job_id}/onchain/fund/submit",
+    response_model=ChainTransactionResponse,
+)
+async def submit_onchain_funding(
+    job_id: int,
+    data: JobOnchainSubmitRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Submit the client-signed ``create_task`` transaction."""
+    job = await _get_job_or_404(job_id, db)
+
+    if job.owner_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the job owner can fund this task",
+        )
+
+    try:
+        transaction = await submit_create_task(
+            db,
+            job=job,
+            user=current_user,
+            signed_transaction=data.signed_transaction,
+        )
+    except (CreatorFlowError, RelayerNotConfigured) as exc:
+        raise _creator_flow_error(exc)
+
+    return ChainTransactionResponse.model_validate(transaction)
+
+
+@router.post(
+    "/applications/{application_id}/onchain/accept",
+    response_model=JobOnchainPrepareResponse,
+)
+async def prepare_onchain_acceptance(
+    application_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Return the ``accept`` transaction for a wallet-funded task."""
+    application = (
+        await db.execute(
+            select(JobApplication).where(JobApplication.id == application_id)
+        )
+    ).scalar_one_or_none()
+
+    if not application:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Application not found",
+        )
+
+    job = await _get_job_or_404(application.job_id, db)
+
+    if job.owner_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the job owner can accept an application",
+        )
+
+    provider = await db.get(User, application.applicant_id)
+    if not provider:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="The applicant no longer exists",
+        )
+
+    try:
+        prepared = await prepare_accept(
+            db,
+            job=job,
+            application=application,
+            user=current_user,
+            provider=provider,
+        )
+    except (CreatorFlowError, RelayerNotConfigured) as exc:
+        raise _creator_flow_error(exc)
+
+    return _creator_prepare_response(prepared)
+
+
+@router.post(
+    "/applications/{application_id}/onchain/accept/submit",
+    response_model=ChainTransactionResponse,
+)
+async def submit_onchain_acceptance(
+    application_id: int,
+    data: JobOnchainSubmitRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Submit the client-signed ``accept`` transaction."""
+    application = (
+        await db.execute(
+            select(JobApplication).where(JobApplication.id == application_id)
+        )
+    ).scalar_one_or_none()
+
+    if not application:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Application not found",
+        )
+
+    job = await _get_job_or_404(application.job_id, db)
+
+    if job.owner_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the job owner can accept an application",
+        )
+
+    provider = await db.get(User, application.applicant_id)
+    if not provider:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="The applicant no longer exists",
+        )
+
+    try:
+        transaction = await submit_accept(
+            db,
+            job=job,
+            application=application,
+            user=current_user,
+            provider=provider,
+            signed_transaction=data.signed_transaction,
+        )
+    except (CreatorFlowError, RelayerNotConfigured) as exc:
+        raise _creator_flow_error(exc)
+
+    return ChainTransactionResponse.model_validate(transaction)
+
+
+@router.post(
+    "/{job_id}/onchain/release",
+    response_model=JobOnchainPrepareResponse,
+)
+async def prepare_onchain_release(
+    job_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Return the ``approve_work`` transaction for a wallet-funded task."""
+    job = await _get_job_or_404(job_id, db)
+
+    if job.owner_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the job owner can release the escrow",
+        )
+
+    application = await _get_accepted_application_or_400(job.id, db)
+    provider = await db.get(User, application.applicant_id)
+    if not provider:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="The accepted provider no longer exists",
+        )
+
+    try:
+        prepared = await prepare_release(
+            db,
+            job=job,
+            application=application,
+            user=current_user,
+            provider=provider,
+        )
+    except (CreatorFlowError, RelayerNotConfigured) as exc:
+        raise _creator_flow_error(exc)
+
+    return _creator_prepare_response(prepared)
+
+
+@router.post(
+    "/{job_id}/onchain/release/submit",
+    response_model=ChainTransactionResponse,
+)
+async def submit_onchain_release(
+    job_id: int,
+    data: JobOnchainSubmitRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Submit the client-signed ``approve_work`` transaction."""
+    job = await _get_job_or_404(job_id, db)
+
+    if job.owner_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the job owner can release the escrow",
+        )
+
+    application = await _get_accepted_application_or_400(job.id, db)
+    provider = await db.get(User, application.applicant_id)
+    if not provider:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="The accepted provider no longer exists",
+        )
+
+    try:
+        transaction = await submit_release(
+            db,
+            job=job,
+            application=application,
+            user=current_user,
+            provider=provider,
+            signed_transaction=data.signed_transaction,
+        )
+    except (CreatorFlowError, RelayerNotConfigured) as exc:
+        raise _creator_flow_error(exc)
+
+    return ChainTransactionResponse.model_validate(transaction)
+
+
+@router.get(
+    "/{job_id}/onchain",
+    response_model=JobOnchainStateResponse,
+)
+async def get_onchain_task(
+    job_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Read the task state from Solana."""
+    job = await _get_job_or_404(job_id, db)
+
+    if job.owner_id != current_user.id:
+        accepted = (
+            await db.execute(
+                select(JobApplication).where(
+                    JobApplication.job_id == job.id,
+                    JobApplication.applicant_id == current_user.id,
+                    JobApplication.status == ApplicationStatus.ACCEPTED,
+                )
+            )
+        ).scalar_one_or_none()
+        if not accepted:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not allowed to view this task",
+            )
+
+    try:
+        relayer = get_relayer()
+        state = await read_task_state(relayer, job.id)
+    except RelayerNotConfigured as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
+        )
+    except CreatorFlowError as exc:
+        raise _creator_flow_error(exc)
+
+    if state is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="The task has no on-chain state yet",
+        )
+
+    return JobOnchainStateResponse(
+        task_id=state.id,
+        creator=str(state.creator),
+        provider=str(state.provider) if state.provider else None,
+        status=state.status,
+        labor_fee=state.labor_fee,
+        material_cost=state.material_cost,
+        creator_locked_balance=state.creator_locked_balance,
+        provider_locked_balance=state.provider_locked_balance,
+        advanced_disbursed=state.advanced_disbursed,
+        created_at=state.created_at,
+        updated_at=state.updated_at,
+    )
 
 
 @router.get("/{job_id}/applications", response_model=list[JobAppplicationResponse])
@@ -397,6 +1068,36 @@ async def update_application_status(id: int,data: JobApplicationStatusUpdate,
     # Accepting an applicant
     if data.status == ApplicationStatus.ACCEPTED:
 
+        if job.payer_type == PayerType.WALLET:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "This escrow was created by the client's wallet. Accept "
+                    "the application from that wallet via "
+                    f"POST /jobs/applications/{application.id}/onchain/accept."
+                ),
+            )
+
+        if application.status != ApplicationStatus.PENDING:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Only pending applications can be accepted.",
+            )
+
+        # Model 1: the escrow is locked when the task is created, so a task
+        # cannot be staffed until its funding is on-chain.
+        if job.funding_status != FundingStatus.FUNDED:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="This task is not funded yet. Providers can be accepted once the escrow is on-chain.",
+            )
+
+        if job.status != JobStatus.OPEN:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Only open tasks can accept an applicant.",
+            )
+
         # Prevent accepting another applicant if one is already accepted
         result = await db.execute(select(JobApplication).where(JobApplication.job_id == job.id, JobApplication.status == ApplicationStatus.ACCEPTED, JobApplication.id != application.id))
         
@@ -404,6 +1105,29 @@ async def update_application_status(id: int,data: JobApplicationStatusUpdate,
 
         if existing_accepted:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="This job already has an accepted applicant.")
+
+        provider = await db.get(User, application.applicant_id)
+        if not provider:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="The applicant no longer exists",
+            )
+
+        # The program's `accept` is signed by the task creator. For a
+        # custodial escrow the relayer is the creator, so the backend signs it.
+        # This also verifies that the provider actually applied on-chain.
+        try:
+            await accept_application_onchain(
+                db,
+                job=job,
+                provider=provider,
+            )
+        except ProviderFlowError as exc:
+            raise _provider_flow_error(exc)
+        except RelayerNotConfigured as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
+            )
 
         # Accept this application
         application.status = ApplicationStatus.ACCEPTED
@@ -419,7 +1143,9 @@ async def update_application_status(id: int,data: JobApplicationStatusUpdate,
         for pending_application in pending_applications:
             pending_application.status = ApplicationStatus.REJECTED
 
-        # Update job status
+        # The program moves the task to InProgress when the creator accepts.
+        # This mirrors that state; the on-chain `accept` instruction must be
+        # signed by the creator before the provider can complete the task.
         job.status = JobStatus.IN_PROGRESS
 
     # Rejecting an applicant
@@ -483,12 +1209,69 @@ async def link_job_chain(
     
     task_id_val = onchain_task_id if onchain_task_id is not None else near_task_id
     if task_id_val is not None:
-        job.onchain_task_id = task_id_val
-    if onchain_tx_hash is not None:
+        if task_id_val != job.id:
+            raise HTTPException(
+                status_code=400,
+                detail="onchain_task_id must match the job id",
+            )
+        if not onchain_tx_hash:
+            raise HTTPException(
+                status_code=400,
+                detail="onchain_tx_hash is required to link a task",
+            )
+
+        wallet = (getattr(current_user, "onchain_address", None) or "").strip()
+        if not wallet:
+            raise HTTPException(
+                status_code=400,
+                detail="Add your Solana wallet before linking an on-chain task",
+            )
+        try:
+            wallet_pubkey = Pubkey.from_string(wallet)
+        except Exception:
+            raise HTTPException(
+                status_code=400,
+                detail="The saved Solana wallet address is not valid",
+            )
+
+        try:
+            state = await read_task_state(get_relayer(), job.id)
+        except RelayerNotConfigured as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
+            )
+        except CreatorFlowError as exc:
+            raise _creator_flow_error(exc)
+
+        if state is None:
+            raise HTTPException(
+                status_code=400,
+                detail="No on-chain task was found for this job",
+            )
+        if state.creator != wallet_pubkey:
+            raise HTTPException(
+                status_code=403,
+                detail="The on-chain task was not created by your wallet",
+            )
+        if state.status != "Open":
+            raise HTTPException(
+                status_code=400,
+                detail=f"The task is already '{state.status}' on-chain",
+            )
+
+        job.onchain_task_id = job.id
+        job.onchain_tx_hash = onchain_tx_hash
+        job.funding_status = FundingStatus.FUNDED
+        job.payer_type = PayerType.WALLET
+        job.onchain_status = state.status
+        job.status = JobStatus.OPEN
+    elif onchain_tx_hash is not None:
         job.onchain_tx_hash = onchain_tx_hash
 
     await db.commit()
     await db.refresh(job)
+    if task_id_val is not None:
+        await notify_nearby_providers(db, job)
     return job
 
 @router.patch("/applications/{id}/link-chain", response_model=JobAppplicationResponse)
