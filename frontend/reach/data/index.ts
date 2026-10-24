@@ -30,7 +30,7 @@ export const customerItems: NavItemData[] = [
   { href: "/requests/new", label: "Post a Request", icon: PencilSimpleIcon },
   { href: "/orders", label: "My Orders", icon: ClipboardTextIcon },
   // { href: "/saved", label: "Saved", icon: HeartIcon },
-  { href: "/messages", label: "Messages", icon: ChatCircleIcon, desktopOnly: true },
+  // { href: "/messages", label: "Messages", icon: ChatCircleIcon, desktopOnly: true },
   // { href: "/payments", label: "Payments", icon: CreditCardIcon },
 ];
 
