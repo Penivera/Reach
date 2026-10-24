@@ -76,3 +76,21 @@ For integration, treat these files as canonical:
 - Account constraints and seeds: `programs/sol-contract/src/instructions/*.rs`
 - Account data structures: `programs/sol-contract/src/state.rs`
 - Program entrypoints: `programs/sol-contract/src/lib.rs`
+
+## Build and test
+
+Anchor 1.2 builds SBPF v3 by default, but the pinned LiteSVM version used by
+the Rust tests rejects the v3 artifact with `InvalidAccountData`. Build the
+test artifact for SBPF v0 first:
+
+```bash
+cd programs/sol-contract
+# Needed when the build cache still holds a v3 artifact.
+touch src/lib.rs
+cargo build-sbf --arch v0
+cd ../..
+cargo test
+```
+
+`cargo build-sbf` does not rebuild just because `--arch` changed, so the
+`touch` is important when switching back from a default `anchor build`.

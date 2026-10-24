@@ -7,7 +7,7 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-sol_contract = "io7dEJAJCAQBSJjGVzMkX8vxFrbzDLqt6ZhDjqqJfy4"
+sol_contract = "5iCtrxFDsPQf6qyR2nfjkDgUJyuH7oxoA5Lf1qQiDfwY"
 
 [provider]
 cluster = "devnet"

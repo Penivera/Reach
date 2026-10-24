@@ -22,6 +22,7 @@ from core.solana import (
     SolanaError,
     SolanaRpc,
     build_legacy_transaction,
+    build_versioned_transaction,
     decode_task_account,
 )
 
@@ -320,6 +321,72 @@ class SolanaRpcTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(method, "sendTransaction")
         decoded = VersionedTransaction.from_bytes(base64.b64decode(params[0]))
         self.assertEqual(decoded.message.account_keys[0], payer)
+
+    async def test_get_account_info_reads_the_rpc_value_wrapper(self):
+        rpc = SolanaRpc("http://localhost:8899")
+        payload = b"account-data"
+
+        async def fake_call(method, params=None):
+            self.assertEqual(method, "getAccountInfo")
+            return {
+                "context": {"slot": 1},
+                "value": {
+                    "data": [base64.b64encode(payload).decode(), "base64"],
+                },
+            }
+
+        rpc._call = fake_call
+
+        self.assertEqual(
+            await rpc.get_account_info(Pubkey.new_unique()), payload
+        )
+
+    async def test_get_account_info_returns_none_for_a_missing_account(self):
+        rpc = SolanaRpc("http://localhost:8899")
+
+        async def fake_call(method, params=None):
+            return {"context": {"slot": 1}, "value": None}
+
+        rpc._call = fake_call
+
+        self.assertIsNone(await rpc.get_account_info(Pubkey.new_unique()))
+
+    async def test_confirm_transaction_waits_through_unprocessed_signatures(self):
+        rpc = SolanaRpc("http://localhost:8899")
+        responses = [
+            [None],
+            [{"err": None, "slot": 7, "confirmationStatus": "confirmed"}],
+        ]
+
+        async def fake_statuses(signature):
+            return responses.pop(0)
+
+        rpc.get_signature_statuses = fake_statuses
+
+        confirmation = await rpc.confirm_transaction(
+            "sig-1", timeout_seconds=1, poll_interval=0
+        )
+
+        self.assertEqual(confirmation.status, "confirmed")
+        self.assertEqual(confirmation.slot, 7)
+
+
+class VersionedTransactionTests(unittest.TestCase):
+    def test_build_versioned_transaction_signs_for_the_payer(self):
+        payer = Keypair()
+        instruction = Instruction(PROGRAM_ID, b"\x01", [])
+        blockhash = Hash.new_unique()
+
+        transaction = build_versioned_transaction(
+            payer.pubkey(), [instruction], blockhash, [payer]
+        )
+
+        self.assertEqual(transaction.message.recent_blockhash, blockhash)
+        self.assertEqual(transaction.message.account_keys[0], payer.pubkey())
+        self.assertEqual(len(transaction.signatures), 1)
+        self.assertTrue(all(transaction.verify_with_results()))
+        decoded = VersionedTransaction.from_bytes(bytes(transaction))
+        self.assertEqual(decoded.message.recent_blockhash, blockhash)
 
 
 class Base58Tests(unittest.TestCase):
