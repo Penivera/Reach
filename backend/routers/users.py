@@ -97,10 +97,12 @@ async def update_onchain_address(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    """Set the Solana address a user's escrow payout is released to.
+    """Set the user's Solana wallet address.
 
-    A provider needs this before they can be paid: the release moves USDC
-    straight from the escrow to this address.
+    A provider needs this before they can apply or be paid. A client who funds
+    an escrow from their own wallet uses the same field: that wallet becomes
+    the on-chain creator and signs ``create_task``, ``accept`` and
+    ``approve_work``.
     """
     try:
         address = validate_solana_address(data.onchain_address)

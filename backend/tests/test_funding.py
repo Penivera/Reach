@@ -1,7 +1,12 @@
 """Tests for the funding maths and the chain status mapping."""
 
 import unittest
+from types import SimpleNamespace
+from unittest import mock
 
+from support import FakeSession
+
+import services.funding as funding
 from schemas.enums import JobStatus
 from services.chain import (
     ONCHAIN_STATUS_TO_JOB_STATUS,
@@ -101,6 +106,36 @@ class AmountTests(unittest.TestCase):
     def test_sub_kobo_amounts_are_rejected(self):
         with self.assertRaises(Exception):
             to_kobo("5000.005")
+
+
+class CryptoDepositAddressTests(unittest.IsolatedAsyncioTestCase):
+    async def test_each_job_gets_its_own_obiex_identifier(self):
+        job = SimpleNamespace(id=42, budget=5_000)
+        user = SimpleNamespace(id=7)
+        db = FakeSession([None])
+        client = mock.AsyncMock()
+        client.create_deposit_address.return_value = {
+            "id": "addr_1",
+            "value": "7EcJ1eB6J3ggRrGkQWsT4ZP8dkqPZ4JmW4YRwR7Qp5cY",
+            "network": "SOL",
+        }
+
+        with mock.patch.object(
+            funding, "get_obiex_client", return_value=client
+        ):
+            intent = await funding.create_crypto_deposit_address(
+                db, job=job, user=user
+            )
+
+        client.create_deposit_address.assert_awaited_once_with(
+            unique_user_identifier="reach-user-7-job-42",
+            currency="USDC",
+            network="SOL",
+        )
+        self.assertEqual(
+            intent.deposit_address,
+            "7EcJ1eB6J3ggRrGkQWsT4ZP8dkqPZ4JmW4YRwR7Qp5cY",
+        )
 
 
 if __name__ == "__main__":

@@ -144,7 +144,8 @@ class Relayer:
 
     async def token_balance(self, owner: Pubkey | None = None) -> int:
         owner = owner or self.address
-        balance = await self.rpc.get_token_account_balance(owner, self.mint)
+        ata = await self.token_account_address(owner)
+        balance = await self.rpc.get_token_account_balance(ata)
         if not balance:
             return 0
         return int(balance["value"]["amount"])
@@ -276,6 +277,36 @@ class Relayer:
         return await self.submit(
             [instruction],
             idempotency_key=idempotency_key or f"create-task-{task_id}",
+        )
+
+    async def accept_application(
+        self,
+        *,
+        task_id: int,
+        provider_address: Pubkey,
+        idempotency_key: str | None = None,
+    ) -> TransactionConfirmation:
+        """Accept a provider's on-chain application as the task creator.
+
+        The relayer is the creator for custodial tasks, so it signs this. A
+        task funded by the creator's own wallet cannot use this path; the
+        creator has to accept from that wallet instead.
+        """
+        self.check_policy(task_id=task_id)
+
+        instruction = self.program.build_instruction(
+            "accept",
+            accounts={"owner": self.address},
+            args={
+                "task_id": task_id,
+                "provider": provider_address,
+            },
+        )
+
+        return await self.submit(
+            [instruction],
+            idempotency_key=idempotency_key
+            or f"accept-application-{task_id}-{provider_address}",
         )
 
     async def approve_work(

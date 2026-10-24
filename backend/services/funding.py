@@ -271,8 +271,11 @@ async def create_crypto_deposit_address(
 
     client = get_obiex_client()
 
+    # Obiex returns the existing address for a repeated identifier. Use the
+    # job as well as the user so two pending crypto jobs cannot share an
+    # address (the DEPOSIT webhook matches a single payment intent by address).
     address = await client.create_deposit_address(
-        unique_user_identifier=f"reach-user-{user.id}",
+        unique_user_identifier=f"reach-user-{user.id}-job-{job.id}",
         currency=settings.OBiex_COLLECTION_CURRENCY,
         network="SOL",
     )

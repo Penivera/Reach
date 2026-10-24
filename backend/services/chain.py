@@ -231,6 +231,21 @@ async def fund_task_escrow(
         )
         raise
 
+    if confirmation.status == "failed":
+        await _record_transaction(
+            db,
+            job_id=job.id,
+            kind="create_task",
+            idempotency_key=idempotency_key,
+            signature=confirmation.signature,
+            status=ChainTransactionStatus.FAILED,
+            slot=confirmation.slot,
+            error=(confirmation.error or "The create_task transaction failed")[:1000],
+        )
+        raise EscrowError(
+            confirmation.error or "The create_task transaction failed on-chain."
+        )
+
     transaction = await _record_transaction(
         db,
         job_id=job.id,
@@ -306,6 +321,11 @@ async def release_task_escrow(
             f"The task is '{state.status}'. The provider must apply, be "
             "accepted and complete the task on-chain before it can be released."
         )
+    if state.provider != provider:
+        raise EscrowError(
+            "The provider's on-chain address does not match the address the "
+            "task was accepted for. Use the same wallet that applied."
+        )
 
     # The payout goes to the provider's USDC token account, which does not
     # exist until they have held USDC on Solana. Create it first.
@@ -328,6 +348,21 @@ async def release_task_escrow(
             error=str(exc)[:1000],
         )
         raise
+
+    if confirmation.status == "failed":
+        await _record_transaction(
+            db,
+            job_id=job.id,
+            kind="approve_work",
+            idempotency_key=idempotency_key,
+            signature=confirmation.signature,
+            status=ChainTransactionStatus.FAILED,
+            slot=confirmation.slot,
+            error=(confirmation.error or "The approve_work transaction failed")[:1000],
+        )
+        raise EscrowError(
+            confirmation.error or "The approve_work transaction failed on-chain."
+        )
 
     transaction = await _record_transaction(
         db,

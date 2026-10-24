@@ -616,9 +616,14 @@ async def _sync_deposit(payload: dict, db: AsyncSession) -> None:
 
     intent = (
         await db.execute(
-            select(PaymentIntent).where(PaymentIntent.deposit_address == address)
+            select(PaymentIntent)
+            .where(
+                PaymentIntent.deposit_address == address,
+                PaymentIntent.status == PaymentStatus.PENDING,
+            )
+            .order_by(PaymentIntent.id.desc())
         )
-    ).scalar_one_or_none()
+    ).scalars().first()
 
     if not intent:
         # Not every deposit belongs to a task; the treasury deposits land

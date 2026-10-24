@@ -1,5 +1,5 @@
-from fastapi import APIRouter, HTTPException, Depends, status, UploadFile, File
-from sqlalchemy import select
+from fastapi import APIRouter, HTTPException, Depends, status, UploadFile, File, Query
+from sqlalchemy import select, or_
 from utils import upload_image
 from sqlalchemy.ext.asyncio import AsyncSession
 from dependencies import get_db, get_current_user
@@ -76,8 +76,32 @@ async def create_service(service_data: ServiceCreate, db: AsyncSession = Depends
 
 
 @router.get("", response_model=list[ServiceResponse])
-async def get_services(db:AsyncSession=Depends(get_db)):
-    result = await db.execute(select(Service).where(Service.status == ServiceStatus.ACTIVE))
+async def get_services(
+    q: str | None = None,
+    category_id: int | None = None,
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    db: AsyncSession = Depends(get_db),
+):
+    query = select(Service).where(Service.status == ServiceStatus.ACTIVE)
+
+    needle = (q or "").strip()
+    if needle:
+        pattern = f"%{needle}%"
+        query = query.outerjoin(Business).where(
+            or_(
+                Service.title.ilike(pattern),
+                Service.description.ilike(pattern),
+                Business.name.ilike(pattern),
+            )
+        )
+
+    if category_id is not None:
+        query = query.where(Service.category_id == category_id)
+
+    query = query.order_by(Service.created_at.desc()).offset(offset).limit(limit)
+
+    result = await db.execute(query)
 
     services = result.scalars().all()
 
@@ -96,14 +120,31 @@ async def get_my_services(db: AsyncSession = Depends(get_db), current_user=Depen
 @router.get("/nearby", response_model=list[ServiceResponse])
 async def get_services_nearby(data:NearbyServiceQuery=Depends(), db:AsyncSession=Depends(get_db)):
     search_point = ST_GeogFromText(f"POINT({data.longitude} {data.latitude})")
-    
-    query = select(Service).where(Service.status != ServiceStatus.ARCHIVED,
-                                  ST_DWithin(Service.location, search_point, data.radius*1000))
+
+    query = select(Service).where(
+        Service.status == ServiceStatus.ACTIVE,
+        ST_DWithin(Service.location, search_point, data.radius * 1000),
+    )
 
     if data.category_id is not None:
         query = query.where(Service.category_id == data.category_id)
 
-    query = query.order_by(ST_Distance(Service.location, search_point))
+    needle = (data.q or "").strip()
+    if needle:
+        pattern = f"%{needle}%"
+        query = query.outerjoin(Business).where(
+            or_(
+                Service.title.ilike(pattern),
+                Service.description.ilike(pattern),
+                Business.name.ilike(pattern),
+            )
+        )
+
+    query = (
+        query.order_by(ST_Distance(Service.location, search_point))
+        .offset(data.offset)
+        .limit(data.limit)
+    )
 
     result = await db.execute(query)
     

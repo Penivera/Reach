@@ -1,7 +1,9 @@
 # Reach Model 1 — Backend Payments Plan (FossaPay + Obiex + Solana)
 
-Status: **phases 0–6 implemented; phase 7 (ops) pending** on
-`feat/fossapay-payments`, reviewed 2026-10-23.
+Status: **phases 0–6, the provider-signed lifecycle, and the client-signed
+wallet escrow flow implemented; phase 7 (ops) pending** on
+`feat/fossapay-payments`, reviewed 2026-10-24. The crypto-only staging
+checklist is in `docs/REACH_CRYPTO_RUNBOOK.md`.
 Scope: **backend only**. Spec: `reach_flows_and_architecture_documentation.md`
 (Model 1, canonical).
 
@@ -15,7 +17,9 @@ Scope: **backend only**. Spec: `reach_flows_and_architecture_documentation.md`
 | 3 — chain state mirror | Done | `services/chain.py` maps the program's task status onto the job row. |
 | 4 — payment API | Done | `routers/payments.py` and `routers/webhooks.py` rewritten for the rails; the Obiex webhook is new. |
 | 5 — schema | Done | Migration `a1b2c3d4e5f6`. |
-| 6 — tests | Done | 126 tests, no database required. |
+| 6 — tests | Done | 158 tests, no database required. |
+| 6a — provider-signed lifecycle | Done | `apply` / `complete_task` are prepared for the provider's wallet and verified after signing; `accept` and `approve_work` are signed by the relayer. |
+| 6b — client-signed wallet escrow | Done | `create_task` / `accept` / `approve_work` are prepared for the client's wallet and verified after signing. The client becomes the on-chain creator and no treasury is used. |
 | 7 — ops | Pending | Needs live credentials, a staging run, a treasury float policy and an external scheduler for reconciliation. |
 
 ### Still open
@@ -33,14 +37,29 @@ Scope: **backend only**. Spec: `reach_flows_and_architecture_documentation.md`
 - The FossaPay webhook signature scheme has to be confirmed against a real
   event. Both the v1 (over `data`) and v2 (over the body) schemes are
   accepted for now, and the matched scheme is reported.
-- The on-chain task lifecycle beyond `create_task` and `approve_work`
-  (`accept`, `provide_collateral`, `complete_task`, `cancel_task`,
-  `raise_dispute`) is not yet driven by the backend. `apply` and
-  `complete_task` require the **provider's** Solana signature, so the next
-  step is a provider wallet flow (build the instruction, sign in the wallet,
-  submit the signed transaction). Until then `approve_work` cannot be reached
-  unless the provider applies and completes out-of-band; the release endpoint
-  now checks for `AwaitingApproval` and returns a clear error.
+- `apply`, `accept`, `complete_task` and `approve_work` are now driven by the
+  backend (see §3a). For a wallet-funded escrow the client signs
+  `create_task`, `accept` and `approve_work`; for a custodial escrow the
+  relayer signs the creator-side instructions. The remaining lifecycle
+  instructions (`provide_collateral`, `cancel_task`, `raise_dispute`) are
+  still not exposed by the API. Release requires the task to be
+  `AwaitingApproval` **and** the on-chain provider to match the accepted
+  applicant's saved wallet, so a provider cannot be paid into a different
+  address than the one that applied.
+- The client wallet UI is owned by the frontend workstream. The backend
+  prepare/submit contract is in §3a; the frontend must call the three client
+  prepare endpoints, sign in Phantom/Solflare/Backpack, and submit the signed
+  bytes.
+- Phase 1 stores the client's USDC amount on `payment_intents.usdc_amount`
+  (rail `wallet`) rather than adding a USDC job-price column. The existing
+  `jobs.budget` remains the naira reference. A proper USDC price field is a
+  later schema cleanup.
+- Wallet-funded refunds/cancellations require a client-signed `cancel_task`;
+  that endpoint is not exposed yet. The custodial path can still be cancelled
+  by the relayer.
+- The crypto-only path still needs a real staging run: relayer/RPC
+  credentials, the pending migration, and a manually pre-funded USDC treasury
+  are operational prerequisites. See `docs/REACH_CRYPTO_RUNBOOK.md`.
 
 ---
 
@@ -57,7 +76,7 @@ Scope: **backend only**. Spec: `reach_flows_and_architecture_documentation.md`
 | Role | Provider | Endpoint |
 |---|---|---|
 | Collect NGN per customer, auto-settle to USDC | **Obiex** | `POST /collections` (Business account, gated) → `COLLECTION` webhook |
-| USDC collection per customer (crypto-native users) | Obiex | `POST /addresses/broker` → `DEPOSIT` webhook |
+| USDC collection per task (crypto-native users) | Obiex | `POST /addresses/broker` → `DEPOSIT` webhook |
 | Platform NGN→USDC conversion | Obiex | `POST /trades/swap` |
 | Move USDC into the escrow | Obiex | `POST /wallets/ext/debit/crypto` (`network: SOL`) → relayer ATA |
 | Provider cash-out USDC→NGN | Obiex | `POST /wallets/ext/debit/fiat` |
@@ -104,9 +123,95 @@ POST /jobs (draft)  ->  user pays USDC to a Solana address  -> DEPOSIT webhook
 ### Flow 1 — native Solana user (frontend-owned)
 
 ```
-POST /jobs -> user signs create_task in Phantom -> PATCH /jobs/{id}/link-chain
-   -> backend mirrors on-chain state
+POST /jobs -> POST /jobs/{id}/onchain/fund -> user signs create_task
+   -> POST /jobs/{id}/onchain/fund/submit -> backend verifies + mirrors state
 ```
+
+The client is the on-chain creator, so the same prepare → sign → submit flow
+covers `accept` and `approve_work` (see §3b). `PATCH /jobs/{id}/link-chain`
+remains a verified reconciliation fallback.
+
+### 3a — provider-signed lifecycle (`apply`, `complete_task`)
+
+The Anchor program requires the **provider's own key** for `apply` and
+`complete_task`. The backend never signs for them. Each instruction uses a
+prepare → wallet-signs → submit flow:
+
+```
+PUT  /users/me/onchain-address                 # once; the provider's payout wallet
+POST /jobs/{id}/onchain/apply                  # create/refresh the DB application,
+                                               # return an unsigned legacy transaction
+     provider wallet signs the returned base64 transaction
+POST /jobs/{id}/onchain/apply/submit           # backend verifies + submits + mirrors state
+PATCH /jobs/applications/{id}/status {accepted}# relayer signs `accept` (custodial creator)
+POST /jobs/{id}/onchain/complete               # return the unsigned `complete_task`
+     provider wallet signs
+POST /jobs/{id}/onchain/complete/submit        # verify + submit; job -> AwaitingApproval
+PATCH /jobs/{id}/completion                    # creator records client_completed
+POST /payments/jobs/{id}/release               # relayer signs `approve_work` (custodial only)
+```
+
+Verification on submit is deliberately strict:
+
+- the transaction must decode as a legacy `Transaction`;
+- the provider's saved address must be the fee payer and the only signer;
+- there must be exactly one instruction, with the expected program id,
+  discriminator, arguments and account list;
+- for `apply`, the task id and `expires_at` are read back out of the signed
+  instruction and re-checked against the job;
+- the backend reads the task (and application) back from Solana before it
+  writes `onchain_status`, `worker_completed` or a confirmed
+  `chain_transactions` row.
+
+`apply` is idempotent: if the application PDA already exists the prepare call
+returns `already_done` with no transaction. `complete_task` is likewise
+idempotent once the task is `AwaitingApproval`. Application expiry is
+`REACH_APPLICATION_TTL_SECONDS` (default 7 days).
+
+The creator-side `accept` is different: for a custodial escrow the relayer is
+the on-chain creator, so `PATCH /jobs/applications/{id}/status` signs it
+server-side.
+
+### 3b — client-signed wallet escrow (`create_task`, `accept`, `approve_work`)
+
+When the client funds from their own wallet, the client is the on-chain
+creator. The backend prepares the same kind of unsigned legacy transaction and
+the client signs it:
+
+```
+PUT  /users/me/onchain-address                  # the client's wallet
+POST /jobs/{id}/onchain/fund { usdc_amount }    # unsigned create_task
+     client wallet signs the base64 transaction
+POST /jobs/{id}/onchain/fund/submit             # verify + submit + mirror; job -> FUNDED / OPEN
+POST /jobs/applications/{id}/onchain/accept     # unsigned accept
+     client wallet signs
+POST /jobs/applications/{id}/onchain/accept/submit
+POST /jobs/{id}/completion                      # client records client_completed
+POST /jobs/{id}/onchain/release                 # unsigned approve_work
+     client wallet signs
+POST /jobs/{id}/onchain/release/submit          # provider receives USDC
+GET  /jobs/{id}/onchain                          # decoded task state
+```
+
+The client wallet needs USDC for the escrow plus the creation fee, and SOL for
+the transaction fee and task/vault rent. The relayer only creates the client's
+USDC ATA and the provider's payout ATA; it does not fund the escrow.
+
+Phase 1 stores the selected USDC amount on `payment_intents.usdc_amount` (rail
+`wallet`). `jobs.budget` remains the naira reference until a USDC job-price
+column is added.
+
+Frontend contract (owned by the frontend workstream):
+
+1. Connect an injected Solana wallet (Phantom / Solflare / Backpack).
+2. `PUT /users/me/onchain-address` with `wallet.publicKey.toBase58()`.
+3. Call the prepare endpoint. If `already_done` is true, refresh and stop.
+4. `Transaction.from(Buffer.from(transaction, "base64"))`, then
+   `wallet.signTransaction(tx)`, then `tx.serialize().toString("base64")`.
+5. Call the submit endpoint with `{ "signed_transaction": "<base64>" }`.
+
+The wallet must not add instructions or change the fee payer; the backend
+rejects anything that is not exactly the prepared instruction.
 
 ## 4. Work plan
 
@@ -134,9 +239,11 @@ POST /jobs -> user signs create_task in Phantom -> PATCH /jobs/{id}/link-chain
 
 ### Phase 2 — Solana layer
 - `backend/core/solana.py`: Anchor instruction encoding from `sol-contract/idl.json`
-  (IDL present and complete), PDA + ATA derivation, v0 `VersionedTransaction` with ALTs.
+  (IDL present and complete), PDA + ATA derivation, v0 `VersionedTransaction` with ALTs,
+  and a legacy `Transaction` builder for browser-wallet signing.
 - `backend/core/relayer.py`: keypair loading, fee/SOL top-up checks, policy gate
-  (allowlisted program id + mint + amounts), sign + submit to RPC, confirm/finalize tracking.
+  (allowlisted program id + mint + amounts), sign + submit to RPC, confirm/finalize tracking,
+  and `accept_application` for the custodial creator.
 - Dependency: `solders` (Solana SDK) — add to `backend/requirements.txt`.
 
 ### Phase 3 — chain state mirror
@@ -152,6 +259,14 @@ POST /jobs -> user signs create_task in Phantom -> PATCH /jobs/{id}/link-chain
 - `POST /webhooks/fossapay` -> verify v1/v2, dedupe on `eventId`.
 - `POST /payments/jobs/{id}/release` -> relayer signs `approve_work`.
 - `GET /payments/jobs/{id}` -> unified funding + chain status.
+- `POST /jobs/{id}/onchain/apply` / `.../apply/submit` -> provider-signed application.
+- `POST /jobs/{id}/onchain/complete` / `.../complete/submit` -> provider-signed completion.
+- `PATCH /jobs/applications/{id}/status` -> relayer-signed `accept` for custodial escrows.
+- `POST /jobs/{id}/onchain/fund` / `.../fund/submit` -> client-signed `create_task` for wallet-funded escrows.
+- `POST /jobs/applications/{id}/onchain/accept` / `.../accept/submit` -> client-signed `accept`.
+- `POST /jobs/{id}/onchain/release` / `.../release/submit` -> client-signed `approve_work`.
+- `GET /jobs/{id}/onchain` -> decoded on-chain task state (creator, provider, status, fees).
+- `PATCH /jobs/{id}/link-chain` -> legacy verified reconciliation fallback; new clients use `/onchain/fund/submit`.
 
 ### Phase 5 — schema
 - `jobs`: `payer_type`, `funding_status`, `onchain_status`; drop `AWAITING_PAYMENT`.
@@ -160,9 +275,10 @@ POST /jobs -> user signs create_task in Phantom -> PATCH /jobs/{id}/link-chain
 - new `chain_transactions` (business ref, kind, tx hash, status, error, raw).
 
 ### Phase 6 — tests
-- Extend the fake provider in `backend/tests/support.py`; the branch currently has 126 tests.
+- Extend the fake provider in `backend/tests/support.py`; the branch currently has 158 tests.
 - New: instruction-encoding golden tests (PDA/ATA vs anchor), HMAC verification,
-  webhook dedupe/replay, relayer idempotency, collection -> escrow flow, release flow.
+  webhook dedupe/replay, relayer idempotency, collection -> escrow flow, release flow,
+  provider prepare/submit verification (tampering, wrong signer, wrong task).
 - Obiex **staging** is the only place an end-to-end run can happen safely.
 
 ### Phase 7 — ops

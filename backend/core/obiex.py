@@ -4,7 +4,7 @@ Obiex is the fiat/stablecoin rail behind the custodial flow:
 
 * **Business Collections** collect a customer's NGN on a one-time virtual
   account and settle the money into USDC in the platform's Obiex wallet.
-* **Deposit addresses** give every Reach user a Solana address to pay USDC
+* **Deposit addresses** give each Reach task a Solana address to pay USDC
   from, with a deposit webhook when the funds land.
 * **Swaps** convert platform NGN into USDC.
 * **Withdrawals** move USDC out to the relayer's Solana address, and turn a

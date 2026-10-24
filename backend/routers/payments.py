@@ -32,6 +32,8 @@ from payment_validation import (
 )
 from schemas import (
     ApplicationStatus,
+    BankResolveRequest,
+    BankResolveResponse,
     ChainTransactionResponse,
     FossaPayAccountResponse,
     FundingIntentResponse,
@@ -44,9 +46,11 @@ from schemas import (
     OffRampQuoteRequest,
     OffRampQuoteResponse,
     OffRampWithdrawalResponse,
+    PayerType,
     PaymentProfileResponse,
     PaymentProfileStateResponse,
     PaymentProfileUpsert,
+    PaymentStatus,
     ProvisioningStatus,
     UserRole,
 )
@@ -386,13 +390,21 @@ async def create_job_collection(
 
     pending = await latest_pending_intent(db, job.id)
     if pending is not None and pending.rail != rail:
-        raise HTTPException(
-            status_code=409,
-            detail=(
-                "A payment is already open for this task on another rail. "
-                "Finish or cancel it before choosing a different payment method."
-            ),
-        )
+        # A wallet funding attempt that never reached the chain is only a
+        # stale intent; let the customer switch to a fiat rail. Never discard
+        # a pending fiat collection, because the virtual account may already
+        # have been shown to the payer.
+        if pending.rail == FundingRail.WALLET and job.onchain_task_id is None:
+            pending.status = PaymentStatus.EXPIRED
+            await db.commit()
+        else:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "A payment is already open for this task on another rail. "
+                    "Finish or cancel it before choosing a different payment method."
+                ),
+            )
 
     profile = await _get_profile(current_user.id, db)
     customer = await _get_customer(current_user.id, db)
@@ -491,10 +503,28 @@ async def release_job_payment(
     if job.owner_id != current_user.id:
         raise HTTPException(status_code=403, detail="Only the job owner can release")
 
+    if job.payer_type == PayerType.WALLET:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "This escrow was created by the client's wallet. Release it "
+                f"from that wallet via POST /jobs/{job.id}/onchain/release."
+            ),
+        )
+
     if job.funding_status != FundingStatus.FUNDED:
         raise HTTPException(
             status_code=400,
             detail="This task has no funded escrow to release",
+        )
+
+    if not (job.client_completed and job.worker_completed):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Both the creator and the provider must confirm completion "
+                "before the escrow can be released"
+            ),
         )
 
     application = (
@@ -628,6 +658,23 @@ async def list_offramp_banks(current_user=Depends(get_current_user)):
     """Nigerian banks Obiex can pay a naira withdrawal to."""
     try:
         return await offramp.list_banks()
+    except offramp.OffRampError as exc:
+        raise _offramp_error(exc)
+    except (ObiexError, ObiexNotConfigured) as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+
+
+@router.post("/offramp/resolve-account", response_model=BankResolveResponse)
+async def resolve_offramp_account(
+    data: BankResolveRequest,
+    current_user=Depends(get_current_user),
+):
+    """Resolve a bank account name before creating a payout."""
+    try:
+        return await offramp.resolve_account(
+            bank_code=data.bank_code,
+            account_number=data.account_number,
+        )
     except offramp.OffRampError as exc:
         raise _offramp_error(exc)
     except (ObiexError, ObiexNotConfigured) as exc:

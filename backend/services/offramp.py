@@ -391,7 +391,8 @@ def _bank_for(banks: list[dict], bank_code: str) -> dict | None:
 
 
 async def list_banks() -> list[dict]:
-    ensure_enabled()
+    # Listing banks is read-only. Keep it available even while live payouts
+    # are disabled so the frontend can build the payout form.
     client = get_obiex_client()
     banks = await _banks(client)
     return [
@@ -405,6 +406,62 @@ async def list_banks() -> list[dict]:
         for bank in banks
         if bank.get("name") and (bank.get("sortCode") or bank.get("uuid"))
     ]
+
+
+async def resolve_account(
+    *,
+    bank_code: str,
+    account_number: str,
+) -> dict:
+    """Resolve a Nigerian bank account without creating a payout.
+
+    Obiex's OpenAPI documents ``sortCode`` while its Node SDK uses ``bankId``.
+    Try the documented identifier first, then the SDK's identifier.
+    """
+    code = (bank_code or "").strip()
+    number = (account_number or "").strip()
+    if not code or not number:
+        raise OffRampAmountError("A bank and account number are required")
+
+    client = get_obiex_client()
+    banks = await _banks(client)
+    bank = _bank_for(banks, code)
+    if bank is None:
+        raise OffRampError("That bank is not supported for naira payouts")
+
+    try:
+        resolved = await client.resolve_naira_account(
+            account_number=number,
+            bank_code=code,
+        )
+        if not (resolved or {}).get("accountName"):
+            resolved = await client.resolve_naira_account(
+                account_number=number,
+                bank_id=code,
+            )
+    except (ObiexError, ObiexNotConfigured) as exc:
+        raise OffRampError(str(exc)) from exc
+
+    resolved_name = (resolved or {}).get("accountName")
+    if not resolved_name:
+        raise OffRampError(
+            "We could not verify that bank account. Check the bank and account number."
+        )
+
+    bank_name = str(bank.get("name") or "").strip()
+    resolved_code = (
+        code
+        if _bank_code_matches(bank.get("sortCode"), code)
+        else str(bank.get("sortCode") or code).strip()
+    )
+
+    return {
+        "account_name": str(resolved_name),
+        "account_number": str(resolved.get("accountNumber") or number),
+        "bank_name": bank_name,
+        "bank_code": resolved_code,
+        "bank_id": str(bank.get("uuid")).strip() if bank.get("uuid") else None,
+    }
 
 
 async def create_withdrawal(

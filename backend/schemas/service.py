@@ -97,6 +97,9 @@ class NearbyServiceQuery(BaseModel):
     radius: float = Field(10, gt=0)
 
     category_id: int | None = None
+    q: str | None = Field(default=None, min_length=1, max_length=100)
+    limit: int = Field(default=50, ge=1, le=100)
+    offset: int = Field(default=0, ge=0)
 
 
 class ServiceRequestCreate(BaseModel):

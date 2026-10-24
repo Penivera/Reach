@@ -264,3 +264,16 @@ class OffRampBankResponse(BaseModel):
     name: str
     code: str
     bank_id: str | None = None
+
+
+class BankResolveRequest(BaseModel):
+    bank_code: str = Field(min_length=1, max_length=20)
+    account_number: str = Field(min_length=5, max_length=30)
+
+
+class BankResolveResponse(BaseModel):
+    account_name: str
+    account_number: str
+    bank_name: str
+    bank_code: str
+    bank_id: str | None = None

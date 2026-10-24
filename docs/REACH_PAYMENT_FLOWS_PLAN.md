@@ -1,7 +1,7 @@
 # Reach Payment Flows — Funding and Settlement Plan
 
-Status: backend plan; Cases A and D implemented (D behind a disabled flag),
-reviewed 2026-10-23.
+Status: backend plan; Cases A and D implemented (D behind a disabled flag);
+direct wallet-funded escrow implemented, reviewed 2026-10-24.
 Companion to `reach_flows_and_architecture_documentation.md` (Model 1) and
 `docs/REACH_MODEL1_PAYMENTS_PLAN.md` (the provider work already landed).
 
@@ -77,10 +77,15 @@ wallet**, where their custodial address is a receive-only destination.
 | | Naira | USDC (self-custody) | USDC (custodial) |
 |---|---|---|---|
 | What the payer does | KYC form (name, NIN, BVN), then transfers naira to the virtual account Obiex shows | Signs `create_task` in Phantom/Solflare | Sends USDC to the treasury ATA |
-| What we do | Obiex collection → name match → USDC → withdrawal on SOL → relayer ATA | Relayer records the tx | Relayer signs `create_task` from its ATA |
+| What we do | Obiex collection → name match → USDC → withdrawal on SOL → relayer ATA | Prepare `create_task`; client signs; backend verifies and mirrors the task. The client also signs `accept` and `approve_work`. | Relayer signs `create_task` from its ATA |
 | `payer_type` | `custodial` | `wallet` | `custodial` |
 | Requires BVN/NIN | **Yes** | No | No |
 | Needs FossaPay | No | No | No |
+
+The self-custody rail uses `POST /jobs/{id}/onchain/fund` (prepare), the
+client's wallet signature, and `/fund/submit`. The same prepare → sign →
+submit pattern is used for the client's `accept` and `approve_work`. The
+backend never signs for a wallet-funded creator.
 
 **On showing the payer a FossaPay address:** don't, for funding. It adds a
 production-only signature to every funded task, and the payer gets nothing

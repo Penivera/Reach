@@ -392,3 +392,29 @@ class RefundTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(withdrawal.status, OffRampStatus.REFUNDED)
         self.assertIsNotNone(withdrawal.refunded_at)
+
+
+class BankResolveTests(unittest.IsolatedAsyncioTestCase):
+    async def test_resolve_account_returns_the_bank_and_account_name(self):
+        client = FakeObiex()
+
+        with mock.patch.object(offramp, "get_obiex_client", return_value=client):
+            resolved = await offramp.resolve_account(
+                bank_code="058",
+                account_number="9012345678",
+            )
+
+        self.assertEqual(resolved["account_name"], "Ada Okafor")
+        self.assertEqual(resolved["account_number"], "9012345678")
+        self.assertEqual(resolved["bank_name"], "Fake Bank")
+        self.assertEqual(resolved["bank_code"], "058")
+
+    async def test_list_banks_still_works_while_payouts_are_disabled(self):
+        client = FakeObiex()
+
+        with mock.patch.object(
+            offramp, "get_obiex_client", return_value=client
+        ), mock.patch.object(settings, "REACH_OFFRAMP_ENABLED", False):
+            banks = await offramp.list_banks()
+
+        self.assertEqual(banks[0]["name"], "Fake Bank")

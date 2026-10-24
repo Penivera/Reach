@@ -6,12 +6,13 @@ This document defines the formal system architecture and operational flows for *
 * **Non-Crypto Gateway:** **Obiex Business Collections** and **FossaPay** collect fiat payments. Obiex supplies the naira-to-USDC leg; FossaPay supplies checkout, KYC, and wallet provisioning. Reach's server relayer then calls the Solana contract on the user's behalf.
 * **Deprecated:** The standalone NEAR escrow contract ([`near-contract/`](near-contract)) is deprecated to eliminate liquidity fragmentation.
 
-> **Implementation status (2026-10-23):** the Model 1 backend is implemented on
+> **Implementation status (2026-10-24):** the Model 1 backend is implemented on
 > `feat/fossapay-payments`. The Solana funding/release path and treasury are
 > built; provider naira off-ramp is built but disabled behind
 > `REACH_OFFRAMP_ENABLED=false` pending Obiex confirmations. The provider
-> on-chain `apply` / `complete_task` wallet flow and the frontend payment UI are
-> still outstanding. See `docs/REACH_MODEL1_PAYMENTS_PLAN.md` and
+> on-chain `apply` / `complete_task` flow and the client-signed
+> `create_task` / `accept` / `approve_work` flow are implemented. The frontend
+> wallet UI is still outstanding. See `docs/REACH_MODEL1_PAYMENTS_PLAN.md` and
 > `docs/REACH_NAIRA_OFFRAMP.md`.
 
 ---
@@ -86,22 +87,30 @@ sequenceDiagram
     Creator->>Client: Fill Task Details (Budget, Location, Terms)
     Client->>Server: POST /jobs (Create Draft Metadata)
     Server-->>Client: Returns job.id
-    Client->>Sol: Call sol_contract::create_task(task_id = job.id, terms, desc, tag)
+    Client->>Server: POST /jobs/{id}/onchain/fund { usdc_amount }
+    Server-->>Client: Unsigned create_task transaction (base64)
+    Client->>Client: Wallet signs the transaction
+    Client->>Server: POST /jobs/{id}/onchain/fund/submit { signed_transaction }
+    Server->>Sol: Submit and verify create_task
     Sol->>Vault: Transfer (Labor + Material) from Creator ATA to Task Vault
     Sol->>Sol: Transfer Creation Fee (BPS) to Fee Vault
-    Sol-->>Client: Transaction Confirmed (Task PDA initialized)
-    Client->>Server: PATCH /jobs/{id}/link-chain (Save onchain_task_id & onchain_tx_hash)
+    Sol-->>Server: Transaction Confirmed (Task PDA initialized)
     Server-->>Client: Job Status updated to OPEN
 ```
 
 1. **Wallet Connection:** The user connects Phantom, Solflare, or Backpack via `@solana/wallet-adapter-react`.
 2. **Metadata Draft:** The frontend posts the job metadata (title, description, spatial coordinates, category) to `POST /jobs`.
-3. **Contract Call Construction:** The client constructs an Anchor transaction calling `sol_contract::create_task`:
+3. **Contract Call Construction:** The backend builds an unsigned legacy `sol_contract::create_task` transaction:
    - `task_id`: `job.id` from PostgreSQL (guarantees 1:1 ID parity).
    - `terms`: Labor fee, material cost, upfront advance percentage, required provider collateral.
    - `stable_coin_mint`: Whitelisted stablecoin (e.g. USDC).
-4. **Escrow Lock:** The program debits `labor_fee + material_cost` into the `task_vault` PDA, and debits `creation_fee_pct` into the protocol `fee_vault`.
-5. **State Synchronization:** The frontend submits the transaction signature to the backend (`PATCH /jobs/{id}/link-chain`), activating the job and triggering push notifications to nearby providers.
+4. **Escrow Lock:** The client signs in their wallet. The backend verifies the signed bytes, submits them, and the program debits `labor_fee + material_cost` into the `task_vault` PDA and the creation fee into the protocol `fee_vault`.
+5. **State Synchronization:** The backend reads the task back from Solana, verifies the creator, mint, terms and status, and only then marks the job `FUNDED` / `OPEN` and notifies nearby providers.
+
+The same prepare → wallet signs → submit pattern is used for the client's
+`accept` and `approve_work` instructions. The older
+`PATCH /jobs/{id}/link-chain` endpoint remains only as a verified
+reconciliation fallback.
 
 ---
 
@@ -226,7 +235,8 @@ Marked the standalone NEAR escrow contract as **DEPRECATED** with an official ar
 * Marked `near_task_id` and `near_application_id` as optional and deprecated, resolving the FastAPI Pydantic serialization crash.
 
 ### 4. Backend Routers ([`backend/routers/jobs.py`](backend/routers/jobs.py))
-* Updated `PATCH /jobs/{id}/link-chain` to accept `onchain_task_id` and `onchain_tx_hash`, falling back to `near_task_id` if supplied by legacy clients.
+* Added the client-signed escrow flow: `POST /jobs/{id}/onchain/fund`, `/fund/submit`, `POST /jobs/applications/{id}/onchain/accept`, `/accept/submit`, and `POST /jobs/{id}/onchain/release`, `/release/submit`.
+* `PATCH /jobs/{id}/link-chain` is now a verified reconciliation fallback: it requires a transaction hash, reads the task from Solana, and checks that the task creator is the caller's wallet before marking the job funded.
 * Updated `PATCH /jobs/applications/{id}/link-chain` to accept `onchain_application_id`.
 
 ### 5. Frontend Types & Client ([`frontend/reach/lib/jobs.ts`](frontend/reach/lib/jobs.ts))

@@ -5,10 +5,14 @@ seeds, the token accounts, the instruction encoding, and the decoding of the
 task account.
 """
 
+import base64
 import unittest
 
+from solders.hash import Hash
+from solders.instruction import Instruction
 from solders.keypair import Keypair
 from solders.pubkey import Pubkey
+from solders.transaction import VersionedTransaction
 
 from core.relayer import FinancialTerms, base58_decode, base58_encode
 from core.solana import (
@@ -16,6 +20,8 @@ from core.solana import (
     TOKEN_PROGRAM_ID,
     AnchorProgram,
     SolanaError,
+    SolanaRpc,
+    build_legacy_transaction,
     decode_task_account,
 )
 
@@ -226,6 +232,8 @@ class TaskAccountDecodingTests(unittest.TestCase):
         values.update(overrides)
 
         out = bytearray()
+        # Anchor account data starts with the 8-byte account discriminator.
+        out += bytes.fromhex("5f2b1c4a7d3e9f01")
         out += values["task_id"].to_bytes(8, "little")
         out += bytes(values["creator"])
         if values["provider"] is None:
@@ -287,6 +295,31 @@ class TaskAccountDecodingTests(unittest.TestCase):
     def test_truncated_account_is_rejected(self):
         with self.assertRaises(SolanaError):
             decode_task_account(self._encode_task()[:20])
+
+
+class SolanaRpcTests(unittest.IsolatedAsyncioTestCase):
+    async def test_send_transaction_serializes_a_legacy_transaction(self):
+        rpc = SolanaRpc("http://localhost:8899")
+        calls = []
+
+        async def fake_call(method, params=None):
+            calls.append((method, params))
+            return "sig-1"
+
+        rpc._call = fake_call
+        payer = Keypair().pubkey()
+        instruction = Instruction(PROGRAM_ID, b"\x01", [])
+        transaction = build_legacy_transaction(
+            payer, [instruction], Hash.new_unique()
+        )
+
+        signature = await rpc.send_transaction(transaction)
+
+        self.assertEqual(signature, "sig-1")
+        method, params = calls[0]
+        self.assertEqual(method, "sendTransaction")
+        decoded = VersionedTransaction.from_bytes(base64.b64decode(params[0]))
+        self.assertEqual(decoded.message.account_keys[0], payer)
 
 
 class Base58Tests(unittest.TestCase):

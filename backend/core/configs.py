@@ -10,6 +10,9 @@ class Settings(BaseSettings):
     SMTP_FROM_EMAIL:str
     ACCESS_TOKEN_EXPIRE_MINUTES: int
     SMTP_HOST:str
+    # ZeptoMail SMTP on port 587 uses STARTTLS. Set this to false only for a
+    # local mail catcher that does not support it.
+    SMTP_START_TLS: bool = True
     BACKEND_URL: str
     SMTP_FROM_NAME:str
     CLOUDINARY_CLOUD_NAME:str
@@ -42,6 +45,8 @@ class Settings(BaseSettings):
     REACH_RELAYER_CONFIRM_TIMEOUT: float = 60.0
     REACH_MIN_ESCROW_UNITS: int = 1000000
     REACH_CREATION_FEE_BPS: int = 250
+    # The `expires_at` the backend writes into a provider's application.
+    REACH_APPLICATION_TTL_SECONDS: int = 604800
     # The USDC float the treasury keeps on Solana, in base units (6 decimals).
     REACH_TREASURY_TARGET_UNITS: int = 500000000
     # Obiex's minimum withdrawal, in base units.

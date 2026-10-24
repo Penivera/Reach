@@ -24,10 +24,10 @@ from typing import Any, Iterable
 import httpx
 from solders.hash import Hash
 from solders.instruction import AccountMeta, Instruction
-from solders.message import MessageV0
+from solders.message import Message, MessageV0
 from solders.pubkey import Pubkey
 from solders.system_program import ID as SYSTEM_PROGRAM_ID
-from solders.transaction import VersionedTransaction
+from solders.transaction import Transaction, VersionedTransaction
 
 TOKEN_PROGRAM_ID = Pubkey.from_string("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA")
 ASSOCIATED_TOKEN_PROGRAM_ID = Pubkey.from_string(
@@ -469,9 +469,33 @@ class _Reader:
         return self.u64()
 
 
+APPLICATION_STATUS_NAMES = [
+    "Pending",
+    "Accepted",
+    "AcceptedPendingCollateral",
+    "AcceptedAndCollateralProvided",
+    "Rejected",
+    "CancelledWithDebt",
+]
+
+
+@dataclass(frozen=True)
+class ApplicationState:
+    provider: Pubkey
+    task_id: int
+    status: str
+    created_at: int
+    expires_at: int
+
+
 def decode_task_account(data: bytes) -> TaskState:
-    """Decode the Reach `Task` account (Anchor borsh layout)."""
+    """Decode the Reach `Task` account (Anchor borsh layout).
+
+    Anchor prefixes every account with its 8-byte discriminator, so the first
+    eight bytes are skipped before the borsh body.
+    """
     reader = _Reader(data)
+    reader.take(8)
 
     task_id = reader.u64()
     creator = reader.pubkey()
@@ -516,6 +540,36 @@ def decode_task_account(data: bytes) -> TaskState:
     )
 
 
+def decode_application_account(data: bytes) -> ApplicationState:
+    """Decode a Reach `ProviderApplication` account.
+
+    Layout (after the 8-byte Anchor discriminator): provider pubkey, task id,
+    status enum, created_at, expires_at.
+    """
+    reader = _Reader(data)
+    reader.take(8)
+
+    provider = reader.pubkey()
+    task_id = reader.u64()
+    status_index = reader.u8()
+    created_at = reader.i64()
+    expires_at = reader.i64()
+
+    status = (
+        APPLICATION_STATUS_NAMES[status_index]
+        if 0 <= status_index < len(APPLICATION_STATUS_NAMES)
+        else f"Unknown({status_index})"
+    )
+
+    return ApplicationState(
+        provider=provider,
+        task_id=task_id,
+        status=status,
+        created_at=created_at,
+        expires_at=expires_at,
+    )
+
+
 # ---------------------------------------------------------------------------
 # JSON-RPC client
 # ---------------------------------------------------------------------------
@@ -546,10 +600,13 @@ class SolanaRpc:
             "params": params or [],
         }
 
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            response = await client.post(self.rpc_url, json=payload)
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                response = await client.post(self.rpc_url, json=payload)
+            response.raise_for_status()
+        except httpx.HTTPError as exc:
+            raise SolanaError(f"{method} failed: {exc}") from exc
 
-        response.raise_for_status()
         body = response.json()
 
         if "error" in body:
@@ -566,9 +623,13 @@ class SolanaRpc:
         return Hash.from_string(result["value"]["blockhash"])
 
     async def send_transaction(
-        self, transaction: VersionedTransaction, skip_preflight: bool = False
+        self,
+        transaction: VersionedTransaction | Transaction,
+        skip_preflight: bool = False,
     ) -> str:
-        payload = base64.b64encode(bytes(transaction.serialize())).decode("ascii")
+        if isinstance(transaction, Transaction):
+            transaction = VersionedTransaction.from_legacy(transaction)
+        payload = base64.b64encode(bytes(transaction)).decode("ascii")
         result = await self._call(
             "sendTransaction",
             [
@@ -604,12 +665,17 @@ class SolanaRpc:
         return base64.b64decode(encoded)
 
     async def get_token_account_balance(
-        self, owner: Pubkey, mint: Pubkey
+        self, token_account: Pubkey
     ) -> dict | None:
+        """Read an SPL token account's balance.
+
+        `getTokenAccountBalance` takes the token account address itself, not
+        the owner. Callers derive the associated token account first.
+        """
         try:
             return await self._call(
                 "getTokenAccountBalance",
-                [str(owner), {"mint": str(mint), "commitment": "confirmed"}],
+                [str(token_account), {"commitment": "confirmed"}],
             )
         except SolanaError:
             return None
@@ -659,3 +725,16 @@ def build_versioned_transaction(
 ) -> VersionedTransaction:
     message = MessageV0.try_compile(payer, instructions, [])
     return VersionedTransaction(message, [])
+
+
+def build_legacy_transaction(
+    payer: Pubkey, instructions: list[Instruction], blockhash: Hash
+) -> Transaction:
+    """Build an unsigned legacy transaction for a browser wallet to sign.
+
+    Browser wallets (Phantom, Solflare, Backpack) accept the legacy
+    `Transaction` format. The payer is the provider, so they pay the network
+    fee and the application-account rent.
+    """
+    message = Message.new_with_blockhash(instructions, payer, blockhash)
+    return Transaction.new_unsigned(message)

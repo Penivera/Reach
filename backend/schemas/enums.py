@@ -110,6 +110,21 @@ class ChainTransactionStatus(str, Enum):
     FAILED = "failed"
 
 
+class ProviderAction(str, Enum):
+    """A task-lifecycle instruction the provider has to sign themselves."""
+
+    APPLY = "apply"
+    COMPLETE = "complete"
+
+
+class CreatorAction(str, Enum):
+    """A creator-side instruction a wallet-funded client has to sign."""
+
+    CREATE = "create_task"
+    ACCEPT = "accept"
+    RELEASE = "approve_work"
+
+
 class TreasuryTransferStatus(str, Enum):
     """A withdrawal of USDC from the provider into the on-chain float."""
 
