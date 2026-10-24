@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { ArrowLeftIcon, ChatIcon } from "@phosphor-icons/react";
+// import { ArrowLeftIcon, ChatIcon } from "@phosphor-icons/react";
+import { ArrowLeftIcon, ChatIcon, MapPinIcon, HandPalmIcon } from "@phosphor-icons/react";
 import { getJob, getJobApplications, Job, JobApplication } from "@/lib/jobs";
 import { getUser } from "@/lib/users";
 import { PublicUser, type User } from "@/types";
@@ -10,10 +11,10 @@ import { getInitials, getDisplayName, formatPostedAt } from "@/utils"
 import { useAuth } from "@/context/AuthContext";
 import ApplicantTile from "@/components/layout/ApplicantTile";
 import AcceptApplicationModal from "@/components/layout/AcceptApplicationModal";
-import { updateApplicationStatus } from "@/lib/jobs"; 
+import { updateApplicationStatus } from "@/lib/jobs";
 import CompleteJobSheet from "@/components/layout/CompleteJobSheet";
 import { getAcceptedApplication } from "@/lib/jobs";
-import { useWallet } from "@/context/WalletContext";
+// import { useWallet } from "@/context/WalletContext";
 import { getWalletSelector } from "@/lib/near/wallet-selector";
 import { acceptApplicationOnChain, approveWorkOnChain, completeTaskOnChain } from "@/lib/near/contract-calls";
 import { getNearApplicationId } from "@/lib/near/views";
@@ -42,8 +43,8 @@ export default function RequestDetailPage() {
   const [accepting, setAccepting] = useState(false);
   const acceptedApplication = applications.find((a) => a.status === "accepted") ?? null;
   const isAcceptedApplicant =
-  !!user && !!acceptedApplication && user.id === acceptedApplication.applicant_id;
-  const { accountId } = useWallet();
+    !!user && !!acceptedApplication && user.id === acceptedApplication.applicant_id;
+  // const { accountId } = useWallet();
 
 
 
@@ -63,53 +64,55 @@ export default function RequestDetailPage() {
       cancelled = true;
     };
   }, [jobId]);
-useEffect(() => {
-  if (!job) return;
-  let cancelled = false;
+  useEffect(() => {
+    if (!job) return;
+    let cancelled = false;
 
-  getUser(job.posted_by)
-    .then((u) => { if (!cancelled) setPoster(u); })
-    .catch(() => { if (!cancelled) setPoster(null); });
+    getUser(job.posted_by)
+      .then((u) => { if (!cancelled) setPoster(u); })
+      .catch(() => { if (!cancelled) setPoster(null); });
 
-  if (isPoster) {
-    getJobApplications(jobId)
-      .then((apps) => {
-        if (cancelled) return;
-        setApplications(apps);
-        apps.forEach((app) => {
+    if (isPoster) {
+      getJobApplications(jobId)
+        .then((apps) => {
+          if (cancelled) return;
+          setApplications(apps);
+          apps.forEach((app) => {
+            getUser(app.applicant_id)
+              .then((u) => { if (!cancelled) setApplicants((prev) => ({ ...prev, [app.applicant_id]: u })); })
+              .catch(() => { if (!cancelled) setApplicants((prev) => ({ ...prev, [app.applicant_id]: null })); });
+          });
+        })
+        .catch(() => { if (!cancelled) setApplications([]); });
+    } else if (job.status === "in_progress") {
+      getAcceptedApplication(jobId)
+        .then((app) => {
+          if (cancelled) return;
+          setApplications([app]);
           getUser(app.applicant_id)
             .then((u) => { if (!cancelled) setApplicants((prev) => ({ ...prev, [app.applicant_id]: u })); })
-            .catch(() => { if (!cancelled) setApplicants((prev) => ({ ...prev, [app.applicant_id]: null })); });
-        });
-      })
-      .catch(() => { if (!cancelled) setApplications([]); });
-  } else if (job.status === "in_progress") {
-    getAcceptedApplication(jobId)
-      .then((app) => {
-        if (cancelled) return;
-        setApplications([app]);
-        getUser(app.applicant_id)
-          .then((u) => { if (!cancelled) setApplicants((prev) => ({ ...prev, [app.applicant_id]: u })); })
-          .catch(() => {});
-      })
-      .catch(() => { if (!cancelled) setApplications([]); });
-  }
+            .catch(() => { });
+        })
+        .catch(() => { if (!cancelled) setApplications([]); });
+    }
 
-  return () => { cancelled = true; };
-}, [job, jobId, isPoster]);
-  if (loading) {
-    return <RequestDetailSkeleton />;
-  }
+    return () => { cancelled = true; };
+  }, [job, jobId, isPoster]);
+  
 
 
   useEffect(() => {
-  if (!isAcceptedApplicant) return;
-  const key = `reach:seen-acceptance:${jobId}`;
-  if (!localStorage.getItem(key)) {
-    localStorage.setItem(key, "1");
-    toast.success("You've been accepted for this job!");
+    if (!isAcceptedApplicant) return;
+    const key = `reach:seen-acceptance:${jobId}`;
+    if (!localStorage.getItem(key)) {
+      localStorage.setItem(key, "1");
+      toast.success("You've been accepted for this job!");
+    }
+  }, [isAcceptedApplicant, jobId]);
+
+  if (loading) {
+    return <RequestDetailSkeleton />;
   }
-}, [isAcceptedApplicant, jobId]);
 
   if (!job) {
     return (
@@ -146,32 +149,62 @@ useEffect(() => {
     setAcceptTarget({ application, applicantName: getDisplayName(applicant) });
   };
 
-const confirmAccept = async () => {
-  if (!acceptTarget) return;
-  setAccepting(true);
-  try {
-    if (job!.near_task_id && accountId) {
-      const selector = await getWalletSelector();
-      const nearApplicationId = acceptTarget.application.near_application_id
-        ?? await getNearApplicationId(job!.near_task_id, /* applicant's account — need this on JobApplication or User */ "");
-      await acceptApplicationOnChain(selector, nearApplicationId);
+  // const confirmAccept = async () => {
+  //   if (!acceptTarget) return;
+  //   setAccepting(true);
+  //   try {
+  //     if (job!.near_task_id && accountId) {
+  //       const selector = await getWalletSelector();
+  //       const nearApplicationId = acceptTarget.application.near_application_id
+  //         ?? await getNearApplicationId(job!.near_task_id, /* applicant's account — need this on JobApplication or User */ "");
+  //       await acceptApplicationOnChain(selector, nearApplicationId);
+  //     }
+
+  //     await updateApplicationStatus(acceptTarget.application.id, { status: "accepted" });
+  //     const [freshJob, freshApplications] = await Promise.all([getJob(jobId), getJobApplications(jobId)]);
+  //     setJob(freshJob);
+  //     setApplications(freshApplications);
+  //     setAcceptTarget(null);
+  //   } catch {
+  //     toast.error("Couldn't accept on-chain — funds weren't moved, nothing changed.");
+  //   } finally {
+  //     setAccepting(false);
+  //   }
+  // }; 
+
+  // integrate accnt id back after reinstating wallet
+
+  const confirmAccept = async () => {
+    if (!acceptTarget) return;
+    setAccepting(true);
+    try {
+      if (job!.near_task_id) {
+        const selector = await getWalletSelector();
+        const state = selector.store.getState();
+        const activeAccount = state.accounts.find((a) => a.active)?.accountId;
+
+        if (activeAccount) {
+          const nearApplicationId = acceptTarget.application.near_application_id
+            ?? await getNearApplicationId(job!.near_task_id, activeAccount);
+          await acceptApplicationOnChain(selector, nearApplicationId);
+        }
+      }
+
+      await updateApplicationStatus(acceptTarget.application.id, { status: "accepted" });
+      const [freshJob, freshApplications] = await Promise.all([getJob(jobId), getJobApplications(jobId)]);
+      setJob(freshJob);
+      setApplications(freshApplications);
+      setAcceptTarget(null);
+    } catch {
+      toast.error("Couldn't accept on-chain — funds weren't moved, nothing changed.");
+    } finally {
+      setAccepting(false);
     }
+  };
 
-    await updateApplicationStatus(acceptTarget.application.id, { status: "accepted" });
-    const [freshJob, freshApplications] = await Promise.all([getJob(jobId), getJobApplications(jobId)]);
-    setJob(freshJob);
-    setApplications(freshApplications);
-    setAcceptTarget(null);
-  } catch {
-    toast.error("Couldn't accept on-chain — funds weren't moved, nothing changed.");
-  } finally {
-    setAccepting(false);
-  }
-};
+  const handleCompleteJob = () => { }
 
-  const handleCompleteJob = () => {}
-
-return (
+  return (
     <div className="min-h-screen bg-background pb-28 md:pb-12">
       <div className="mx-auto w-full max-w-5xl px-4 py-6 md:px-8 md:py-10">
         
@@ -190,22 +223,89 @@ return (
         <div className="grid grid-cols-1 md:grid-cols-12 gap-8 lg:gap-12">
           
           {/* Left Column: Core Details */}
-          <div className="md:col-span-7 flex flex-col gap-6 md:gap-8">
+          <div className="md:col-span-7 flex flex-col">
             
+            {/* Poster row */}
+            <div className="flex items-start justify-between mb-5">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#FFF1ED] text-base font-bold text-[#E25C43]">
+                  {getInitials(poster)}
+                </div>
+                <div className="flex flex-col">
+                  <p className="text-[15px] font-bold text-foreground">
+                    {getDisplayName(poster)}
+                  </p>
+                  <p className="text-xs font-medium text-muted-foreground mt-0.5">
+                    Posted {formatPostedAt(job.created_at)} · {job.location_name.split(',')[0]}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-1 text-muted-foreground mt-1">
+                <MapPinIcon weight="fill" className="text-[#E25C43]" size={14} />
+                <span className="text-xs font-semibold">0.5km</span>
+              </div>
+            </div>
+
+            {/* Category Tag */}
+            <div className="mb-4">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-[#E0F2F1] px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider text-[#00897B]">
+                Home Fixes & Repairs
+              </span>
+            </div>
+
             {/* Title + description */}
             <div>
-              <h2 className="text-2xl md:text-3xl font-bold leading-snug text-foreground">
+              <h2 className="text-[22px] md:text-3xl font-bold leading-snug text-foreground">
                 {job.title}
               </h2>
-              <p className="mt-4 text-sm md:text-base leading-relaxed text-muted-foreground whitespace-pre-wrap">
+              <p className="mt-3 text-[15px] leading-relaxed text-muted-foreground whitespace-pre-wrap font-medium">
                 {job.description}
               </p>
             </div>
 
+            {/* Info Cards Grid */}
+            {/* Info Cards Grid */}
+            <div className="grid grid-cols-2 gap-3 mt-6">
+              {/* Budget Card */}
+              <div className="rounded-2xl border border-stroke/50 bg-white p-4 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.03)]">
+                <p className="text-xs font-semibold uppercase tracking-wider text-[#6B7280]">
+                  Budget Offered
+                </p>
+                <p className="mt-1.5 text-2xl font-bold text-foreground">
+                  ₦{job.budget.toLocaleString()}
+                </p>
+                <p className="mt-1 text-sm font-medium text-[#E25C43]">
+                  Negotiable
+                </p>
+              </div>
+
+              {/* Urgency Card */}
+              <div className="rounded-2xl border border-stroke/50 bg-white p-4 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.03)]">
+                <p className="text-xs font-semibold uppercase tracking-wider text-[#6B7280]">
+                  Urgency
+                </p>
+                <div className="mt-2 inline-flex items-center gap-2 rounded-full bg-[#FFF1ED] px-3 py-1">
+                  <div className="h-2 w-2 rounded-full bg-[#E25C43]" />
+                  <span className="text-sm font-semibold text-[#E25C43]">
+                    ASAP / Today
+                  </span>
+                </div>
+              </div>
+
+              {/* Location Card */}
+              <div className="col-span-2 rounded-2xl border border-stroke/50 bg-white p-4 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.03)]">
+                <p className="text-xs font-semibold uppercase tracking-wider text-[#6B7280]">
+                  Location
+                </p>
+                <p className="mt-1.5 text-[15px] font-semibold text-foreground">
+                  {job.location_name}
+                </p>
+              </div>
+            </div>
+
             {/* Live OpenStreetMap Integration */}
-            <div>
-              <h3 className="text-sm font-semibold text-foreground mb-3 hidden md:block">Location Map</h3>
-              <div className="h-48 md:h-64 w-full overflow-hidden rounded-xl border border-stroke bg-shade relative">
+            <div className="mt-6">
+              <div className="h-55 md:h-64 w-full overflow-hidden rounded-2xl border border-stroke bg-shade relative">
                 <iframe
                   width="100%"
                   height="100%"
@@ -215,96 +315,39 @@ return (
                   marginWidth={0}
                   src={`https://www.openstreetmap.org/export/embed.html?bbox=${job.longitude - 0.005},${job.latitude - 0.005},${job.longitude + 0.005},${job.latitude + 0.005}&layer=mapnik&marker=${job.latitude},${job.longitude}`}
                   className="absolute inset-0"
-                  style={{ filter: "grayscale(20%) contrast(1.1)" }} // Slight filter to make it fit UI better
+                  style={{ filter: "grayscale(20%) contrast(1.1)" }}
                 />
               </div>
             </div>
-
-            {/* People interested */}
-            <div className="flex flex-col gap-3">
-              <h3 className="text-sm font-semibold text-foreground">Applicants</h3>
-              {job.status === "in_progress"
-                ? acceptedApplication &&
-                  (isPoster || isAcceptedApplicant) && (
-                    <ApplicantTile
-                      key={acceptedApplication.id}
-                      application={acceptedApplication}
-                      applicant={applicants[acceptedApplication.applicant_id] ?? null}
-                      isPoster={isPoster}
-                      accepted
-                    />
-                  )
-                : applications.map((app) => (
-                    <ApplicantTile
-                      key={app.id}
-                      application={app}
-                      applicant={applicants[app.applicant_id] ?? null}
-                      isPoster={isPoster}
-                      onAccept={() => openAcceptModal(app)}
-                      accepting={accepting && acceptTarget?.application.id === app.id}
-                    />
-                  ))}
-              {applications.length === 0 && job.status === "open" && (
-                <p className="text-sm text-muted-foreground p-4 text-center border border-dashed border-stroke rounded-xl">
-                  No applicants yet. Check back later!
-                </p>
-              )}
-            </div>
           </div>
 
-          {/* Right Column: Sticky Info & Actions */}
+          {/* Right Column: Applicants & Desktop Actions */}
           <div className="md:col-span-5">
-            <div className="rounded-xl border border-stroke bg-shade p-5 md:p-6 flex flex-col gap-5 sticky top-24">
+            <div className="rounded-2xl border border-stroke bg-shade p-5 md:p-6 flex flex-col gap-5 sticky top-24">
               
-              {/* Poster row */}
-              <div className="flex items-center gap-3 pb-5 border-b border-stroke">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary/10 text-base font-semibold text-primary">
-                  {getInitials(poster)}
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-foreground">
-                    {getDisplayName(poster)}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Posted {formatPostedAt(job.created_at)}
-                  </p>
-                </div>
+              {/* Status Header */}
+              <div className="flex items-center justify-between pb-4 border-b border-stroke">
+                <h3 className="text-sm font-bold text-foreground">Request Status</h3>
+                <span className="inline-flex items-center rounded-full bg-[#E0F2F1] px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider text-[#00897B]">
+                  {job.status.replace("_", " ")}
+                </span>
               </div>
 
-              {/* Budget + status */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Budget Offered</p>
-                  <p className="mt-1 text-xl font-bold text-foreground">₦{job.budget.toLocaleString()}</p>
-                </div>
-                <div>
-                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Status</p>
-                  <span className="mt-1 inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold capitalize text-primary">
-                    {job.status.replace("_", " ")}
-                  </span>
-                </div>
-              </div>
-
-              {/* Location Text */}
-              <div>
-                <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Neighborhood</p>
-                <p className="mt-1 text-sm font-medium text-foreground">{job.location_name}</p>
-              </div>
-
-              {/* Desktop Actions (Hidden on mobile, uses bottom bar instead) */}
-              <div className="hidden md:flex gap-3 pt-4 mt-2 border-t border-stroke">
+              {/* Desktop Actions */}
+              <div className="hidden md:flex gap-3">
                 {!isPoster && (
                   <button
                     onClick={() => router.push(`/chat/${job.posted_by}`)}
                     aria-label="Message"
-                    className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-stroke bg-background text-foreground hover:bg-border transition-colors"
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-stroke bg-background text-muted-foreground hover:bg-border transition-colors"
                   >
                     <ChatIcon className="h-5 w-5" />
                   </button>
                 )}
 
                 {!isPoster && job.status === "open" && (
-                  <button onClick={() => setApplyModalOpen(true)} className="flex-1 rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground hover:opacity-90 transition-opacity">
+                  <button onClick={() => setApplyModalOpen(true)} className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-[#E25C43] px-4 py-3 text-[15px] font-bold text-white hover:bg-[#D44E36] transition-colors">
+                    <HandPalmIcon weight="regular" className="h-5 w-5" />
                     I can do this
                   </button>
                 )}
@@ -312,7 +355,7 @@ return (
                 {isPoster && job.status === "open" && (
                   <button
                     onClick={() => router.push(`/requests/${jobId}/edit`)}
-                    className="flex-1 rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground hover:opacity-90 transition-opacity"
+                    className="flex-1 rounded-xl bg-primary px-4 py-3 text-[15px] font-bold text-primary-foreground hover:opacity-90 transition-opacity"
                   >
                     Edit request
                   </button>
@@ -321,7 +364,7 @@ return (
                 {job.status === "in_progress" && isAcceptedApplicant && (
                   <button
                     onClick={() => setCompleteSheetOpen(true)}
-                    className="flex-1 rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground hover:opacity-90 transition-opacity"
+                    className="flex-1 rounded-xl bg-primary px-4 py-3 text-[15px] font-bold text-primary-foreground hover:opacity-90 transition-opacity"
                   >
                     Mark job complete
                   </button>
@@ -330,16 +373,47 @@ return (
                 {job.status === "in_progress" && isPoster && (
                   <button
                     onClick={() => setCompleteSheetOpen(true)}
-                    className="flex-1 rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground hover:opacity-90 transition-opacity"
+                    className="flex-1 rounded-xl bg-primary px-4 py-3 text-[15px] font-bold text-primary-foreground hover:opacity-90 transition-opacity"
                   >
                     Complete and sign off
                   </button>
                 )}
 
                 {!isPoster && job.status === "in_progress" && !isAcceptedApplicant && (
-                  <button disabled className="flex-1 cursor-not-allowed rounded-lg bg-muted px-4 py-3 text-sm font-semibold text-muted-foreground">
+                  <button disabled className="flex-1 cursor-not-allowed rounded-xl bg-muted px-4 py-3 text-[15px] font-bold text-muted-foreground">
                     No longer open
                   </button>
+                )}
+              </div>
+
+              {/* Applicants List */}
+              <div className="flex flex-col gap-3 mt-2">
+                <h3 className="text-sm font-semibold text-foreground">Applicants</h3>
+                {job.status === "in_progress"
+                  ? acceptedApplication &&
+                    (isPoster || isAcceptedApplicant) && (
+                      <ApplicantTile
+                        key={acceptedApplication.id}
+                        application={acceptedApplication}
+                        applicant={applicants[acceptedApplication.applicant_id] ?? null}
+                        isPoster={isPoster}
+                        accepted
+                      />
+                    )
+                  : applications.map((app) => (
+                      <ApplicantTile
+                        key={app.id}
+                        application={app}
+                        applicant={applicants[app.applicant_id] ?? null}
+                        isPoster={isPoster}
+                        onAccept={() => openAcceptModal(app)}
+                        accepting={accepting && acceptTarget?.application.id === app.id}
+                      />
+                    ))}
+                {applications.length === 0 && job.status === "open" && (
+                  <p className="text-sm text-muted-foreground p-4 text-center border border-dashed border-stroke rounded-xl">
+                    No applicants yet. Check back later!
+                  </p>
                 )}
               </div>
             </div>
@@ -348,39 +422,40 @@ return (
       </div>
 
       {/* Mobile-only bottom action bar */}
-      <div className="fixed inset-x-0 bottom-0 border-t border-stroke bg-background p-4 md:hidden z-20">
+      <div className="fixed inset-x-0 bottom-0 border-t border-stroke bg-background px-4 py-3 md:hidden z-20 shadow-[0_-4px_12px_rgba(0,0,0,0.03)] pb-[env(safe-area-inset-bottom)]">
         <div className="mx-auto flex w-full max-w-lg items-center gap-3">
           {!isPoster && (
             <button
               onClick={() => router.push(`/chat/${job.posted_by}`)}
               aria-label="Message"
-              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-stroke bg-shade text-foreground"
+              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-stroke bg-white text-foreground hover:bg-slate-50 transition-colors"
             >
               <ChatIcon className="h-5 w-5" />
             </button>
           )}
           {!isPoster && job.status === "open" && (
-            <button onClick={() => setApplyModalOpen(true)} className="flex-1 rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground">
+            <button onClick={() => setApplyModalOpen(true)} className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-[#E25C43] px-4 py-3.5 text-[15px] font-bold text-white hover:bg-[#D44E36] transition-colors">
+              <HandPalmIcon weight="regular" className="h-5 w-5" />
               I can do this
             </button>
           )}
           {isPoster && job.status === "open" && (
-            <button onClick={() => router.push(`/requests/${jobId}/edit`)} className="flex-1 rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground">
+            <button onClick={() => router.push(`/requests/${jobId}/edit`)} className="flex-1 rounded-xl bg-primary px-4 py-3.5 text-[15px] font-bold text-primary-foreground">
               Edit request
             </button>
           )}
           {job.status === "in_progress" && isAcceptedApplicant && (
-            <button onClick={() => setCompleteSheetOpen(true)} className="flex-1 rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground">
+            <button onClick={() => setCompleteSheetOpen(true)} className="flex-1 rounded-xl bg-primary px-4 py-3.5 text-[15px] font-bold text-primary-foreground">
               Mark job complete
             </button>
           )}
           {job.status === "in_progress" && isPoster && (
-            <button onClick={() => setCompleteSheetOpen(true)} className="flex-1 rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground">
+            <button onClick={() => setCompleteSheetOpen(true)} className="flex-1 rounded-xl bg-primary px-4 py-3.5 text-[15px] font-bold text-primary-foreground">
               Complete and sign off
             </button>
           )}
           {!isPoster && job.status === "in_progress" && !isAcceptedApplicant && (
-            <button disabled className="flex-1 cursor-not-allowed rounded-lg bg-muted px-4 py-3 text-sm font-semibold text-muted-foreground">
+            <button disabled className="flex-1 cursor-not-allowed rounded-xl bg-muted px-4 py-3.5 text-[15px] font-bold text-muted-foreground">
               No longer open
             </button>
           )}
@@ -415,12 +490,8 @@ return (
             ? getDisplayName(applicants[acceptedApplication?.applicant_id ?? -1] ?? null)
             : getDisplayName(poster)
         }
-        onComplete={() => {
-          setCompleteSheetOpen(false);
-        }}
-        onSignOff={() => {
-          setCompleteSheetOpen(false);
-        }}
+        onComplete={() => setCompleteSheetOpen(false)}
+        onSignOff={() => setCompleteSheetOpen(false)}
       />
     </div>
   );
@@ -434,7 +505,7 @@ function RequestDetailSkeleton() {
           <div className="h-9 w-9 rounded-lg bg-muted" />
           <div className="h-4 w-32 rounded-md bg-muted" />
         </div>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-12 gap-8 lg:gap-12">
           <div className="md:col-span-7 space-y-6">
             <div className="space-y-2 animate-pulse">

@@ -59,6 +59,7 @@ export type User = {
   profile_picture: string | null;
   is_email_verified: boolean;
   created_at: string;
+  profile_image?: string | null;
 };
 
 export type PublicUser = {

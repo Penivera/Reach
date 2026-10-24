@@ -96,6 +96,8 @@ export default function ApplyJobModal({
       role="dialog"
       aria-modal="true"
       aria-label="Apply to this request"
+      onClick={(e) => e.stopPropagation()} // stops bubbling
+      onKeyDown={(e) => e.stopPropagation()} // stops keyboard events bubbling
     >
       {/* Backdrop */}
       <div

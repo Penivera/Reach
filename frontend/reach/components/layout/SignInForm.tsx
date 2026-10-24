@@ -47,15 +47,15 @@ export default function SignInForm() {
           onChange={(e) => setPassword(e.target.value)} 
           placeholder="Enter your password" 
           required 
-        />
-        <div className="text-right">
-          <Link href="/auth/forgot-password" className="text-[11px] text-muted-foreground hover:text-primary transition-colors">
+        /> 
+        <div className="text-left ">
+          <Link href="/auth/forgot-password" className="text-sm font-bold text-primary hover:text-primary/80 transition-colors">
             Forgot password?
           </Link>
         </div>
       </div>
 
-      <Button type="submit" intent="form" variant="primary" className="mt-2" loading={loading}>
+      <Button type="submit" intent="form" variant="primary" className="mt-88" loading={loading}>
         Sign In
       </Button>
 

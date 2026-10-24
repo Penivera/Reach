@@ -75,9 +75,23 @@ export function getJobs(): Promise<Job[]> {
   });
 }
 
-export function createJob(data: CreateJobInput) {
-  return api("/jobs", {
+// export function createJob(data: CreateJobInput) {
+//   return api("/jobs", {
+//     method: "POST",
+//     body: JSON.stringify(data),
+//   });
+// }
+
+export function createJob(data: CreateJobInput): Promise<Job> {
+  return api<Job>("/jobs", {
     method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export function updateJob(jobId: number, data: UpdateJobInput): Promise<Job> {
+  return api<Job>(`/jobs/${jobId}`, {
+    method: "PUT",
     body: JSON.stringify(data),
   });
 }
@@ -94,12 +108,12 @@ export function getJob(jobId: number): Promise<Job> {
   });
 }
 
-export function updateJob(jobId: number, data: UpdateJobInput) {
-  return api(`/jobs/${jobId}`, {
-    method: "PUT",
-    body: JSON.stringify(data),
-  });
-}
+// export function updateJob(jobId: number, data: UpdateJobInput) {
+//   return api(`/jobs/${jobId}`, {
+//     method: "PUT",
+//     body: JSON.stringify(data),
+//   });
+// }
 
 export function deleteJob(jobId: number) {
   return api(`/jobs/${jobId}`, {

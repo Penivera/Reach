@@ -1,7 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import OrderItem, { OrderStatus } from "@/components/ui/OrderItem";
 import Button from "@/components/ui/Button";
+import { releaseJobPayment } from "@/lib/payment";
+import { toast } from "@/lib/toast";
 
 interface Order {
   id: string;
@@ -14,44 +17,53 @@ interface Order {
   status: OrderStatus;
 }
 
-const orders: Order[] = [
+const initialMockOrders: Order[] = [
   {
     id: "ord_1",
     productId: "rice-5kg",
-    businessName: "Mama Tani Foods",
-    productName: "Local rice, 5kg",
+    businessName: "Mama Beatrice",
+    productName: "5kg Local Rice",
+    productSubtext: "Lekki Market",
     price: "₦4,500",
-    orderedAt: "2 hours ago",
+    orderedAt: "July 2, 2026",
     status: "escrow-active",
   },
   {
     id: "ord_2",
-    productId: "generator-service",
-    businessName: "Emeka Electricals",
-    productName: "Generator repair",
-    productSubtext: "Home visit",
-    price: "₦8,000",
-    orderedAt: "Yesterday",
-    status: "escrow-released",
+    productId: "plumber-service",
+    businessName: "Abiola (Plumber)",
+    productName: "Kitchen Sink Leakage Fix",
+    price: "₦5,000",
+    orderedAt: "July 2, 2026",
+    status: "escrow-active",
   },
   {
     id: "ord_3",
-    productId: "phone-case",
-    businessName: "Uyo Gadgets",
-    productName: "Phone case",
-    price: "₦1,200",
-    orderedAt: "3 days ago",
+    productId: "stylist",
+    businessName: "Kemi (Stylist)",
+    productName: "Braid Extensions",
+    price: "₦3,500",
+    orderedAt: "June 28, 2026",
+    status: "escrow-released",
+  },
+  {
+    id: "ord_4",
+    productId: "tailor",
+    businessName: "Chidi (Tailor)",
+    productName: "Ankara Dress Custom Stitch",
+    price: "₦6,000",
+    orderedAt: "June 20, 2026",
     status: "under-dispute",
   },
 ];
 
 function EmptyOrders() {
   return (
-    <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-stroke px-6 py-16 text-center">
-      <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-shade">
+    <div className="flex flex-col items-center justify-center rounded-[20px] border border-dashed border-stroke px-6 py-16 text-center mt-4">
+      <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-shade">
         <svg
           viewBox="0 0 24 24"
-          className="h-6 w-6 text-muted-foreground"
+          className="h-7 w-7 text-muted-foreground"
           fill="none"
           stroke="currentColor"
           strokeWidth="1.6"
@@ -62,33 +74,56 @@ function EmptyOrders() {
           <path d="M9 7V5a3 3 0 0 1 6 0v2" />
         </svg>
       </div>
-      <p className="text-sm font-semibold text-foreground">No orders yet</p>
-      <p className="mt-1 max-w-xs text-sm text-muted-foreground">
+      <p className="text-[16px] font-bold text-foreground">No orders yet</p>
+      <p className="mt-1.5 max-w-xs text-[14px] font-medium text-muted-foreground">
         Once you request something, it'll show up here so you can track it.
       </p>
-      <div className="mt-4">
-        <Button href="/browse">Start browsing</Button>
+      <div className="mt-6 w-full max-w-50">
+        <Button href="/browse" className="w-full rounded-[14px]">Start browsing</Button>
       </div>
     </div>
   );
 }
 
-function handleRelease(orderId: string) {
-  // TODO: wire up the real escrow-release call — this probably wants a
-  // confirm step before it fires, given it's moving money.
-  console.log("release", orderId);
-}
-
 export default function OrdersPage() {
-  return (
-    <div className="min-h-screen bg-background px-4 py-6">
-      <h1 className="text-lg font-semibold text-foreground">My orders</h1>
 
-      <div className="mt-4 flex flex-col gap-3">
-        {orders.length === 0 ? (
+  // const [activeOrders, setActiveOrders] = useState<Order[]>(initialMockOrders);
+  const [activeOrders, setActiveOrders] = useState<Order[]>([]);
+
+  async function handleRelease(orderId: string) {
+    if (!window.confirm("Are you sure you want to release these funds to the provider? This action cannot be undone.")) {
+      return;
+    }
+
+    try {
+      if (orderId.startsWith("ord_")) {
+        await new Promise((resolve) => setTimeout(resolve, 600)); // Simulate network latency
+      } else {
+        await releaseJobPayment(orderId);
+      }
+
+      // INSTANT UI UPDATE: Mutate state to change status to "escrow-released"
+      setActiveOrders((prevOrders) =>
+        prevOrders.map((order) =>
+          order.id === orderId ? { ...order, status: "escrow-released" } : order
+        )
+      );
+
+      toast.success("Funds released! Order is now completed.");
+    } catch (error) {
+      console.error("Release failed:", error);
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-background px-5 py-6 pb-30">
+      <h1 className="text-[28px] font-bold text-foreground tracking-tight">My Orders</h1>
+
+      <div className="mt-6 flex flex-col gap-4">
+        {activeOrders.length === 0 ? (
           <EmptyOrders />
         ) : (
-          orders.map((order) => (
+          activeOrders.map((order) => (
             <OrderItem
               key={order.id}
               businessName={order.businessName}

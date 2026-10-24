@@ -1,4 +1,5 @@
 import Button from "@/components/ui/Button";
+import StepIndicator from "@/components/ui/StepIndicator";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -36,7 +37,13 @@ export default function Home() {
             From a bag of rice to a plumber who can come now — it&apos;s all a
             tap away.
           </p>
-          <div className="w-full flex flex-col gap-3 pt-2">
+
+          
+          
+          <div className="w-full flex flex-col gap-6  pt-8 mt-auto">
+
+            <StepIndicator currentStep={1} totalSteps={3} />
+
             <Button href="/auth/location" intent="action" variant="primary" className="text-base">
               Get started
             </Button>

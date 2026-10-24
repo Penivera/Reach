@@ -16,6 +16,7 @@ class JobStatus(str, Enum):
     # waiting for its funding before it can accept providers.
     PENDING_FUNDING = "pending_funding"
     OPEN = "open"
+    AWAITING_PAYMENT = "awaiting_payment"
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
     CANCELLED = "cancelled"

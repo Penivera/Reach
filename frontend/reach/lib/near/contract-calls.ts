@@ -20,13 +20,13 @@ const STABLECOIN_CONTRACT = "usdc.fakes.testnet";
 export async function createTaskOnChain(
   selector: WalletSelector,
   accountId: string,
-  budget: number, // whole units, e.g. naira-pegged stablecoin amount
+  budget: number, 
   desc: string,
   tag: string | null,
-  decimals: number // stablecoin decimals — need this from you
+  decimals: number
 ) {
   const wallet = await selector.wallet();
-  const amount = BigInt(Math.round(budget * 10 ** decimals)).toString();
+  const amount = BigInt(Math.round(budget * (10 ** decimals))).toString();
 
   await wallet.signAndSendTransaction({
     receiverId: STABLECOIN_CONTRACT,
@@ -53,10 +53,10 @@ export async function createTaskOnChain(
             }),
           },
           gas: "100000000000000",
-          deposit: "1", // 1 yoctoNEAR required by ft_transfer_call
+          deposit: "1", 
         },
       },
-    ],
+    ] as any, // Bypass strict Action typing
   });
 }
 
@@ -74,7 +74,7 @@ export async function createApplicationOnChain(selector: WalletSelector, taskId:
           deposit: "0",
         },
       },
-    ],
+    ] as any,
   });
 }
 
@@ -92,7 +92,7 @@ export async function acceptApplicationOnChain(selector: WalletSelector, nearApp
           deposit: "0",
         },
       },
-    ],
+    ] as any,
   });
 }
 
@@ -110,7 +110,7 @@ export async function approveWorkOnChain(selector: WalletSelector, nearTaskId: n
           deposit: "0",
         },
       },
-    ],
+    ] as any,
   });
 }
 
@@ -128,6 +128,6 @@ export async function completeTaskOnChain(selector: WalletSelector, nearTaskId: 
           deposit: "0",
         },
       },
-    ],
+    ] as any,
   });
 }

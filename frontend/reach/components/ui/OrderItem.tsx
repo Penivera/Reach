@@ -63,45 +63,58 @@ export default function OrderItem({
     </span>
   );
 
-  return (
-    <div className={`rounded-xl border border-slate-200 bg-white p-4 shadow-sm ${className}`.trim()}>
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0 flex-1">
-          <h3 className="text-sm font-semibold text-slate-900">{businessName}</h3>
-          <p className="mt-1 text-sm text-slate-600">{productName}</p>
-          {productSubtext ? (
-            <p className="mt-1 text-xs text-slate-500">{productSubtext}</p>
-          ) : null}
-        </div>
-
-        <div className="shrink-0 text-sm font-semibold text-slate-900">{price}</div>
+   return (
+    <div className={`flex flex-col gap-3.5 rounded-[20px] border border-stroke bg-white p-5 shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)] ${className}`.trim()}>
+      {/* Top Row: Business Name & Price */}
+      <div className="flex justify-between items-start">
+        <h3 className="text-[16px] font-bold text-foreground">{businessName}</h3>
+        <span className="text-[16px] font-bold text-foreground">{price}</span>
       </div>
 
-      <div className="mt-4 border-t border-slate-200 pt-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm text-slate-500">Ordered {orderedAt}</span>
-            {statusBadge}
-          </div>
+      {/* Middle Row: Product Details & Status Badge */}
+      <div className="flex flex-col items-start gap-3 -mt-1.5">
+        <p className="text-[13px] font-medium text-muted-foreground">
+          {productName} {productSubtext && <span className="text-muted-foreground/70">({productSubtext})</span>}
+        </p>
+        {statusBadge}
+      </div>
 
-          <div className="flex items-center gap-2">
-            {status === "escrow-active" ? (
-              <>
-                <NestedButton variant="secondary" onClick={onTrack} href={trackHref}>
-                  {trackLabel}
-                </NestedButton>
-                <NestedButton onClick={onRelease} href={releaseHref}>
-                  {releaseLabel}
-                </NestedButton>
-              </>
-            ) : null}
+      {/* Bottom Row: Date & Action Buttons */}
+      <div className="mt-1 flex items-center justify-between border-t border-stroke pt-4">
+        <span className="text-[12px] font-medium text-muted-foreground">
+          {status === "escrow-released" ? "Completed " : "Ordered "}
+          {orderedAt}
+        </span>
 
-            {status === "escrow-released" ? (
-              <NestedButton variant="secondary" onClick={onReorder} href={reorderHref}>
-                {reorderLabel}
-              </NestedButton>
-            ) : null}
-          </div>
+        <div className="flex items-center gap-2.5">
+          {status === "escrow-active" && trackHref && (
+            <NestedButton
+              variant="secondary"
+              href={trackHref}
+              onClick={onTrack}
+              className="flex h-9 items-center justify-center rounded-[10px] border border-gray-300 bg-white px-4 text-[13px] font-bold text-foreground transition-colors active:bg-shade"
+            >
+              {trackLabel}
+            </NestedButton>
+          )}
+          {status === "escrow-active" && onRelease && (
+            <button
+              onClick={onRelease}
+              className="flex h-9 items-center justify-center rounded-[10px] bg-[#E25C43] px-4 text-[13px] font-bold text-white transition-colors active:bg-[#D44E36]"
+            >
+              {releaseLabel}
+            </button>
+          )}
+          {(status === "escrow-released" || status === "under-dispute") && reorderHref && (
+            <NestedButton
+              variant="secondary"
+              href={reorderHref}
+              onClick={onReorder}
+              className="flex h-9 items-center justify-center rounded-[10px] border border-stroke bg-white px-4 text-[13px] font-bold text-foreground transition-colors active:bg-shade"
+            >
+              {reorderLabel}
+            </NestedButton>
+          )}
         </div>
       </div>
     </div>

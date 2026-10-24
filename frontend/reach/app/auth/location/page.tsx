@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Button from "@/components/ui/Button";
 import Image from "next/image";
+import StepIndicator from "@/components/ui/StepIndicator";
 import { ArrowLeftIcon } from "@phosphor-icons/react";
 import Spinner from "@/components/ui/Spinner";
 import LocationSearchModal, {
@@ -49,7 +50,7 @@ export default function LocationPage() {
   }) => {
     persistLocation(coords);
 
-    router.push("/auth/signup");
+    router.push("/auth/interest");
   };
 
   const handleGetLocation = () => {
@@ -162,8 +163,12 @@ export default function LocationPage() {
             We use your location to show sellers and service providers who
             can reach you in minutes.
           </p>
+          
 
-          <div className="w-full flex flex-col gap-3 pt-2">
+          <div className="w-full flex flex-col gap-6  pt-8 mt-auto">
+
+            <StepIndicator currentStep={2} totalSteps={3} />
+
             <Button
               intent="action"
               variant="primary"
@@ -182,7 +187,7 @@ export default function LocationPage() {
 
             <button
               onClick={() => setIsSearchOpen(true)}
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors duration-200 font-semibold text-center md:text-left md:pl-2"
+              className="text-sm text-green-600 hover:text-foreground transition-colors duration-200 font-semibold text-center md:text-left md:pl-2"
             >
               Enter location manually
             </button>

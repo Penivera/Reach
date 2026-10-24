@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import Input from "../ui/Input";
 import Button from "../ui/Button";
-import { signup, resendVerification } from "@/lib/auth"; 
+import { signup, resendVerification } from "@/lib/auth";
 
 export default function SignUpForm() {
   const [formData, setFormData] = useState({
@@ -28,7 +28,7 @@ export default function SignUpForm() {
     if (errors[id]) setErrors((prev) => ({ ...prev, [id]: "" }));
   };
 
-  const handleSubmit = async (e: React.SubmitEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setErrors({});
 
@@ -38,8 +38,7 @@ export default function SignUpForm() {
     }
 
     setLoading(true);
-    
-    // Retrieve location from sessionStorage
+
     let location: { latitude?: number; longitude?: number; displayName?: string } = {};
     try {
       const locationData = sessionStorage.getItem("reach:location");
@@ -47,10 +46,10 @@ export default function SignUpForm() {
         location = JSON.parse(locationData);
       }
     } catch {
+      // Silently handle parse errors
     }
 
     try {
-      console.log("Form data: ", formData);
       await signup({
         first_name: formData.first_name,
         last_name: formData.last_name,
@@ -66,14 +65,12 @@ export default function SignUpForm() {
 
       setIsRegistered(true);
     } catch (err: any) {
-      
       const message = err?.detail || "An unexpected error occurred during registration.";
       setErrors({ global: message });
     } finally {
       setLoading(false);
     }
   };
-
 
   async function handleResend() {
     setResendState("sending");
@@ -105,31 +102,28 @@ export default function SignUpForm() {
           </Link>
 
           <div className="pt-2 space-y-2">
-        <button
-          onClick={handleResend}
-          disabled={resendState === "sending" || resendState === "sent"}
-          className="text-sm text-primary hover:underline font-medium disabled:opacity-50 disabled:no-underline"
-        >
-          {resendState === "sending"
-            ? "Sending..."
-            : resendState === "sent"
-            ? "Verification email resent"
-            : "Didn't get it? Resend email"}
-        </button>
-        {resendState === "error" && (
-          <p className="text-xs text-red-500">Couldn't resend — try again in a moment.</p>
-        )}
-      </div>
+            <button
+              onClick={handleResend}
+              disabled={resendState === "sending" || resendState === "sent"}
+              className="text-sm text-primary hover:underline font-medium disabled:opacity-50 disabled:no-underline"
+            >
+              {resendState === "sending"
+                ? "Sending..."
+                : resendState === "sent"
+                  ? "Verification email resent"
+                  : "Didn't get it? Resend email"}
+            </button>
+            {resendState === "error" && (
+              <p className="text-xs text-red-500">Couldn't resend — try again in a moment.</p>
+            )}
+          </div>
         </div>
       </div>
     );
   }
 
-  
-
   return (
     <form className="space-y-4" onSubmit={handleSubmit}>
-
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Input id="first_name" label="First Name" value={formData.first_name} onChange={handleInputChange} placeholder="Your First Name" required />
         <Input id="last_name" label="Last Name" value={formData.last_name} onChange={handleInputChange} placeholder="Your Last Name" required />
@@ -138,22 +132,31 @@ export default function SignUpForm() {
       <Input id="username" label="Username" value={formData.username} onChange={handleInputChange} placeholder="Set a username" required />
       <Input id="email" label="Email Address" type="email" value={formData.email} onChange={handleInputChange} placeholder="Enter your email" required />
       <Input id="phone_number" label="Phone Number" type="tel" value={formData.phone_number} onChange={handleInputChange} placeholder="Your phone number" required />
-      
+
       <Input id="password" label="Password" type="password" value={formData.password} onChange={handleInputChange} placeholder="Set a password" required />
       <Input id="confirm_password" label="Confirm Password" type="password" value={formData.confirm_password} onChange={handleInputChange} placeholder="Confirm your password" error={errors.confirm_password} required />
-      
+
+      {errors.global && (
+        <p className="text-sm text-destructive font-medium text-center">{errors.global}</p>
+      )}
+
       <Button type="submit" intent="form" variant="primary" className="mt-2" loading={loading}>
         Create Account
       </Button>
 
+      <div className="flex flex-col items-center gap-4 pt-4">
+        <p className="text-xs text-muted-foreground">
+          Already have an account?{" "}
+          <Link href="/auth/signin" className="font-semibold text-primary hover:underline">
+            Sign in
+          </Link>
+        </p>
 
-    <Link href="/auth/signin" className="hover:underline font-semibold">  
-    <p className="text-center text-xs text-muted-foreground pt-2">  
-    Already have an account?{" "}  
-    <span className="text-primary">Sign in</span>
-    </p>  
-    </Link>
-
+        <p className="text-center text-xs text-muted-foreground px-4">
+          By signing up, you agree to our terms of service and consent to
+          our data privacy policy guidelines.
+        </p>
+      </div>
     </form>
   );
 }
