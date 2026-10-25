@@ -2,12 +2,13 @@ from fastapi import APIRouter, HTTPException, status, Depends, UploadFile, File
 from models import User, Skill, UserSkill
 from schemas import UserUpdate, UserPublicResponse, UserResponse, UserSkillUpdate, SkillResponse, LocationUpdate, FCMTokenUpdate, OnchainAddressUpdate
 from payment_validation import PaymentProfileValidationError, validate_solana_address
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from datetime import datetime, timedelta, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 from dependencies import get_current_user, get_db
 from utils import upload_image
-
+from geoalchemy2.functions import ST_GeogFromText
 
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -16,10 +17,10 @@ router = APIRouter(prefix="/users", tags=["users"])
 async def get_profile(db:AsyncSession = Depends(get_db), current_user=Depends(get_current_user)):
     return current_user
 
-@router.patch("/me")
-async def update_profile(data: UserUpdate, db: AsyncSession=Depends(get_db), 
+@router.patch("/me", response_model=UserResponse)
+async def update_profile(data: UserUpdate, db: AsyncSession=Depends(get_db),
                          current_user=Depends(get_current_user)):
-    
+
     update_data = data.model_dump(
         exclude_unset = True
     )
@@ -46,7 +47,7 @@ async def get_user(user_id:int, db:AsyncSession=Depends(get_db)):
 
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="user not found")
-    
+
     return user
 
 @router.get("", response_model=list[UserPublicResponse])
@@ -59,12 +60,17 @@ async def get_users(db: AsyncSession=Depends(get_db)):
 
 @router.get("/me/skills", response_model=list[SkillResponse])
 async def get_my_skills(db:AsyncSession=Depends(get_db), current_user=Depends(get_current_user)):
-    return [user_skill.skill for user_skill in current_user.user_skill]
+    result = await db.execute(
+        select(UserSkill)
+        .options(selectinload(UserSkill.skill))
+        .where(UserSkill.user_id == current_user.id)
+    )
+    return [user_skill.skill for user_skill in result.scalars().all()]
 
 @router.put("/me/skills")
-async def update_my_skills(data: UserSkillUpdate, 
+async def update_my_skills(data: UserSkillUpdate,
                            db:AsyncSession=Depends(get_db), current_user=Depends(get_current_user)):
-    
+
     result = await db.execute(select(Skill).where(Skill.id.in_(data.skill_ids)))
 
     skills = result.scalars().all()
@@ -72,19 +78,20 @@ async def update_my_skills(data: UserSkillUpdate,
     if len(skills) != len(set(data.skill_ids)):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail="One or more skill do not exist")
-    
-    current_user.skills.clear()
 
-    current_user.skills.extend(
-        UserSkill(skill=skill)
+    await db.execute(
+        delete(UserSkill).where(UserSkill.user_id == current_user.id)
+    )
+    db.add_all(
+        UserSkill(user_id=current_user.id, skill_id=skill.id)
         for skill in skills
     )
 
-    try: 
+    try:
         await db.commit()
 
         await db.refresh(current_user)
-    
+
     except Exception:
         await db.rollback()
         raise
@@ -125,9 +132,9 @@ async def update_onchain_address(
 
 
 @router.put("/me/location")
-async def update_location(data: LocationUpdate,                          db:AsyncSession=Depends(get_db), current_user=Depends(get_current_user)):
-    current_user.latitude = data.latitude
-    current_user.longitude = data.longitude
+async def update_location(data: LocationUpdate, db:AsyncSession=Depends(get_db), current_user=Depends(get_current_user)):
+    if data.latitude is not None and data.longitude is not None:
+        current_user.location = ST_GeogFromText(f"POINT({data.longitude} {data.latitude})")
     current_user.location_name = data.location_name
     current_user.location_updated_at = datetime.now(timezone.utc)
 
@@ -135,7 +142,7 @@ async def update_location(data: LocationUpdate,                          db:Asyn
         await db.commit()
 
         await db.refresh(current_user)
-    
+
     except Exception:
         await db.rollback()
         raise
@@ -145,7 +152,7 @@ async def update_location(data: LocationUpdate,                          db:Asyn
 
 @router.put("/me/fcm-token")
 async def update_fcm_token(data: FCMTokenUpdate, db:AsyncSession=Depends(get_db), current_user=Depends(get_current_user)):
-    
+
     current_user.fcm_token = data.fcm_token
 
     try:
@@ -157,8 +164,8 @@ async def update_fcm_token(data: FCMTokenUpdate, db:AsyncSession=Depends(get_db)
 
 @router.delete("/me")
 async def delete_me(db:AsyncSession=Depends(get_db), current_user=Depends(get_current_user)):
-    current_user.is_delete = True
-    
+    current_user.is_deleted = True
+
     try:
         await db.commit()
 

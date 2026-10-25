@@ -2,12 +2,14 @@ import logging
 
 from fastapi import APIRouter, HTTPException, status, Depends, Response
 from models import User, EmailVerificationToken, PasswordResetToken
-from schemas import (UserCreate, UserResponse, EmailVerificationRequest, 
+from schemas import (UserCreate, UserResponse, EmailVerificationRequest,
                      ForgotPasswordRequest, ResetPasswordRequest, ChangePasswordRequest, ResendEmailVerificationRequest, UserSignUpResponse)
 from utils import hash_password, verify_password, create_access_token, generate_token, send_verification_email, send_reset_password_email
 from dependencies import get_db, get_current_user
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import IntegrityError
+import secrets
 from fastapi.security import OAuth2PasswordRequestForm
 from datetime import timedelta, datetime
 from geoalchemy2.functions import ST_GeogFromText
@@ -18,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 @router.post("/create-user", response_model=UserSignUpResponse)
 async def create_user(user_data: UserCreate, db: AsyncSession =Depends(get_db)):
-    
+
     result = await db.execute(select(User).where(User.username == user_data.username))
 
     user_exist = result.scalar_one_or_none()
@@ -33,7 +35,7 @@ async def create_user(user_data: UserCreate, db: AsyncSession =Depends(get_db)):
 
     if email_exist:
         raise HTTPException(status_code=400, detail="Email already has an account")
-    
+
     point = None
 
     if user_data.longitude is not None and user_data.latitude is not None:
@@ -45,28 +47,33 @@ async def create_user(user_data: UserCreate, db: AsyncSession =Depends(get_db)):
     data.pop("latitude")
     data.pop("longitude")
 
-    data["hashed_password"] = await hash_password(data["hashed_password"])
+    raw_password = data.pop("password")
+    data["hashed_password"] = await hash_password(raw_password)
     data["location"] = point
 
+    if point is not None:
+        data["location_updated_at"] = datetime.utcnow()
+
     new_user = User(**data)
-    
+
     try:
         db.add(new_user)
-
         await db.flush()
 
-        token = await generate_token()
+        token = secrets.token_urlsafe(32)
 
         verification_token = EmailVerificationToken(
             user_id = new_user.id,
             token = token,
             expires_at=datetime.utcnow() + timedelta(hours=24)
-
         )
 
         db.add(verification_token)
         await db.commit()
 
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status_code=400, detail="Username or email already exists")
     except Exception:
         await db.rollback()
         raise
@@ -118,33 +125,33 @@ async def verify_email(token: str, db: AsyncSession = Depends(get_db)):
 async def resend_verification(data: ResendEmailVerificationRequest, db: AsyncSession = Depends(get_db)):
 
 
-    result = await db.execute(select(User).where(User.email == data.email, 
+    result = await db.execute(select(User).where(User.email == data.email,
                                                  User.is_deleted.is_(False)))
 
     user = result.scalar_one_or_none()
 
     if not user:
         return {"message": "check your email for verification link"}
-    
+
     if user.is_email_verified:
         raise HTTPException(status_code=400, detail="email is already verified")
-    
+
     await db.execute(delete(EmailVerificationToken).where(EmailVerificationToken.user_id == user.id))
 
 
 
-    token = await generate_token()
+    token = secrets.token_urlsafe(32)
 
     verification_token = EmailVerificationToken(user_id = user.id,
                                                 token = token,
-                                                expires_at = datetime.utcnow() + timedelta(hours=20))
-    
+                                                expires_at = datetime.utcnow() + timedelta(hours=24))
+
     db.add(verification_token)
-    
+
     try:
 
         await db.commit()
-    
+
     except Exception:
         await db.rollback()
         raise
@@ -164,25 +171,26 @@ async def resend_verification(data: ResendEmailVerificationRequest, db: AsyncSes
 
 @router.post("/login")
 async def login_user(response: Response, form_data: OAuth2PasswordRequestForm=Depends(), db: AsyncSession=Depends(get_db)):
-    result = await db.execute(select(User).where(User.username == form_data.username,
+    result = await db.execute(select(User).where(User.username == form_data.username.lower(),
                                                   User.is_deleted.is_(False)))
 
     db_user = result.scalar_one_or_none()
 
     if not (db_user and await verify_password(form_data.password, db_user.hashed_password)):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Credential")
-    
+
     if not db_user.is_email_verified:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Pease verify your email before logging in")
-    
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Please verify your email before logging in")
+
     token = create_access_token(data={"sub": str(db_user.id)})
 
     response.set_cookie(
         key="access_token",
         value=token,
         httponly=True,
-        samesite="lax",
-        max_age=60 * 15,
+        samesite="none",
+        secure=True,
+        max_age=60 * 60 * 24,
         path="/",
     )
 
@@ -208,21 +216,21 @@ async def forgot_password(data: ForgotPasswordRequest, db: AsyncSession = Depend
 
     if not user_exist:
         return {"message": "password reset link has been sent to your email"}
-    
+
     await db.execute(delete(PasswordResetToken).where(PasswordResetToken.user_id == user_exist.id))
 
 
-    token = await generate_token()
+    token = secrets.token_urlsafe(32)
 
     password_reset_token = PasswordResetToken(user_id = user_exist.id,
-                                                token = token,
-                                            expires_at = datetime.utcnow() + timedelta(minutes=20))
+                                                  token = token,
+                                                  expires_at = datetime.utcnow() + timedelta(minutes=20))
 
     db.add(password_reset_token)
 
     try:
         await db.commit()
-    
+
     except Exception:
         await db.rollback()
         raise
@@ -238,26 +246,26 @@ async def forgot_password(data: ForgotPasswordRequest, db: AsyncSession = Depend
 
 @router.post("/reset-password")
 async def reset_password(data: ResetPasswordRequest, db: AsyncSession = Depends(get_db)):
-    
+
     result = await db.execute(select(PasswordResetToken).where(PasswordResetToken.token == data.token))
 
     reset_token = result.scalar_one_or_none()
 
     if not reset_token:
         raise HTTPException(status_code = 400, detail="Invalid password reset token")
-    
+
     if reset_token.expires_at < datetime.utcnow():
         raise HTTPException(status_code = 400, detail="Expired password reset token")
-    
+
 
     result = await db.execute(select(User).where(User.id == reset_token.user_id,
                                                  User.is_deleted.is_(False)))
-    
+
     user = result.scalar_one_or_none()
 
     if not user:
         raise HTTPException(status_code = 404, detail="User doesn't exist")
-    
+
 
     hashed_password = await hash_password(data.new_password)
 
@@ -267,7 +275,7 @@ async def reset_password(data: ResetPasswordRequest, db: AsyncSession = Depends(
 
     try:
         await db.commit()
-    
+
     except Exception:
         await db.rollback()
         raise
@@ -278,18 +286,18 @@ async def reset_password(data: ResetPasswordRequest, db: AsyncSession = Depends(
 async def change_password(data: ChangePasswordRequest,
                            db: AsyncSession=Depends(get_db),
                           current_user=Depends(get_current_user)):
-    
+
     db_user = current_user
 
     if not db_user:
         raise HTTPException(status_code=404, detail="user not found!")
-    
+
     if not await verify_password(data.old_password, db_user.hashed_password):
         raise HTTPException(status_code=400, detail="incorrect password")
-    
+
     if await verify_password(data.new_password, db_user.hashed_password):
         raise HTTPException(status_code=400, detail="New password must be different from the current password")
-    
+
     hashed_password = await hash_password(data.new_password)
 
     db_user.hashed_password = hashed_password
@@ -297,10 +305,9 @@ async def change_password(data: ChangePasswordRequest,
     try:
 
         await db.commit()
-    
+
     except Exception:
-        await db.rollback()    
+        await db.rollback()
         raise
 
     return {"message": "password changed successfully"}
-

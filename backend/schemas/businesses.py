@@ -9,7 +9,8 @@ class BusinessCreate(BaseModel):
 class BusinessResponse(BaseModel):
     id: int
     owner_id: int
-    description: str
+    name: str
+    description: str | None = None
     model_config = ConfigDict(from_attributes=True)
 
 

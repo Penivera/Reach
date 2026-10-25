@@ -10,11 +10,17 @@ class Settings(BaseSettings):
     SMTP_FROM_EMAIL:str
     ACCESS_TOKEN_EXPIRE_MINUTES: int
     SMTP_HOST:str
-    # ZeptoMail SMTP on port 587 uses STARTTLS. Set this to false only for a
-    # local mail catcher that does not support it.
     SMTP_START_TLS: bool = True
+    FRONTEND_URL: str
     BACKEND_URL: str
     SMTP_FROM_NAME:str
+    # Brevo's transactional email API. When BREVO_ENABLED is true, mail goes
+    # through the HTTP API instead of SMTP. SMTP_FROM_NAME/SMTP_FROM_EMAIL are
+    # still used as the sender, so they must be verified in Brevo.
+    BREVO_ENABLED: bool = False
+    BREVO_API_URL: str = "https://api.brevo.com/v3"
+    BREVO_API_KEY: str | None = None
+    BREVO_TIMEOUT_SECONDS: float = 30.0
     CLOUDINARY_CLOUD_NAME:str
     CLOUDINARY_API_KEY:str
     CLOUDINARY_API_SECRET:str

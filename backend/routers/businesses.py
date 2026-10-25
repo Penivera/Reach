@@ -9,7 +9,7 @@ from utils import upload_image
 router = APIRouter(prefix="/businesses", tags=["businesses"])
 
 
-@router.post("/", response_model=BusinessResponse)
+@router.post("", response_model=BusinessResponse)
 async def create_business(business_data: BusinessCreate, db:AsyncSession=Depends(get_db), current_user=Depends(get_current_user)):
     result = await db.execute(select(Business).where(Business.owner_id == current_user.id))
 
@@ -106,3 +106,14 @@ async def upload_business_image(file: UploadFile = File(...), db: AsyncSession =
 async def delete_my_business():
     pass
 
+@router.get("/{business_id}", response_model=BusinessResponse)
+async def get_business(business_id: int, db: AsyncSession = Depends(get_db)):
+    business = await db.get(Business, business_id)
+    if not business:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="business not found")
+    return business
+
+@router.get("", response_model=list[BusinessResponse])
+async def list_businesses(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Business))
+    return result.scalars().all()

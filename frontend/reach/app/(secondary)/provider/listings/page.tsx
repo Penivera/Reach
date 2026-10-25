@@ -28,10 +28,7 @@ function statusBadge(status: ServiceStatus) {
 }
 
 function formatPriceRange(service: Service) {
-  if (service.min_price === service.max_price) {
-    return `₦${service.min_price.toLocaleString()}`;
-  }
-  return `₦${service.min_price.toLocaleString()} - ₦${service.max_price.toLocaleString()}`;
+  return `₦${service.starting_price.toLocaleString()}`;
 }
 
 export default function ProviderListingsPage() {

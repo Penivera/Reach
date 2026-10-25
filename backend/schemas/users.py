@@ -9,6 +9,11 @@ class BaseUser(BaseModel):
     username: str
     phone_number: str
 
+    @field_validator("email", "username")
+    @classmethod
+    def to_lowercase(cls, value: str):
+        return value.lower() if value else value
+
 class BaseLocation(BaseModel):
     latitude: float | None = None
     longitude: float | None = None
@@ -27,26 +32,26 @@ class BaseLocation(BaseModel):
         if value is not None and not -180 <= value <= 180:
             raise ValueError("Invalid longitude")
         return value
-    
+
 
 class UserCreate(BaseUser, BaseLocation):
-    hashed_password: str = Field(min_length=6)
+    password: str = Field(min_length=6)
     confirm_password: str = Field(min_length=6)
 
     @model_validator(mode="after")
     def password_match(self):
-        if self.hashed_password != self.confirm_password:
+        if self.password != self.confirm_password:
             raise ValueError("Password do not match")
         return self
-    
-    
+
+
 class UserUpdate(BaseModel):
     first_name: str | None = None
     last_name: str | None = None
     bio: str | None = None
     phone_number: str | None = None
 
-    
+
 class LocationUpdate(BaseLocation):
     pass
 
@@ -103,7 +108,7 @@ class ChangePasswordRequest(BaseModel):
         if self.new_password != self.confirm_password:
             raise ValueError("Password do not match")
         return self
-    
+
 
 class UserPublicResponse(BaseModel):
 
@@ -117,7 +122,7 @@ class UserPublicResponse(BaseModel):
 
     bio: str | None = None
 
-    profile_picture: str | None = None
+    profile_image: str | None = None
 
     onchain_address: str | None = None
 

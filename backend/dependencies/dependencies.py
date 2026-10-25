@@ -28,10 +28,8 @@ async def get_current_user(
         user_id = int(payload.get("sub"))
         if user_id is None:
             raise credential_exception
-    except JWTError:
+    except (JWTError, TypeError, ValueError):
         raise credential_exception
 
     user = await get_user_by_id(user_id, db)
-    if user is None:
-        raise credential_exception
     return user
