@@ -3,7 +3,7 @@ from sqlalchemy import select, or_
 from utils import upload_image
 from sqlalchemy.ext.asyncio import AsyncSession
 from dependencies import get_db, get_current_user
-from schemas import (ServiceCreate, ServiceResponse, ServiceUpdate, ServiceStatus, NearbyServiceQuery,ServiceRequestResponse, 
+from schemas import (ServiceCreate, ServiceResponse, ServiceUpdate, ServiceStatus, ListingKind, NearbyServiceQuery,ServiceRequestResponse,
                      ServiceRequestCreate, ServiceRequestStatus, MediaType, MediaResponse)
 from models import Category, Service, ServiceRequest, Business, Media
 from geoalchemy2.functions import ST_Distance, ST_DWithin, ST_GeogFromText
@@ -79,6 +79,7 @@ async def create_service(service_data: ServiceCreate, db: AsyncSession = Depends
 async def get_services(
     q: str | None = None,
     category_id: int | None = None,
+    kind: ListingKind | None = None,
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
     db: AsyncSession = Depends(get_db),
@@ -98,6 +99,9 @@ async def get_services(
 
     if category_id is not None:
         query = query.where(Service.category_id == category_id)
+
+    if kind is not None:
+        query = query.where(Service.kind == kind)
 
     query = query.order_by(Service.created_at.desc()).offset(offset).limit(limit)
 
@@ -128,6 +132,9 @@ async def get_services_nearby(data:NearbyServiceQuery=Depends(), db:AsyncSession
 
     if data.category_id is not None:
         query = query.where(Service.category_id == data.category_id)
+
+    if data.kind is not None:
+        query = query.where(Service.kind == data.kind)
 
     needle = (data.q or "").strip()
     if needle:

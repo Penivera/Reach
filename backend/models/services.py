@@ -1,7 +1,7 @@
-from sqlalchemy import String, Text, ForeignKey, Float, Enum
+from sqlalchemy import String, Text, ForeignKey, Float, Integer, Enum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from DB.database import Base
-from schemas import ServiceStatus, ServiceRequestStatus
+from schemas import ListingKind, ServiceStatus, ServiceRequestStatus
 from geoalchemy2.elements import WKBElement
 from geoalchemy2 import Geography
 from geoalchemy2.shape import to_shape
@@ -18,7 +18,13 @@ class Service(Base, TimeStampMixin):
 
     description: Mapped[str] = mapped_column(String, nullable=False)
 
-    starting_price: Mapped[float] = mapped_column(Float, nullable=False)
+    price: Mapped[float] = mapped_column(Float, nullable=False)
+
+    kind: Mapped[ListingKind] = mapped_column(
+        Enum(ListingKind), nullable=False, default=ListingKind.SERVICE, server_default="SERVICE"
+    )
+
+    stock: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     status: Mapped[ServiceStatus] = mapped_column(Enum(ServiceStatus), nullable=False, default= ServiceStatus.ACTIVE)
 

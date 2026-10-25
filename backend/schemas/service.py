@@ -1,5 +1,5 @@
-from pydantic import BaseModel, Field, ConfigDict, field_validator
-from .enums import ServiceStatus, ServiceRequestStatus
+from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator
+from .enums import ListingKind, ServiceStatus, ServiceRequestStatus
 from datetime import datetime
 from typing import Optional
 
@@ -11,7 +11,11 @@ class ServiceCreate(BaseModel):
 
     description: str
 
-    starting_price: float = Field(gt=0)
+    price: float = Field(gt=0)
+
+    kind: ListingKind
+
+    stock: int | None = Field(default=None, ge=0)
 
     category_id: int
 
@@ -20,6 +24,14 @@ class ServiceCreate(BaseModel):
     longitude: float
 
     location_name: str
+
+    @model_validator(mode="after")
+    def check_stock(self):
+        if self.kind == ListingKind.GOOD and self.stock is None:
+            raise ValueError("stock is required for goods")
+        if self.kind == ListingKind.SERVICE:
+            self.stock = None
+        return self
 
     @field_validator("latitude")
     @classmethod
@@ -42,7 +54,9 @@ class ServiceUpdate(BaseModel):
 
     description: Optional[str] = None
 
-    starting_price: Optional[float] = Field(default=None, gt=0)
+    price: Optional[float] = Field(default=None, gt=0)
+
+    stock: Optional[int] = Field(default=None, ge=0)
 
     category_id: Optional[int] = None
 
@@ -74,7 +88,11 @@ class ServiceResponse(BaseModel):
 
     title: str
     description: str
-    starting_price: float
+    price: float
+
+    kind: ListingKind
+
+    stock: int | None = None
 
     status: ServiceStatus
 
@@ -97,6 +115,7 @@ class NearbyServiceQuery(BaseModel):
     radius: float = Field(10, gt=0)
 
     category_id: int | None = None
+    kind: ListingKind | None = None
     q: str | None = Field(default=None, min_length=1, max_length=100)
     limit: int = Field(default=50, ge=1, le=100)
     offset: int = Field(default=0, ge=0)
@@ -156,4 +175,3 @@ class ServiceRequestResponse(BaseModel):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
-
