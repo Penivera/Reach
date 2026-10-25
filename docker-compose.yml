@@ -8,29 +8,96 @@ services:
 
     restart: unless-stopped
 
-    # Copy backend/.env.example to backend/.env first. These files are merged
-    # in order, so a root .env can override backend/.env for the container.
-    # Do not duplicate settings under `environment`: values there override
-    # both files and would silently discard the keys below.
-    env_file:
-      - path: ./backend/.env
-        required: false
-      - path: ./.env
-        required: false
-
+    # Every setting is read from the environment (shell or deployment
+    # platform). Defaults below only apply when a variable is not exported.
+    # backend/.env.example is a reference of the available variables; Compose
+    # does not load it.
     environment:
+      # --- App ---
+      SECRET_KEY: ${SECRET_KEY:-dev-only-change-me-before-deploying}
+      ALGORITHM: ${ALGORITHM:-HS256}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-15}
+      BACKEND_URL: ${BACKEND_URL:-http://localhost:8000}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+
       # --- Database ---
-      # PostGIS is not part of this stack. Set DATABASE_URL in the root .env
-      # (Compose reads it automatically) or export it before `docker compose up`.
-      # Use an address the container can reach:
+      # PostGIS is not part of this stack. Export DATABASE_URL before
+      # `docker compose up`. Use an address the container can reach:
       #   remote: postgresql+asyncpg://user:pass@db.example.com:5432/work_near
       #   host:   postgresql+asyncpg://postgres:postgres@host.docker.internal:5432/work_near
       # `localhost` inside the container is the container itself, not your host.
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required (postgresql+asyncpg://user:pass@host:5432/work_near)}
 
+      # --- Email ---
+      # Set BREVO_ENABLED=true to use the Brevo transactional email API;
+      # otherwise the SMTP fallback below is used.
+      BREVO_ENABLED: ${BREVO_ENABLED:-false}
+      BREVO_API_URL: ${BREVO_API_URL:-https://api.brevo.com/v3}
+      BREVO_API_KEY: ${BREVO_API_KEY:-}
+      BREVO_TIMEOUT_SECONDS: ${BREVO_TIMEOUT_SECONDS:-30}
+
+      # SMTP fallback (ZeptoMail by default).
+      SMTP_HOST: ${SMTP_HOST:-smtp.zeptomail.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_START_TLS: ${SMTP_START_TLS:-true}
+      SMTP_USERNAME: ${SMTP_USERNAME:-emailapikey}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM_NAME: ${SMTP_FROM_NAME:-Reach}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-no-reply@example.com}
+
+      # --- Cloudinary ---
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:-}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-}
+
+      # --- Payments ---
+      FOSSAPAY_ENABLED: ${FOSSAPAY_ENABLED:-false}
+      PAYMENT_PROVIDER: ${PAYMENT_PROVIDER:-fake}
+      FOSSAPAY_API_URL: ${FOSSAPAY_API_URL:-https://api-production.fossapay.com/api/v1}
+      FOSSAPAY_API_KEY: ${FOSSAPAY_API_KEY:-}
+      FOSSAPAY_WEBHOOK_SECRET: ${FOSSAPAY_WEBHOOK_SECRET:-}
+      FOSSAPAY_TIMEOUT_SECONDS: ${FOSSAPAY_TIMEOUT_SECONDS:-30}
+      PLATFORM_FEE_BPS: ${PLATFORM_FEE_BPS:-500}
+      MIN_ESCROW_KOBO: ${MIN_ESCROW_KOBO:-100000}
+
+      # --- Obiex (fiat collection, NGN <-> USDC, crypto withdrawals) ---
+      OBiex_ENABLED: ${OBiex_ENABLED:-false}
+      OBiex_API_URL: ${OBiex_API_URL:-https://api.obiex.finance/v1}
+      OBiex_API_KEY: ${OBiex_API_KEY:-}
+      OBiex_API_SECRET: ${OBiex_API_SECRET:-}
+      OBiex_WEBHOOK_SECRET: ${OBiex_WEBHOOK_SECRET:-}
+      OBiex_TIMEOUT_SECONDS: ${OBiex_TIMEOUT_SECONDS:-30}
+      OBiex_COLLECTION_CURRENCY: ${OBiex_COLLECTION_CURRENCY:-USDC}
+      OBiex_WITHDRAWAL_NETWORK: ${OBiex_WITHDRAWAL_NETWORK:-SOL}
+
       # --- Solana (Model 1 settlement layer) ---
+      REACH_SOLANA_RPC_URL: ${REACH_SOLANA_RPC_URL:-}
       # sol-contract/ is mounted read-only at /sol-contract (see volumes).
       REACH_ANCHOR_IDL_PATH: ${REACH_ANCHOR_IDL_PATH:-/sol-contract/idl.json}
+      REACH_PROGRAM_ID: ${REACH_PROGRAM_ID:-5iCtrxFDsPQf6qyR2nfjkDgUJyuH7oxoA5Lf1qQiDfwY}
+      REACH_STABLE_MINT: ${REACH_STABLE_MINT:-EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v}
+      REACH_RELAYER_SECRET_KEY: ${REACH_RELAYER_SECRET_KEY:-}
+      REACH_RELAYER_CONFIRM_TIMEOUT: ${REACH_RELAYER_CONFIRM_TIMEOUT:-60}
+      REACH_MIN_ESCROW_UNITS: ${REACH_MIN_ESCROW_UNITS:-1000000}
+      REACH_CREATION_FEE_BPS: ${REACH_CREATION_FEE_BPS:-250}
+      REACH_APPLICATION_TTL_SECONDS: ${REACH_APPLICATION_TTL_SECONDS:-604800}
+      REACH_TREASURY_TARGET_UNITS: ${REACH_TREASURY_TARGET_UNITS:-500000000}
+      REACH_TREASURY_MIN_WITHDRAWAL_UNITS: ${REACH_TREASURY_MIN_WITHDRAWAL_UNITS:-10000000}
+
+      # --- Provider naira off-ramp (USDC -> NGNX -> bank) ---
+      REACH_OFFRAMP_ENABLED: ${REACH_OFFRAMP_ENABLED:-false}
+      REACH_OFFRAMP_SOURCE_CURRENCY: ${REACH_OFFRAMP_SOURCE_CURRENCY:-USDC}
+      REACH_OFFRAMP_TARGET_CURRENCY: ${REACH_OFFRAMP_TARGET_CURRENCY:-NGNX}
+      REACH_OFFRAMP_NETWORK: ${REACH_OFFRAMP_NETWORK:-SOL}
+      REACH_OFFRAMP_FALLBACK_CURRENCY: ${REACH_OFFRAMP_FALLBACK_CURRENCY:-USDT}
+      REACH_OFFRAMP_MIN_USDC_UNITS: ${REACH_OFFRAMP_MIN_USDC_UNITS:-5000000}
+      REACH_OFFRAMP_MAX_USDC_UNITS: ${REACH_OFFRAMP_MAX_USDC_UNITS:-1000000000}
+      REACH_OFFRAMP_MIN_NGN_KOBO: ${REACH_OFFRAMP_MIN_NGN_KOBO:-500000}
+      REACH_OFFRAMP_DEPOSIT_TTL_SECONDS: ${REACH_OFFRAMP_DEPOSIT_TTL_SECONDS:-1800}
+      REACH_OFFRAMP_QUOTE_TTL_SECONDS: ${REACH_OFFRAMP_QUOTE_TTL_SECONDS:-300}
+      REACH_OFFRAMP_SLIPPAGE_BPS: ${REACH_OFFRAMP_SLIPPAGE_BPS:-200}
+      REACH_OFFRAMP_FIAT_FEE_KOBO: ${REACH_OFFRAMP_FIAT_FEE_KOBO:-5000}
+      REACH_OFFRAMP_REQUIRE_NAME_MATCH: ${REACH_OFFRAMP_REQUIRE_NAME_MATCH:-true}
 
     volumes:
       # The Anchor IDL the relayer needs to build Solana instructions. It
