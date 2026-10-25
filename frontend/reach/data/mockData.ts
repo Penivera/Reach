@@ -88,7 +88,8 @@ export const CATEGORY_STYLES: Record<string, { icon: React.ComponentType<{ size?
 
 export const requests = [
   {
-    id: "req_1",
+    id: "req_1", // If TypeScript complains about string vs number, change this to 1
+    posted_by: 3, // Routes to your test user ID 3
     poster: { name: "Tola A.", initials: "TA" },
     postedAt: "15m ago",
     category: "fixes",
@@ -100,7 +101,8 @@ export const requests = [
     interestedCount: 2,
   },
   {
-    id: "req_2",
+    id: "req_2", // Change to 2 if needed
+    posted_by: 3, // Routes to your test user ID 3
     poster: { name: "Chinwe O.", initials: "CO" },
     postedAt: "1h ago",
     category: "delivery",
@@ -111,7 +113,8 @@ export const requests = [
     interestedCount: 5,
   },
   {
-    id: "req_3",
+    id: "req_3", // Change to 3 if needed
+    posted_by: 3, // Routes to your test user ID 3
     poster: { name: "Emeka D.", initials: "ED" },
     postedAt: "3h ago",
     category: "tutoring",

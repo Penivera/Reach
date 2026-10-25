@@ -1,14 +1,11 @@
 "use client";
 
-import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import NavSection from "../ui/NavSection";
 import { customerItems, activityItems, settingsItems } from "@/data";
-import { XIcon, Wrench, ArrowRight } from "@phosphor-icons/react";
+import { XIcon, Wrench, ArrowRight, SignOut } from "@phosphor-icons/react";
 import { useAuth } from "@/context/AuthContext"; 
 import { useScope } from "@/context/ScopeContext";
-// import { useWallet } from "@/context/WalletContext";
-// import { WalletIcon } from "@phosphor-icons/react";
 
 interface SidebarNavProps {
   isOpen: boolean;
@@ -32,7 +29,7 @@ function SidebarSkeleton({ isOpen, onClose }: { isOpen: boolean; onClose: () => 
           transition-transform duration-300 ease-in-out
           md:sticky md:top-0 md:h-screen md:translate-x-0
           ${isOpen ? "translate-x-0" : "-translate-x-full"}
-          rounded-r-[2rem] md:rounded-none
+          rounded-r-4xl md:rounded-none
         `}
       >
         <div className="mb-8 flex items-center gap-4 px-2 animate-pulse">
@@ -58,19 +55,31 @@ function SidebarSkeleton({ isOpen, onClose }: { isOpen: boolean; onClose: () => 
 }
 
 function SidebarNav({ isOpen, onClose }: SidebarNavProps) {
-  const { user, loading } = useAuth();
+  // Hooks must be inside the component body
+  const { user, loading, logout } = useAuth();
   const pathname = usePathname();
-  const router = useRouter();
+  const router = useRouter(); 
   const { scope } = useScope();
-  const isCustomer = scope === "customer";
-  // const { accountId, connect, disconnect } = useWallet();
   
+  const isCustomer = scope === "customer";
   const roleTitle = isCustomer ? "Customer" : "Provider";
-  const roleItems = isCustomer ? customerItems : []; // Extend this with providerItems when ready
+  const roleItems = isCustomer ? customerItems : []; 
   
   const handleNavigate = (href: string) => {
     router.push(href);
     onClose();
+  };
+
+  // Handler must be inside to access onClose and the router hook
+  const handleLogout = async () => {
+    try {
+      await logout();
+      router.refresh();
+      router.push("/auth/signin");
+      onClose(); 
+    } catch (error) {
+      console.error("Logout failed:", error);
+    }
   };
 
   const displayName =
@@ -91,16 +100,16 @@ function SidebarNav({ isOpen, onClose }: SidebarNavProps) {
         />
       )}
 
-    <aside
-      className={`
-        fixed inset-y-0 left-0 z-50 flex w-72 flex-col overflow-y-auto 
-        bg-white border-r border-border px-4 py-8 
-        transition-transform duration-300 ease-in-out
-        md:sticky md:top-0 md:h-screen md:translate-x-0
-        ${isOpen ? "translate-x-0" : "-translate-x-full"}
-        rounded-r-[2rem] md:rounded-none
-      `}
-    >
+      <aside
+        className={`
+          fixed inset-y-0 left-0 z-50 flex w-72 flex-col overflow-y-auto 
+          bg-white border-r border-border px-4 py-8 
+          transition-transform duration-300 ease-in-out
+          md:sticky md:top-0 md:h-screen md:translate-x-0
+          ${isOpen ? "translate-x-0" : "-translate-x-full"}
+          rounded-r-4xl md:rounded-none
+        `}
+      >
         <div className="mb-6 flex items-start justify-between px-2">
           <div className="flex items-center gap-3">
             <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-shade text-lg font-bold text-foreground">
@@ -129,15 +138,6 @@ function SidebarNav({ isOpen, onClose }: SidebarNavProps) {
             <XIcon size={20} weight="bold" />
           </button>
         </div>
-
-        {/* Deprecated Wallet Code */}
-        {/* <button
-          onClick={accountId ? disconnect : connect}
-          className="mb-6 flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground hover:bg-muted transition-colors"
-        >
-          <WalletIcon size={16} />
-          {accountId ? `${accountId.slice(0, 10)}...` : "Connect Wallet"}
-        </button> */}
 
         {isCustomer && (
           <div 
@@ -177,6 +177,16 @@ function SidebarNav({ isOpen, onClose }: SidebarNavProps) {
             activeHref={pathname} 
             onSelect={handleNavigate} 
           />
+        </div>
+
+        <div className="mt-8 pt-4 border-t border-border/50 pb-4">
+          <button 
+            onClick={handleLogout}
+            className="flex w-full items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-bold text-red-500 transition-colors hover:bg-red-50 active:scale-[0.98]"
+          >
+            <SignOut size={20} weight="bold" />
+            Log Out
+          </button>
         </div>
       </aside>
     </>

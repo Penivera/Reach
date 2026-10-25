@@ -56,10 +56,12 @@ export type User = {
   last_name: string | null;
   bio: string | null;
   phone_number: string | null;
-  profile_picture: string | null;
+  onchain_address?: string;
   is_email_verified: boolean;
   created_at: string;
   profile_image?: string | null;
+  // profile_picture: string | null;
+  // location_name?: string;
 };
 
 export type PublicUser = {
@@ -69,4 +71,5 @@ export type PublicUser = {
   last_name: string | null;
   bio: string | null;
   profile_picture: string | null;
+  profile_image?: string | null;
 };

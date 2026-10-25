@@ -10,21 +10,22 @@ import type { PublicUser } from "@/types";
 import { getInitials, getDisplayName, formatPostedAt } from "@/utils";
 import { useAuth } from "@/context/AuthContext";
 import { UIJob } from "@/app/(main)/requests/page";
+import Link from "next/link";
 
 export function RequestCard({ request, hasApplied }: { request: UIJob; hasApplied?: boolean }) {
   const router = useRouter();
   const { user } = useAuth();
-  
+
   const isPoster = !!user && user.id === request.posted_by;
   const [interested, setInterested] = useState(false);
   const [poster, setPoster] = useState<PublicUser | null>(null);
   const [applyOpen, setApplyOpen] = useState(false);
-  
+
   const applied = hasApplied || interested;
 
   useEffect(() => {
     // Skip real API fetch if we are using UI mock data to prevent 404 errors
-    if (request.userName) return; 
+    if (request.userName) return;
 
     let cancelled = false;
     getUser(request.posted_by)
@@ -60,12 +61,19 @@ export function RequestCard({ request, hasApplied }: { request: UIJob; hasApplie
     >
       {/* Top Row: User Info & Time */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
+
+        {/* UPDATED: Wrapped in a Link with stopPropagation */}
+        <Link
+          href={`/profile/${request.posted_by}`}
+          onClick={(e) => e.stopPropagation()}
+          className="flex items-center gap-2.5 transition-opacity hover:opacity-80"
+        >
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#FFF1ED] text-sm font-bold text-foreground">
             {displayInitials}
           </div>
           <span className="text-sm font-bold text-foreground">{displayName}</span>
-        </div>
+        </Link>
+
         <span className="shrink-0 text-xs font-medium text-muted-foreground">
           {displayTime}
         </span>
@@ -88,7 +96,7 @@ export function RequestCard({ request, hasApplied }: { request: UIJob; hasApplie
 
       {/* Footer / Action Area */}
       <div className="mt-5 flex items-end justify-between border-t border-stroke pt-4">
-        
+
         {/* Budget Details */}
         <div className="flex flex-col gap-0.5">
           <span className="text-[11px] font-semibold text-muted-foreground">Offered Budget</span>
@@ -112,18 +120,18 @@ export function RequestCard({ request, hasApplied }: { request: UIJob; hasApplie
             <NestedButton
               onClick={(e) => {
                 e.stopPropagation();
-                // router.push(`/chat/${request.posted_by}`);
+                // router.push(`/chats/${request.posted_by}`);
                 router.push(`/chats`);
               }}
               variant="secondary"
               aria-label="Message"
               className="flex h-10.5 w-10.5 items-center justify-center cursor-pointer rounded-xl border border-stroke bg-white hover:bg-slate-50"
             >
-              <ChatIcon 
-                className="h-5 w-5 text-muted-foreground" 
+              <ChatIcon
+                className="h-5 w-5 text-muted-foreground"
               />
             </NestedButton>
-            
+
             {applied ? (
               <span className="flex h-10.5 items-center justify-center rounded-xl bg-slate-100 px-5 text-[15px] font-bold text-muted-foreground">
                 Applied

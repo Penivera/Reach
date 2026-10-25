@@ -7,6 +7,7 @@ import LinkButton from "@/components/ui/LinkButton";
 import { getJobs, Job } from "@/lib/jobs";
 import EmptyState from "@/components/layout/EmptyState";
 import { getMyJobApplications } from "@/lib/jobs";
+import { requests as mockRequests } from "@/data/mockData";
 
 // Extended interface for UI testing
 export interface UIJob extends Job {
@@ -26,13 +27,26 @@ export default function RequestsFeedPage() {
   useEffect(() => {
     setLoading(true);
     
-    // Fetch both simultaneously to avoid UI flashing
     Promise.allSettled([getJobs(), getMyJobApplications()]).then(([jobsRes, appsRes]) => {
       if (jobsRes.status === "fulfilled" && jobsRes.value.length > 0) {
         setJobs(jobsRes.value as UIJob[]);
       } else {
-        setJobs([]);
-        console.log("Failed to fetch jobs or no jobs available.");
+        // FALLBACK: Map the mock data to match the UIJob interface when the API is empty
+        const fallbackJobs = mockRequests.map((req) => ({
+          id: req.id as any,
+          posted_by: req.posted_by,
+          title: req.title,
+          description: req.description,
+          budget: req.budget,
+          isNegotiable: req.budgetType === "negotiable",
+          userName: req.poster.name,
+          userInitials: req.poster.initials,
+          timeAgo: req.postedAt,
+          categoryName: req.category,
+          interestedCount: req.interestedCount,
+        }));
+        
+        setJobs(fallbackJobs as unknown as UIJob[]);
       }
 
       if (appsRes.status === "fulfilled") {
