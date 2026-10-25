@@ -59,7 +59,7 @@ export default function SignUpForm() {
         latitude: location.latitude,
         longitude: location.longitude,
         location_name: location.displayName,
-        hashed_password: formData.password,
+        password: formData.password,
         confirm_password: formData.confirm_password,
       });
 

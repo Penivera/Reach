@@ -9,7 +9,7 @@ export function signup(data: {
   latitude?: number;
   longitude?: number;
   location_name?: string;
-  hashed_password: string;
+  password: string;
   confirm_password: string;
 }) {
   return api("/auth/create-user", {
@@ -32,19 +32,35 @@ export function resendVerification(email: string) {
   });
 }
 
-export function login(
-  username: string,
-  password: string
-) {
-  const body = new FormData();
+// export function login(
+//   username: string,
+//   password: string
+// ) {
+//   const body = new FormData();
 
-  body.append("username", username);
-  body.append("password", password);
+//   body.append("username", username);
+//   body.append("password", password);
 
-  return api("/auth/login", {
+//   return api("/auth/login", {
+//     method: "POST",
+//     body,
+//   });
+// }
+
+export async function login(username: string, password: string) {
+  const formData = new URLSearchParams();
+  formData.append("username", username);
+  formData.append("password", password);
+
+  const tokenResponse = await api("/auth/login", {
     method: "POST",
-    body,
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: formData,
   });
+
+  return tokenResponse;
 }
 
 export function forgotPassword(email: string) {
