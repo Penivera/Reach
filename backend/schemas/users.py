@@ -122,7 +122,7 @@ class UserPublicResponse(BaseModel):
 
     bio: str | None = None
 
-    profile_picture: str | None = None
+    profile_image: str | None = None
 
     onchain_address: str | None = None
 
