@@ -1,0 +1,227 @@
+{
+  "boltSlidesVersion": 1,
+  "boltSlidesId": "11011050-f9d6-4d43-8a9e-3e43af51bbaf",
+  "deck": {
+    "title": "REACH — Pitch Deck 2026",
+    "transition": "fade",
+    "font": "inter",
+    "accent": "#ea580c"
+  },
+  "slides": [
+    {
+      "id": "s1",
+      "position": 0,
+      "layout": "cover",
+      "props": {
+        "kicker": "{c:#ea580c}LOCAL SERVICES & ESCROW{/c}",
+        "title": "{c:#ffffff}REACH{/c}",
+        "subtitle": "{c:#94a3b8}Find anything, close to home.{/c}"
+      },
+      "background": { "type": "color", "color": "#0f172a" },
+      "animation": "fade",
+      "transition": null,
+      "nav": null,
+      "notes": "Open cold. Name the company and the product. Pause on REACH.",
+      "status": "none"
+    },
+    {
+      "id": "s2",
+      "position": 1,
+      "layout": "contrast",
+      "props": {
+        "kicker": "{c:#ea580c}THE TRUST GAP{/c}",
+        "title": "Money Moves on Hope. Not Guarantees.",
+        "left": {
+          "label": "STATUS QUO",
+          "title": "{c:#991b1b}Local Services Today{/c}",
+          "points": [
+            "{c:#ea580c}01{/c}  No Discovery Hub — No single platform to find nearby specialists, dispatch errands, or rent an extra set of hands.",
+            "{c:#ea580c}02{/c}  No Payment Guarantee — Providers complete work with no assurance of getting paid.",
+            "{c:#ea580c}03{/c}  Upfront Client Risk — Clients pay before seeing results, with zero recourse if work fails.",
+            "{c:#ea580c}04{/c}  Word-of-Mouth Pricing — No reliable way to discover, benchmark, or compare local service costs."
+          ]
+        },
+        "right": {
+          "label": "THE GAP",
+          "title": "{c:#64748b}Guarantee?{/c}",
+          "points": [
+            "{c:#94a3b8}→  No verified nearby specialist directory.{/c}",
+            "{c:#94a3b8}→  No escrow. No contracts. No recourse.{/c}",
+            "{c:#94a3b8}→  Trust is fragmented across calls and WhatsApp.{/c}",
+            "{c:#94a3b8}→  A ₦4T+ market running entirely on hope.{/c}"
+          ]
+        }
+      },
+      "background": { "type": "color", "color": "#ffffff" },
+      "animation": "cascade",
+      "transition": null,
+      "nav": null,
+      "notes": "Frame the pain: providers and clients both carry risk. The status quo has no guarantees.",
+      "status": "none"
+    },
+    {
+      "id": "s3",
+      "position": 2,
+      "layout": "steps",
+      "props": {
+        "kicker": "{c:#ea580c}ESCROW-POWERED SERVICES{/c}",
+        "title": "Make Every Transaction Trustless.",
+        "items": [
+          { "title": "Funds Locked", "body": "Client's payment is locked in a Solana escrow PDA before work begins." },
+          { "title": "Work Verified", "body": "Provider completes the task. Client reviews and approves." },
+          { "title": "Payment Released", "body": "Funds release to provider automatically. Disputes get fair on-chain splits." }
+        ]
+      },
+      "background": { "type": "color", "color": "#ffffff" },
+      "animation": "cascade",
+      "transition": null,
+      "nav": null,
+      "notes": "Three steps. The user never sees the chain — they just feel the guarantee.",
+      "status": "none"
+    },
+    {
+      "id": "s4",
+      "position": 3,
+      "layout": "steps",
+      "props": {
+        "kicker": "{c:#ea580c}HOW REACH WORKS{/c}",
+        "title": "Simple for Users. Powerful Underneath.",
+        "items": [
+          { "title": "{c:#64748b}Post & Pay{/c}", "body": "{c:#94a3b8}01 · CLIENT SIDE — Post a task with budget and location. Pay in naira via card or bank transfer.{/c}" },
+          { "title": "{c:#ea580c}Escrow & Match{/c}", "body": "{c:#64748b}02 · REACH PLATFORM — Server-side relayer locks funds in Solana escrow. PostGIS matches nearby providers.{/c} {c:#ea580c}CUSTODIAL RELAYER{/c}" },
+          { "title": "{c:#64748b}Work & Earn{/c}", "body": "{c:#94a3b8}03 · PROVIDER SIDE — Accept jobs, complete work, receive USDC or cash out to naira bank account.{/c}" }
+        ]
+      },
+      "background": { "type": "color", "color": "#ffffff" },
+      "animation": "cascade",
+      "transition": null,
+      "nav": null,
+      "notes": "Three zones. The middle zone is where Reach earns its keep — escrow plus geospatial matching.",
+      "status": "none"
+    },
+    {
+      "id": "s5",
+      "position": 4,
+      "layout": "bento",
+      "props": {
+        "kicker": "{c:#ea580c}THE PLATFORM{/c}",
+        "title": "What We've Built.",
+        "tiles": [
+          { "k": "{c:#ea580c}01{/c}", "title": "Geospatial Discovery", "body": "PostGIS-powered search finds providers within your radius." },
+          { "k": "{c:#ea580c}02{/c}", "title": "On-Chain Escrow", "body": "Solana Anchor program with collateral, advances, and dispute resolution." },
+          { "k": "{c:#ea580c}03{/c}", "title": "Fiat Payment Rails", "body": "Obiex and FossaPay integration for naira card and bank payments." },
+          { "k": "{c:#ea580c}04{/c}", "title": "In-App Messaging", "body": "Real-time chat between clients and providers." },
+          { "k": "{c:#ea580c}05{/c}", "title": "Reviews & Ratings", "body": "Bidirectional reputation system builds trust over time." },
+          { "k": "{c:#ea580c}06{/c}", "title": "KYC Verification", "body": "NIN and BVN identity checks via FossaPay." }
+        ]
+      },
+      "background": { "type": "color", "color": "#ffffff" },
+      "animation": "cascade",
+      "transition": null,
+      "nav": null,
+      "notes": "Six features, shipped. Emphasize this is production code, not a prototype.",
+      "status": "none"
+    },
+    {
+      "id": "s6",
+      "position": 5,
+      "layout": "statGrid",
+      "props": {
+        "kicker": "{c:#ea580c}MARKET OPPORTUNITY{/c}",
+        "title": "Nigeria's Service Economy Is Massive and Underserved.",
+        "stats": [
+          { "value": "200M+", "label": "Population" },
+          { "value": "70%", "label": "Under 30" },
+          { "value": "#1", "label": "African Crypto Adoption" },
+          { "value": "₦4T+", "label": "Informal Services" }
+        ]
+      },
+      "background": { "type": "color", "color": "#ffffff" },
+      "animation": "cascade",
+      "transition": null,
+      "nav": null,
+      "notes": "The market is young, mobile-first, and crypto-fluent. Akwa Ibom (Uyo) first, then the region.",
+      "status": "none"
+    },
+    {
+      "id": "s7",
+      "position": 6,
+      "layout": "pillars",
+      "props": {
+        "kicker": "{c:#ea580c}REVENUE MODEL{/c}",
+        "title": "Transparent, On-Chain Revenue.",
+        "items": [
+          { "title": "2.5% — Task Creation Fee", "body": "Charged when escrow is funded. Flows to protocol fee vault." },
+          { "title": "5% — Platform Commission", "body": "Deducted from provider payout on task completion." },
+          { "title": "10% — Cancellation Fee", "body": "Charged when a client cancels an active task." }
+        ]
+      },
+      "background": { "type": "color", "color": "#ffffff" },
+      "animation": "cascade",
+      "transition": null,
+      "nav": null,
+      "notes": "Three streams, all on-chain and auditable. Revenue is protocol infrastructure, not an opaque ledger.",
+      "status": "none"
+    },
+    {
+      "id": "s8",
+      "position": 7,
+      "layout": "timeline",
+      "props": {
+        "kicker": "{c:#ea580c}TECHNICAL ARCHITECTURE{/c}",
+        "title": "{c:#ffffff}Built for Scale and Trust.{/c}",
+        "items": [
+          { "time": "{c:#ea580c}01 · FRONTEND{/c}", "title": "{c:#ffffff}Next.js 16 + React 19 + TypeScript + Tailwind v4{/c}", "body": "{c:#94a3b8}Modern SSR stack, end-to-end type safety.{/c}" },
+          { "time": "{c:#ea580c}02 · BACKEND{/c}", "title": "{c:#ffffff}FastAPI (async) + SQLAlchemy 2.0 + asyncpg + Pydantic v2{/c}", "body": "{c:#94a3b8}Async Python services.{/c}" },
+          { "time": "{c:#ea580c}03 · DATABASE{/c}", "title": "{c:#ffffff}PostgreSQL + PostGIS + Redis{/c}", "body": "{c:#94a3b8}Geospatial + cache layer.{/c}" },
+          { "time": "{c:#ea580c}04 · SMART CONTRACT{/c}", "title": "{c:#ffffff}Solana Anchor (Rust) — escrow, disputes, fee vault{/c}", "body": "{c:#94a3b8}On-chain settlement.{/c}" },
+          { "time": "{c:#ea580c}05 · INFRASTRUCTURE{/c}", "title": "{c:#ffffff}Docker Compose + Cloudinary CDN + Firebase Push{/c}", "body": "{c:#94a3b8}31,000+ lines of code. 158 tests.{/c}" }
+        ]
+      },
+      "background": { "type": "color", "color": "#0f172a" },
+      "animation": "cascade",
+      "transition": null,
+      "nav": null,
+      "notes": "Five layers, all production. Emphasize the server-side Solana relayer — users never touch keys.",
+      "status": "none"
+    },
+    {
+      "id": "s9",
+      "position": 8,
+      "layout": "timeline",
+      "props": {
+        "kicker": "{c:#ea580c}EXECUTION TIMELINE{/c}",
+        "title": "From Code to Market.",
+        "items": [
+          { "time": "{c:#15803d}✓ Q3 2026{/c}", "title": "Backend + Smart Contract", "body": "Core complete. 158 tests passing." },
+          { "time": "{c:#ea580c}↻ Q4 2026{/c}", "title": "Frontend + Staging", "body": "Payment screens, wallet integration, end-to-end testing." },
+          { "time": "{c:#ea580c}● Q1 2027{/c}", "title": "Uyo Beta", "body": "Invite-only launch in Akwa Ibom. First real escrow settlements." },
+          { "time": "{c:#ea580c}● Q2 2027{/c}", "title": "Multi-City", "body": "Product orders. Abuja + Port Harcourt." },
+          { "time": "{c:#ea580c}● Q3 2027{/c}", "title": "West Africa", "body": "Multichain intents. Accra + Nairobi." }
+        ]
+      },
+      "background": { "type": "color", "color": "#ffffff" },
+      "animation": "cascade",
+      "transition": null,
+      "nav": null,
+      "notes": "Backend is built, contract is audited. We're closing the last mile to market.",
+      "status": "none"
+    },
+    {
+      "id": "s10",
+      "position": 9,
+      "layout": "statement",
+      "props": {
+        "kicker": "{c:#ea580c}REACH{/c}",
+        "title": "{c:#ffffff}YOUR MONEY.{/c}\n{c:#ffffff}YOUR WORK.{/c}\n{c:#f97316}SETTLED.{/c}",
+        "body": "{c:#94a3b8}Trustless escrow for Africa's local service economy.{/c}\n\n{c:#ffffff}reachapp.xyz{/c}   ·   {c:#ea580c}hello@peni.dev{/c}"
+      },
+      "background": { "type": "color", "color": "#0f172a" },
+      "animation": "fade",
+      "transition": null,
+      "nav": null,
+      "notes": "Close on the three-word promise. Leave the contact on screen.",
+      "status": "none"
+    }
+  ]
+}
