@@ -1,9 +1,5 @@
 # Bolt.new Prompt — Reach Pitch Deck
 
-Paste this prompt into [bolt.new](https://bolt.new) to generate the pitch deck.
-
----
-
 ## Prompt
 
 ```

@@ -103,17 +103,6 @@ Review every slide's text and tighten it:
   - Ensure all text is visible and not clipped
   - This enables Ctrl+P → Save as PDF for a static handout version
 
-Here's the current code:
 
-[PASTE BOLT.NEW OUTPUT HERE]
-```
 
----
 
-## Workflow
-
-1. Generate the deck in **Bolt.new** using `bolt-pitchdeck-prompt.md`
-2. Copy the full generated code
-3. Paste it into **Gemini** with this prompt
-4. Gemini enforces consistency, extracts components, polishes copy, and adds final touches
-5. Iterate on specific slides as needed
