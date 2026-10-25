@@ -9,9 +9,11 @@ edition = "2021"
 rust-version = "1.89.0"
 
 [profile.release]
-overflow-checks = true
+opt-level = "s"
+overflow-checks = false
 lto = "fat"
 codegen-units = 1
+panic = "abort"
 [profile.release.build-override]
 opt-level = 3
 incremental = false

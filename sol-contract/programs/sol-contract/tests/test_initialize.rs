@@ -106,7 +106,8 @@ fn test_happy_path() {
         VersionedMessage::Legacy(Message::new_with_blockhash(&[init_ix], Some(&owner.pubkey()), &svm.latest_blockhash())),
         &[&owner],
     ).unwrap();
-    svm.send_transaction(tx).unwrap();
+    let res = svm.send_transaction(tx).unwrap();
+    println!("Anchor Initialize CU: {}", res.compute_units_consumed);
 
     // Verify ReachState
     let state_acc = svm.get_account(&reach_state_pda).unwrap();
@@ -140,7 +141,8 @@ fn test_happy_path() {
         VersionedMessage::Legacy(Message::new_with_blockhash(&[add_stable_ix], Some(&owner.pubkey()), &svm.latest_blockhash())),
         &[&owner],
     ).unwrap();
-    svm.send_transaction(tx).unwrap();
+    let res = svm.send_transaction(tx).unwrap();
+    println!("Anchor AddSupportedStable CU: {}", res.compute_units_consumed);
 
     // Verify SupportedStable
     let stable_acc = svm.get_account(&supported_stable_pda).unwrap();
@@ -161,7 +163,8 @@ fn test_happy_path() {
         VersionedMessage::Legacy(Message::new_with_blockhash(&[update_fee_ix], Some(&owner.pubkey()), &svm.latest_blockhash())),
         &[&owner],
     ).unwrap();
-    svm.send_transaction(tx).unwrap();
+    let res = svm.send_transaction(tx).unwrap();
+    println!("Anchor UpdateCreationFeePct CU: {}", res.compute_units_consumed);
 
     // 5. Create Task
     let creator = Keypair::new();
@@ -217,7 +220,8 @@ fn test_happy_path() {
         VersionedMessage::Legacy(Message::new_with_blockhash(&[create_task_ix], Some(&creator.pubkey()), &svm.latest_blockhash())),
         &[&creator],
     ).unwrap();
-    svm.send_transaction(tx).unwrap();
+    let res = svm.send_transaction(tx).unwrap();
+    println!("Anchor CreateTask CU: {}", res.compute_units_consumed);
 
     // Verify task creation balances
     // Total Escrow = 100 + 100 = 200 tokens. Creation Fee (5%) = 10 tokens.
@@ -268,7 +272,8 @@ fn test_happy_path() {
         VersionedMessage::Legacy(Message::new_with_blockhash(&[apply_ix], Some(&provider.pubkey()), &svm.latest_blockhash())),
         &[&provider],
     ).unwrap();
-    svm.send_transaction(tx).unwrap();
+    let res = svm.send_transaction(tx).unwrap();
+    println!("Anchor Apply CU: {}", res.compute_units_consumed);
 
     let app_acc = svm.get_account(&application_pda).unwrap();
     let application = ProviderApplication::try_deserialize(&mut &app_acc.data[..]).unwrap();
@@ -288,7 +293,8 @@ fn test_happy_path() {
         VersionedMessage::Legacy(Message::new_with_blockhash(&[accept_ix], Some(&creator.pubkey()), &svm.latest_blockhash())),
         &[&creator],
     ).unwrap();
-    svm.send_transaction(tx).unwrap();
+    let res = svm.send_transaction(tx).unwrap();
+    println!("Anchor Accept CU: {}", res.compute_units_consumed);
 
     let task_acc = svm.get_account(&task_pda).unwrap();
     let task = Task::try_deserialize(&mut &task_acc.data[..]).unwrap();
@@ -318,7 +324,8 @@ fn test_happy_path() {
         VersionedMessage::Legacy(Message::new_with_blockhash(&[collateral_ix], Some(&provider.pubkey()), &svm.latest_blockhash())),
         &[&provider],
     ).unwrap();
-    svm.send_transaction(tx).unwrap();
+    let res = svm.send_transaction(tx).unwrap();
+    println!("Anchor ProvideCollateral CU: {}", res.compute_units_consumed);
 
     // Verify collateral and advance
     // Provider deposited 50 (collateral), and received 50 (upfront material cost)
@@ -349,7 +356,8 @@ fn test_happy_path() {
         VersionedMessage::Legacy(Message::new_with_blockhash(&[complete_ix], Some(&provider.pubkey()), &svm.latest_blockhash())),
         &[&provider],
     ).unwrap();
-    svm.send_transaction(tx).unwrap();
+    let res = svm.send_transaction(tx).unwrap();
+    println!("Anchor CompleteTask CU: {}", res.compute_units_consumed);
 
     let task_acc = svm.get_account(&task_pda).unwrap();
     let task = Task::try_deserialize(&mut &task_acc.data[..]).unwrap();
@@ -372,7 +380,8 @@ fn test_happy_path() {
         VersionedMessage::Legacy(Message::new_with_blockhash(&[approve_ix], Some(&creator.pubkey()), &svm.latest_blockhash())),
         &[&creator],
     ).unwrap();
-    svm.send_transaction(tx).unwrap();
+    let res = svm.send_transaction(tx).unwrap();
+    println!("Anchor ApproveWork CU: {}", res.compute_units_consumed);
 
     // Verify final payouts:
     // task_vault is now empty
@@ -410,7 +419,8 @@ fn test_cancellation_and_debt() {
         VersionedMessage::Legacy(Message::new_with_blockhash(&[init_ix], Some(&owner.pubkey()), &svm.latest_blockhash())),
         &[&owner],
     ).unwrap();
-    svm.send_transaction(tx).unwrap();
+    let res = svm.send_transaction(tx).unwrap();
+    println!("Anchor Initialize CU: {}", res.compute_units_consumed);
 
     // Update cancellation fee to 10% (1000 basis points)
     let update_cancel_fee_ix = Instruction::new_with_bytes(
@@ -449,7 +459,8 @@ fn test_cancellation_and_debt() {
         VersionedMessage::Legacy(Message::new_with_blockhash(&[add_stable_ix], Some(&owner.pubkey()), &svm.latest_blockhash())),
         &[&owner],
     ).unwrap();
-    svm.send_transaction(tx).unwrap();
+    let res = svm.send_transaction(tx).unwrap();
+    println!("Anchor AddSupportedStable CU: {}", res.compute_units_consumed);
 
     // 2. Creator Cancels Task (Happy cancellation with fee routing)
     let creator = Keypair::new();
@@ -505,7 +516,8 @@ fn test_cancellation_and_debt() {
         VersionedMessage::Legacy(Message::new_with_blockhash(&[create_task_ix], Some(&creator.pubkey()), &svm.latest_blockhash())),
         &[&creator],
     ).unwrap();
-    svm.send_transaction(tx).unwrap();
+    let res = svm.send_transaction(tx).unwrap();
+    println!("Anchor CreateTask CU: {}", res.compute_units_consumed);
 
     // Cancel task
     let cancel_task_ix = Instruction::new_with_bytes(
@@ -622,7 +634,8 @@ fn test_cancellation_and_debt() {
         VersionedMessage::Legacy(Message::new_with_blockhash(&[apply_ix], Some(&provider.pubkey()), &svm.latest_blockhash())),
         &[&provider],
     ).unwrap();
-    svm.send_transaction(tx).unwrap();
+    let res = svm.send_transaction(tx).unwrap();
+    println!("Anchor Apply CU: {}", res.compute_units_consumed);
 
     // Accept
     let accept_ix = Instruction::new_with_bytes(
@@ -638,7 +651,8 @@ fn test_cancellation_and_debt() {
         VersionedMessage::Legacy(Message::new_with_blockhash(&[accept_ix], Some(&creator.pubkey()), &svm.latest_blockhash())),
         &[&creator],
     ).unwrap();
-    svm.send_transaction(tx).unwrap();
+    let res = svm.send_transaction(tx).unwrap();
+    println!("Anchor Accept CU: {}", res.compute_units_consumed);
 
     // Provider locks collateral (20 tokens) & receives upfront advance (50 tokens)
     // Provider net balance: 100 - 20 (locked) + 50 (received) = 130 tokens
@@ -660,7 +674,8 @@ fn test_cancellation_and_debt() {
         VersionedMessage::Legacy(Message::new_with_blockhash(&[collateral_ix], Some(&provider.pubkey()), &svm.latest_blockhash())),
         &[&provider],
     ).unwrap();
-    svm.send_transaction(tx).unwrap();
+    let res = svm.send_transaction(tx).unwrap();
+    println!("Anchor ProvideCollateral CU: {}", res.compute_units_consumed);
 
     let provider_balance = svm.get_account(&provider_token_acc).unwrap();
     let provider_ata = anchor_spl::token::TokenAccount::try_deserialize(&mut &provider_balance.data[..]).unwrap();
