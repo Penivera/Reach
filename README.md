@@ -60,13 +60,12 @@ PostGIS is **not** part of this Compose file. The backend expects a reachable
 `DATABASE_URL` for an existing PostGIS database.
 
 ```bash
-# Optional: put provider keys and real SMTP/Cloudinary values in backend/.env.
-cp backend/.env.example backend/.env
+# Required: Compose-level settings (DATABASE_URL, ports, public URLs).
+# Edit DATABASE_URL to point at your PostGIS instance.
+cp .env.example .env
 
-# Required: the PostGIS connection string (Compose reads this file).
-cat > .env <<'EOF'
-DATABASE_URL=postgresql+asyncpg://postgres:postgres@host.docker.internal:5432/work_near
-EOF
+# Required: backend settings (SECRET_KEY, mail, Cloudinary, provider keys).
+cp backend/.env.example backend/.env
 
 docker compose up --build
 ```
@@ -77,10 +76,12 @@ or host, use an address reachable from inside the backend container (not
 `localhost`). `DATABASE_URL` may also be exported in your shell instead of
 being written to the root `.env`.
 
-`backend/.env` is optional and supplies provider/SMTP/Cloudinary settings;
+Compose loads `backend/.env` and then the root `.env` into the backend
+container, so provider, mail, and Cloudinary keys can go in either file.
 `DATABASE_URL` must be in the root `.env` or the shell because Compose
-interpolates it. `NEXT_PUBLIC_API_URL` is baked into the frontend at build
-time, so rebuild the frontend after changing it:
+interpolates it. The backend service mounts `sol-contract/` read-only for the
+Anchor IDL. `NEXT_PUBLIC_API_URL` is baked into the frontend at build time, so
+rebuild the frontend after changing it:
 
 ```bash
 NEXT_PUBLIC_API_URL=https://api.example.com docker compose up -d --build frontend

@@ -8,21 +8,17 @@ services:
 
     restart: unless-stopped
 
-    # Optional: values in backend/.env are used for anything not overridden
-    # below. Copy backend/.env.example to backend/.env first if you want to
-    # keep provider keys (FossaPay, Obiex, Solana, SMTP, Cloudinary) in a file.
+    # Copy backend/.env.example to backend/.env first. These files are merged
+    # in order, so a root .env can override backend/.env for the container.
+    # Do not duplicate settings under `environment`: values there override
+    # both files and would silently discard the keys below.
     env_file:
       - path: ./backend/.env
         required: false
+      - path: ./.env
+        required: false
 
     environment:
-      # --- App ---
-      SECRET_KEY: ${SECRET_KEY:-dev-only-change-me-before-deploying}
-      ALGORITHM: ${ALGORITHM:-HS256}
-      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-15}
-      BACKEND_URL: ${BACKEND_URL:-http://localhost:8000}
-      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
-
       # --- Database ---
       # PostGIS is not part of this stack. Set DATABASE_URL in the root .env
       # (Compose reads it automatically) or export it before `docker compose up`.
@@ -32,43 +28,14 @@ services:
       # `localhost` inside the container is the container itself, not your host.
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required (postgresql+asyncpg://user:pass@host:5432/work_near)}
 
-      # --- Email ---
-      # Set BREVO_ENABLED=true to use the Brevo transactional email API;
-      # otherwise the SMTP fallback below is used.
-      BREVO_ENABLED: ${BREVO_ENABLED:-false}
-      BREVO_API_URL: ${BREVO_API_URL:-https://api.brevo.com/v3}
-      BREVO_API_KEY: ${BREVO_API_KEY:-}
-      BREVO_TIMEOUT_SECONDS: ${BREVO_TIMEOUT_SECONDS:-30}
-
-      # SMTP fallback (ZeptoMail by default).
-      SMTP_HOST: ${SMTP_HOST:-smtp.zeptomail.com}
-      SMTP_PORT: ${SMTP_PORT:-587}
-      SMTP_START_TLS: ${SMTP_START_TLS:-true}
-      SMTP_USERNAME: ${SMTP_USERNAME:-emailapikey}
-      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
-      SMTP_FROM_NAME: ${SMTP_FROM_NAME:-Reach}
-      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-no-reply@example.com}
-
-      # --- Cloudinary ---
-      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-}
-      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:-}
-      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-}
-
-      # --- Payments ---
-      FOSSAPAY_ENABLED: ${FOSSAPAY_ENABLED:-false}
-      PAYMENT_PROVIDER: ${PAYMENT_PROVIDER:-fake}
-      FOSSAPAY_API_URL: ${FOSSAPAY_API_URL:-https://api-production.fossapay.com/api/v1}
-      FOSSAPAY_API_KEY: ${FOSSAPAY_API_KEY:-}
-      FOSSAPAY_WEBHOOK_SECRET: ${FOSSAPAY_WEBHOOK_SECRET:-}
-      PLATFORM_FEE_BPS: ${PLATFORM_FEE_BPS:-500}
-      MIN_ESCROW_KOBO: ${MIN_ESCROW_KOBO:-100000}
-
       # --- Solana (Model 1 settlement layer) ---
-      REACH_SOLANA_RPC_URL: ${REACH_SOLANA_RPC_URL:-}
-      REACH_PROGRAM_ID: ${REACH_PROGRAM_ID:-5iCtrxFDsPQf6qyR2nfjkDgUJyuH7oxoA5Lf1qQiDfwY}
-      REACH_STABLE_MINT: ${REACH_STABLE_MINT:-EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v}
-      REACH_RELAYER_SECRET_KEY: ${REACH_RELAYER_SECRET_KEY:-}
-      REACH_OFFRAMP_ENABLED: ${REACH_OFFRAMP_ENABLED:-false}
+      # sol-contract/ is mounted read-only at /sol-contract (see volumes).
+      REACH_ANCHOR_IDL_PATH: ${REACH_ANCHOR_IDL_PATH:-/sol-contract/idl.json}
+
+    volumes:
+      # The Anchor IDL the relayer needs to build Solana instructions. It
+      # lives outside the backend build context, so mount it read-only.
+      - ./sol-contract:/sol-contract:ro
 
     # Lets the container reach a PostGIS instance published on the host
     # through host.docker.internal (Linux included).
