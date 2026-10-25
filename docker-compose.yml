@@ -21,6 +21,7 @@ services:
       ALGORITHM: ${ALGORITHM:-HS256}
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-15}
       BACKEND_URL: ${BACKEND_URL:-http://localhost:8000}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
 
       # --- Database ---
       # PostGIS is not part of this stack. Set DATABASE_URL in the root .env
@@ -31,7 +32,15 @@ services:
       # `localhost` inside the container is the container itself, not your host.
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required (postgresql+asyncpg://user:pass@host:5432/work_near)}
 
-      # --- Email / SMTP (ZeptoMail) ---
+      # --- Email ---
+      # Set BREVO_ENABLED=true to use the Brevo transactional email API;
+      # otherwise the SMTP fallback below is used.
+      BREVO_ENABLED: ${BREVO_ENABLED:-false}
+      BREVO_API_URL: ${BREVO_API_URL:-https://api.brevo.com/v3}
+      BREVO_API_KEY: ${BREVO_API_KEY:-}
+      BREVO_TIMEOUT_SECONDS: ${BREVO_TIMEOUT_SECONDS:-30}
+
+      # SMTP fallback (ZeptoMail by default).
       SMTP_HOST: ${SMTP_HOST:-smtp.zeptomail.com}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_START_TLS: ${SMTP_START_TLS:-true}

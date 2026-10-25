@@ -102,8 +102,18 @@ cd backend
 venv/bin/alembic upgrade head
 ```
 
-Verification and password-reset email use **ZeptoMail SMTP**. Set these in
-`backend/.env`:
+Verification and password-reset email can go through **Brevo's transactional
+email API** or the SMTP fallback. To use Brevo, set these in `backend/.env`:
+
+```dotenv
+BREVO_ENABLED=true
+BREVO_API_KEY=<your Brevo API v3 key>
+SMTP_FROM_NAME=Reach
+SMTP_FROM_EMAIL=<a sender verified in Brevo>
+```
+
+`SMTP_FROM_EMAIL` and `SMTP_FROM_NAME` are the sender for both providers. With
+`BREVO_ENABLED=false`, mail is sent over SMTP:
 
 ```dotenv
 SMTP_HOST=smtp.zeptomail.com
