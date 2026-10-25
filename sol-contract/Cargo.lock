@@ -1925,28 +1925,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pinocchio-system"
-version = "0.6.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f3ae2ee67b42e2ac797dd88312da473c895660e270d8093e0ba2749b885b5778"
-dependencies = [
- "pinocchio",
- "solana-address 2.9.0",
-]
-
-[[package]]
-name = "pinocchio-token"
-version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "217e3259f93a1520e4692b18653dad4d29af54ffc8b3a09819808be85dada074"
-dependencies = [
- "solana-account-view",
- "solana-address 2.9.0",
- "solana-instruction-view",
- "solana-program-error",
-]
-
-[[package]]
 name = "pkcs8"
 version = "0.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2134,9 +2112,14 @@ dependencies = [
 name = "reach-pinocchio"
 version = "0.1.0"
 dependencies = [
+ "anchor-lang",
+ "anchor-spl",
+ "litesvm",
  "pinocchio",
- "pinocchio-system",
- "pinocchio-token",
+ "solana-keypair",
+ "solana-message",
+ "solana-signer",
+ "solana-transaction",
 ]
 
 [[package]]

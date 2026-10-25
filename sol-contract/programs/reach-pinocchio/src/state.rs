@@ -1,4 +1,4 @@
-use pinocchio::Address;
+use pinocchio::{AccountView, Address};
 use crate::constants::MAX_ADMINS;
 
 #[repr(u8)]
@@ -47,7 +47,8 @@ pub struct EscrowState {
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
 pub struct Task {
-    pub discriminator: [u8; 8],
+    pub discriminator: u8,
+    pub _pad_discm: [u8; 7],
     pub id: u64,
     pub creator: Address,
     pub provider: Address,
@@ -75,7 +76,8 @@ pub struct AdminEntry {
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
 pub struct ReachState {
-    pub discriminator: [u8; 8],
+    pub discriminator: u8,
+    pub _pad_discm: [u8; 7],
     pub owner: Address,
     pub task_count: u64,
     pub application_count: u64,
@@ -95,7 +97,8 @@ pub struct ReachState {
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
 pub struct ProviderApplication {
-    pub discriminator: [u8; 8],
+    pub discriminator: u8,
+    pub _pad_discm: [u8; 7],
     pub provider: Address,
     pub task_id: u64,
     pub status: u8,
@@ -108,7 +111,8 @@ pub struct ProviderApplication {
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
 pub struct SupportedStable {
-    pub discriminator: [u8; 8],
+    pub discriminator: u8,
+    pub _pad_discm: [u8; 7],
     pub mint: Address,
     pub name: [u8; 10],
     pub bump: u8,
@@ -118,7 +122,8 @@ pub struct SupportedStable {
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
 pub struct ProviderDebt {
-    pub discriminator: [u8; 8],
+    pub discriminator: u8,
+    pub _pad_discm: [u8; 7],
     pub provider: Address,
     pub has_debt: u8,
     pub bump: u8,
@@ -133,3 +138,13 @@ const _: () = assert!(core::mem::size_of::<ReachState>() == 512);
 const _: () = assert!(core::mem::size_of::<ProviderApplication>() == 72);
 const _: () = assert!(core::mem::size_of::<SupportedStable>() == 56);
 const _: () = assert!(core::mem::size_of::<ProviderDebt>() == 48);
+
+#[inline(always)]
+pub unsafe fn mut_data<T>(account: &AccountView) -> &mut T {
+    &mut *(account.data_ptr() as *mut T)
+}
+
+#[inline(always)]
+pub unsafe fn const_data<T>(account: &AccountView) -> &T {
+    &*(account.data_ptr() as *const T)
+}
