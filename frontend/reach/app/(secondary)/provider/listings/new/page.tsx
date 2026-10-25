@@ -28,7 +28,6 @@ export default function NewListingPage() {
   const [title, setTitle] = useState("");
   const [categoryId, setCategoryId] = useState<number | null>(null);
   const [minPrice, setMinPrice] = useState("");
-  const [maxPrice, setMaxPrice] = useState("");
   const [description, setDescription] = useState("");
   const [photo, setPhoto] = useState<File | null>(null);
   const [publishing, setPublishing] = useState(false);
@@ -44,8 +43,11 @@ export default function NewListingPage() {
         title,
         description,
         category_id: categoryId,
-        min_price: Number(minPrice),
-        max_price: Number(maxPrice || minPrice),
+        starting_price: Number(minPrice),
+        business_name: "",
+        location_name: "",
+        latitude: 0,
+        longitude: 0,
       });
       router.push("/provider/listings");
     } catch (err: any) {
@@ -58,9 +60,9 @@ export default function NewListingPage() {
 return (
     <div className="relative min-h-screen text-foreground flex items-start md:items-center justify-center p-0 md:p-6 pb-24 md:pb-6">
       <div id="auth-bg" aria-hidden="true" className="hidden md:block" />
-      
+
       <div className="w-full max-w-lg border-0 bg-background p-4 py-6 md:p-6 md:rounded-lg md:shadow-md md:border md:border-foreground relative z-10">
-        
+
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
             <button
@@ -108,30 +110,15 @@ return (
             </select>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Input
-                id="minPrice"
-                label="Starting price"
-                value={minPrice}
-                onChange={(e) => setMinPrice(e.target.value.replace(/[^\d]/g, ""))}
-                inputMode="numeric"
-                placeholder="4,500"
-                startAdornment="₦"
-              />
-            </div>
-            <div>
-              <Input
-                id="maxPrice"
-                label="Max price (optional)"
-                value={maxPrice}
-                onChange={(e) => setMaxPrice(e.target.value.replace(/[^\d]/g, ""))}
-                inputMode="numeric"
-                placeholder="Same as starting"
-                startAdornment="₦"
-              />
-            </div>
-          </div>
+          <Input
+            id="minPrice"
+            label="Price"
+            value={minPrice}
+            onChange={(e) => setMinPrice(e.target.value.replace(/[^\d]/g, ""))}
+            inputMode="numeric"
+            placeholder="4,500"
+            startAdornment="₦"
+          />
           <div className="space-y-1.5 text-left">
             <label htmlFor="description" className={LABEL_STYLE}>
               Description
