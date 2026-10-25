@@ -79,3 +79,11 @@ class ServiceRequest(Base, TimeStampMixin):
         foreign_keys=[provider_id],
         back_populates="received_service_requests"
     )
+
+    @property
+    def latitude(self) -> float:
+        return to_shape(self.location).y
+
+    @property
+    def longitude(self) -> float:
+        return to_shape(self.location).x

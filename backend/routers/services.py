@@ -261,7 +261,7 @@ async def archive_service(service_id: int, db: AsyncSession = Depends(get_db), c
     return {"message": "service archived successfully"}
 
 
-@router.post("/{service_id}/images")
+@router.post("/{service_id}/images", response_model=MediaResponse)
 async def upload_service_image(service_id: int, file: UploadFile = File(...), db: AsyncSession = Depends(get_db), current_user=Depends(get_current_user)):
 
     result = await db.execute(select(Service).where(Service.id == service_id))
@@ -345,7 +345,12 @@ async def create_service_request(requests_data: ServiceRequestCreate, db: AsyncS
     result = await db.execute(
         select(ServiceRequest).where(
             ServiceRequest.service_id == service.id,
-            ServiceRequest.requester_id == current_user.id
+            ServiceRequest.requester_id == current_user.id,
+            ServiceRequest.status.in_([
+                ServiceRequestStatus.PENDING,
+                ServiceRequestStatus.ACCEPTED,
+                ServiceRequestStatus.START,
+            ]),
         )
     )
 
@@ -390,6 +395,16 @@ async def get_service_requests(db:AsyncSession=Depends(get_db), current_user=Dep
     requests = result.scalars().all()
 
     return requests
+
+# Provider
+
+@router.get("/requests/received", response_model=list[ServiceRequestResponse])
+async def get_service_request_received(db:AsyncSession=Depends(get_db), current_user=Depends(get_current_user)):
+    result = await db.execute(select(ServiceRequest).where(ServiceRequest.provider_id == current_user.id))
+
+    received_request = result.scalars().all()
+
+    return received_request
 
 @router.patch("/requests/{request_id}/cancel")
 async def cancel_service_request(request_id:int, db:AsyncSession=Depends(get_db), current_user=Depends(get_current_user)):
@@ -436,17 +451,6 @@ async def get_service_request(request_id: int, db: AsyncSession = Depends(get_db
         )
 
     return request
-
-
-# Provider
-
-@router.get("/requests/received", response_model=list[ServiceRequestResponse])
-async def get_service_request_received(db:AsyncSession=Depends(get_db), current_user=Depends(get_current_user)):
-    result = await db.execute(select(ServiceRequest).where(ServiceRequest.provider_id == current_user.id))
-
-    received_request = result.scalars().all()
-
-    return received_request
 
 @router.patch("/requests/{request_id}/accept")
 async def accept_service_request(request_id:int, db:AsyncSession=Depends(get_db), current_user=Depends(get_current_user)):
