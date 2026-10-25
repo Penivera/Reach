@@ -60,13 +60,19 @@ PostGIS is **not** part of this Compose file. The backend expects a reachable
 `DATABASE_URL` for an existing PostGIS database.
 
 ```bash
-# Optional: put provider keys and real SMTP/Cloudinary values in backend/.env.
-cp backend/.env.example backend/.env
+# Optional: the Compose default points at PostGIS on the host. Export this to
+# point anywhere else.
+export DATABASE_URL=postgresql+asyncpg://postgres:postgres@host.docker.internal:5432/work_near
 
-# Required: the PostGIS connection string (Compose reads this file).
-cat > .env <<'EOF'
-DATABASE_URL=postgresql+asyncpg://postgres:postgres@host.docker.internal:5432/work_near
-EOF
+# Recommended for anything beyond local use: a stable signing key.
+export SECRET_KEY="$(openssl rand -hex 32)"
+
+# Optional: mail, Cloudinary, payment providers, Solana. The full list is in
+# backend/.env.example; anything not exported uses the default in
+# docker-compose.yml.
+export BREVO_ENABLED=true
+export BREVO_API_KEY=<your Brevo API v3 key>
+export SMTP_FROM_EMAIL=<a sender verified in Brevo>
 
 docker compose up --build
 ```
@@ -74,13 +80,14 @@ docker compose up --build
 Use `host.docker.internal` when PostGIS runs on your host; the backend service
 is configured to resolve it on Linux too. For a database in another container
 or host, use an address reachable from inside the backend container (not
-`localhost`). `DATABASE_URL` may also be exported in your shell instead of
-being written to the root `.env`.
+`localhost`).
 
-`backend/.env` is optional and supplies provider/SMTP/Cloudinary settings;
-`DATABASE_URL` must be in the root `.env` or the shell because Compose
-interpolates it. `NEXT_PUBLIC_API_URL` is baked into the frontend at build
-time, so rebuild the frontend after changing it:
+Every backend setting has a default in `docker-compose.yml`; export a variable
+only to override it. There is no `.env` file to maintain, and
+`backend/.env.example` is the reference list of variable names. The backend
+service mounts `sol-contract/` read-only for the Anchor IDL.
+`NEXT_PUBLIC_API_URL` is baked into the frontend at build time, so rebuild the
+frontend after changing it:
 
 ```bash
 NEXT_PUBLIC_API_URL=https://api.example.com docker compose up -d --build frontend
@@ -102,17 +109,27 @@ cd backend
 venv/bin/alembic upgrade head
 ```
 
-Verification and password-reset email use **ZeptoMail SMTP**. Set these in
-`backend/.env`:
+Verification and password-reset email can go through **Brevo's transactional
+email API** or the SMTP fallback. To use Brevo, export these:
 
-```dotenv
-SMTP_HOST=smtp.zeptomail.com
-SMTP_PORT=587
-SMTP_START_TLS=true
-SMTP_USERNAME=emailapikey
-SMTP_PASSWORD=<your ZeptoMail Send Mail token>
-SMTP_FROM_NAME=Reach
-SMTP_FROM_EMAIL=<an address on your verified ZeptoMail domain>
+```bash
+export BREVO_ENABLED=true
+export BREVO_API_KEY=<your Brevo API v3 key>
+export SMTP_FROM_NAME=Reach
+export SMTP_FROM_EMAIL=<a sender verified in Brevo>
+```
+
+`SMTP_FROM_EMAIL` and `SMTP_FROM_NAME` are the sender for both providers. With
+`BREVO_ENABLED=false`, mail is sent over SMTP:
+
+```bash
+export SMTP_HOST=smtp.zeptomail.com
+export SMTP_PORT=587
+export SMTP_START_TLS=true
+export SMTP_USERNAME=emailapikey
+export SMTP_PASSWORD=<your ZeptoMail Send Mail token>
+export SMTP_FROM_NAME=Reach
+export SMTP_FROM_EMAIL=<an address on your verified ZeptoMail domain>
 ```
 
 The core category seed is applied by `alembic upgrade head`. If the database

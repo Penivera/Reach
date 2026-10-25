@@ -46,15 +46,21 @@ committed. A mail outage does not roll the signup back.
 `POST /auth/resend-verification` still exists and returns `503` if the mailer
 is unavailable.
 
-The mailer is **ZeptoMail SMTP**:
+The mailer supports **Brevo's HTTP API** and a **SMTP fallback**:
 
 ```dotenv
+# Brevo (preferred)
+BREVO_ENABLED=true
+BREVO_API_KEY=<Brevo API v3 key>
+SMTP_FROM_NAME=Reach
+SMTP_FROM_EMAIL=<address verified in Brevo>
+
+# SMTP fallback, used when BREVO_ENABLED=false
 SMTP_HOST=smtp.zeptomail.com
 SMTP_PORT=587
 SMTP_START_TLS=true
 SMTP_USERNAME=emailapikey
 SMTP_PASSWORD=<ZeptoMail Send Mail token>
-SMTP_FROM_EMAIL=<address on a verified ZeptoMail domain>
 ```
 
 Frontend action:

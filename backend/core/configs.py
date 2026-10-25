@@ -14,6 +14,13 @@ class Settings(BaseSettings):
     FRONTEND_URL: str
     BACKEND_URL: str
     SMTP_FROM_NAME:str
+    # Brevo's transactional email API. When BREVO_ENABLED is true, mail goes
+    # through the HTTP API instead of SMTP. SMTP_FROM_NAME/SMTP_FROM_EMAIL are
+    # still used as the sender, so they must be verified in Brevo.
+    BREVO_ENABLED: bool = False
+    BREVO_API_URL: str = "https://api.brevo.com/v3"
+    BREVO_API_KEY: str | None = None
+    BREVO_TIMEOUT_SECONDS: float = 30.0
     CLOUDINARY_CLOUD_NAME:str
     CLOUDINARY_API_KEY:str
     CLOUDINARY_API_SECRET:str
