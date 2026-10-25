@@ -18,6 +18,7 @@ class EmailService:
             "hostname": settings.SMTP_HOST,
             "port": settings.SMTP_PORT,
             "start_tls": settings.SMTP_START_TLS,
+            "timeout": 10,
         }
 
         # Local mail catchers usually have no authentication. Only pass
@@ -57,7 +58,7 @@ async def send_verification_email(email: str, token: str) -> None:
 
 
 async def send_reset_password_email(email: str, token: str) -> None:
-    reset_link = f"{settings.BACKEND_URL}/auth/reset-password?token={token}"
+    reset_link = f"{settings.FRONTEND_URL}/reset-password?token={token}"
 
     html = f"""
     <h2>Password Reset</h2>

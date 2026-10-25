@@ -10,9 +10,8 @@ class Settings(BaseSettings):
     SMTP_FROM_EMAIL:str
     ACCESS_TOKEN_EXPIRE_MINUTES: int
     SMTP_HOST:str
-    # ZeptoMail SMTP on port 587 uses STARTTLS. Set this to false only for a
-    # local mail catcher that does not support it.
     SMTP_START_TLS: bool = True
+    FRONTEND_URL: str
     BACKEND_URL: str
     SMTP_FROM_NAME:str
     CLOUDINARY_CLOUD_NAME:str

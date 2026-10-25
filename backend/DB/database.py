@@ -6,7 +6,9 @@ from sqlalchemy.ext.declarative import declarative_base
 
 engine = create_async_engine(settings.DATABASE_URL,
                              echo = True,
-                             future = True)
+                             future = True,
+                             connect_args={"statement_cache_size": 0}
+)
 
 AsyncSessionLocal = sessionmaker(
     bind=engine,
