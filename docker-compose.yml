@@ -21,12 +21,13 @@ services:
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
 
       # --- Database ---
-      # PostGIS is not part of this stack. Export DATABASE_URL before
-      # `docker compose up`. Use an address the container can reach:
+      # PostGIS is not part of this stack. The default assumes a database on
+      # the host; export DATABASE_URL to point anywhere else. Use an address
+      # the container can reach:
       #   remote: postgresql+asyncpg://user:pass@db.example.com:5432/work_near
       #   host:   postgresql+asyncpg://postgres:postgres@host.docker.internal:5432/work_near
       # `localhost` inside the container is the container itself, not your host.
-      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required (postgresql+asyncpg://user:pass@host:5432/work_near)}
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://postgres:postgres@host.docker.internal:5432/work_near}
 
       # --- Email ---
       # Set BREVO_ENABLED=true to use the Brevo transactional email API;

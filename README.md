@@ -60,11 +60,11 @@ PostGIS is **not** part of this Compose file. The backend expects a reachable
 `DATABASE_URL` for an existing PostGIS database.
 
 ```bash
-# Required: the PostGIS connection string. Export it (or export everything
-# from your deployment platform) before starting the stack.
+# Optional: the Compose default points at PostGIS on the host. Export this to
+# point anywhere else.
 export DATABASE_URL=postgresql+asyncpg://postgres:postgres@host.docker.internal:5432/work_near
 
-# Required for real use: a stable signing key.
+# Recommended for anything beyond local use: a stable signing key.
 export SECRET_KEY="$(openssl rand -hex 32)"
 
 # Optional: mail, Cloudinary, payment providers, Solana. The full list is in
@@ -82,8 +82,8 @@ is configured to resolve it on Linux too. For a database in another container
 or host, use an address reachable from inside the backend container (not
 `localhost`).
 
-Every backend setting is passed through from the environment; there is no
-`.env` file to maintain. `docker-compose.yml` holds the defaults, and
+Every backend setting has a default in `docker-compose.yml`; export a variable
+only to override it. There is no `.env` file to maintain, and
 `backend/.env.example` is the reference list of variable names. The backend
 service mounts `sol-contract/` read-only for the Anchor IDL.
 `NEXT_PUBLIC_API_URL` is baked into the frontend at build time, so rebuild the
