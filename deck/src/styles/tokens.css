@@ -1,0 +1,56 @@
+/* ===================================================================
+   THEME TOKENS — Cloudflare-inspired light deck for REACH (Penivera).
+   Light surface default; 3 dramatic slides override to slate-900 via
+   per-slide background colors + rich-text color markers.
+   =================================================================== */
+:root {
+  /* Surfaces */
+  --bg: #ffffff;
+  --bg-grad-1: color-mix(in srgb, var(--accent) 6%, transparent);
+  --bg-grad-2: color-mix(in srgb, var(--accent) 4%, transparent);
+  --surface: rgba(15, 23, 42, 0.035);
+  --surface-2: rgba(15, 23, 42, 0.055);
+
+  /* Ink — near-black on white */
+  --fg: #0f172a;
+  --fg-muted: #64748b;
+  --fg-faint: #94a3b8;
+
+  /* Hairlines */
+  --hair: rgba(15, 23, 42, 0.1);
+  --hair-2: rgba(15, 23, 42, 0.06);
+
+  /* Accent — Cloudflare orange, solid */
+  --primary: #ea580c;
+  --accent: #ea580c;
+  --accent-ink: #ffffff;
+
+  /* Radius */
+  --radius: 14px;
+  --radius-sm: 10px;
+  --radius-lg: 18px;
+
+  /* Depth */
+  --shadow: 0 30px 80px -40px rgba(15, 23, 42, 0.18);
+  --glow: 0 24px 60px -34px color-mix(in srgb, var(--accent) 40%, transparent);
+
+  /* Type */
+  --font-head: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display',
+    sans-serif;
+  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Text',
+    sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  /* Motion — clinical, fast cross-fades */
+  --dur: 0.2s;
+  --ease: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Atmosphere — minimal on a clean white deck */
+  --grain: 0.012;
+  --vignette: rgba(0, 0, 0, 0.04);
+
+  /* Responsive gutter */
+  --gutter: clamp(28px, 6vw, 96px);
+  --gutter-y: clamp(36px, 7vh, 80px);
+}

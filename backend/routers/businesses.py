@@ -102,6 +102,12 @@ async def upload_business_image(file: UploadFile = File(...), db: AsyncSession =
 
     return media
 
+@router.get("/me/exists")
+async def has_business(db: AsyncSession = Depends(get_db), current_user=Depends(get_current_user)):
+    result = await db.execute(select(Business.id).where(Business.owner_id == current_user.id))
+    business_id = result.scalar_one_or_none()
+    return {"has_business": business_id is not None, "business_id": business_id}
+
 @router.delete("/me")
 async def delete_my_business():
     pass

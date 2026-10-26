@@ -1,0 +1,243 @@
+================================================================================
+                        REACH — PRODUCT INFORMATION
+                       "Find anything, close to home."
+================================================================================
+
+
+1. WHAT IS REACH?
+─────────────────
+
+Reach is a local marketplace and task platform where everyday people post jobs
+— plumbing, hairdressing, deliveries, tutoring, cleaning, errands — and nearby
+service providers apply to get them done. What makes Reach different is how
+money moves: every payment is settled through an on-chain escrow on Solana,
+giving both sides trustless guarantees that the money is locked before work
+starts and released only when the job is approved.
+
+The blockchain is invisible to ordinary users. They pay in naira (Nigerian
+currency) via card or bank transfer. A server-side relayer handles the Solana
+transaction on their behalf. Providers can cash out their USDC earnings back
+to a Nigerian bank account. Reach is crypto-powered but fiat-first.
+
+
+2. THE PROBLEM
+──────────────
+
+In Nigeria's local service economy:
+
+  • No specialist discovery hub: There is no go-to platform to discover verified
+    local specialists near you, dispatch quick errands, or rent an extra set of
+    hands on short notice.
+
+  • Clients pay upfront and hope the provider shows up and does good work.
+    If they don't, getting money back is a social battle.
+
+  • Providers do the work and hope the client actually pays. Non-payment and
+    delayed payment are endemic, especially for informal gig workers.
+
+  • Price discovery is word-of-mouth. "How much does a plumber cost?" has no
+    reliable answer.
+
+  • Existing platforms (if any) hold funds in opaque custodial wallets with
+    no on-chain transparency.
+
+The result: a trust deficit that limits the market. People default to
+personal networks instead of discovering better, cheaper, or closer providers.
+
+
+3. THE SOLUTION
+───────────────
+
+Reach solves trust with technology:
+
+  ┌─────────────────────────────────────────────────────────────────────┐
+  │  CLIENT posts task → funds locked in Solana escrow PDA             │
+  │  PROVIDER applies → client accepts → provider gets advance (opt.)  │
+  │  PROVIDER completes work → client approves → funds released        │
+  │  DISPUTE? → admin mediates → custom split from escrow              │
+  └─────────────────────────────────────────────────────────────────────┘
+
+  • Money is locked BEFORE work starts — providers have assurance.
+  • Money is released ONLY on approval — clients have assurance.
+  • Disputes are resolved with on-chain splits — transparent to both sides.
+  • The entire flow works with naira cards/bank transfers — no wallet needed.
+
+
+4. TARGET MARKET & OPPORTUNITY
+─────────────────────────────
+
+  Primary:      Nigeria (Launch hub: Akwa Ibom, Uyo; expanding to Port Harcourt, Calabar, Lagos, Abuja)
+  Demographics: 200M+ population, 70% under 30, high mobile internet adoption
+  Crypto Hub:   #1 in Africa for crypto adoption (Chainalysis Global Crypto Adoption Index)
+  Market Size:  ₦4T+ ($10B+) informal & local services sector running on cash/hope
+  Segment:      Everyday consumers needing local services (home, repairs, errands)
+                Local service professionals, artisans, and gig workers
+  Secondary:    Crypto-native Solana users; multichain users via planned NEAR Intents
+
+
+5. KEY FEATURES
+───────────────
+
+  MARKETPLACE
+  • Post tasks with budget, location, description, and category
+  • Geospatial matching (PostGIS) — find providers and jobs nearby
+  • Application/proposal flow with pricing
+  • Full lifecycle: Open → In Progress → Awaiting Approval → Completed
+
+  ON-CHAIN ESCROW (Solana Anchor Program)
+  • Task creation locks funds into escrow PDA
+  • Provider collateral deposits and upfront advance releases
+  • Dispute resolution with admin-mediated custom splits
+  • Cancellation with fee deduction
+  • Protocol fee vault for platform revenue
+
+  THREE FUNDING RAILS
+  • Native Solana wallet (Phantom/Solflare) — direct signing
+  • Fiat (NGN) — card/bank via Obiex or FossaPay, relayer signs custodially
+  • Multichain (planned) — NEAR Intents + Chain Signatures
+
+  PROVIDER PAYOUT & OFF-RAMP
+  • Direct USDC payout to provider Solana wallet
+  • Naira off-ramp: USDC → NGNX → NGN bank transfer
+
+  TREASURY
+  • Batched USDC float management between Obiex and Solana relayer
+  • Automated withdrawal/top-up cycle
+
+  SERVICE LISTINGS
+  • Provider business profiles and service listings
+  • Search by keyword, category, location radius
+
+  OTHER
+  • In-app chat/messaging between clients and providers
+  • Bidirectional reviews and ratings
+  • User reporting system
+  • KYC/identity verification (NIN/BVN via FossaPay)
+  • Email verification and password reset (Brevo / ZeptoMail)
+  • Cloudinary media uploads
+  • PWA-ready (progressive web app)
+
+
+6. SERVICE CATEGORIES
+─────────────────────
+
+  🍔 Food      — cooking, catering, meal prep, food delivery
+  🔧 Fix       — plumbing, electrical, carpentry, appliance repair
+  🚚 Move      — deliveries, moving, errands, logistics
+  💇 Beauty    — hairdressing, barbing, makeup, nails
+  📚 Tutor     — academic tutoring, lessons, mentorship
+  🧹 Clean     — home cleaning, laundry, deep cleaning
+  🔄 Trade     — buy/sell, swaps, general trade
+
+
+7. TECHNICAL ARCHITECTURE
+─────────────────────────
+
+  BACKEND
+  • Python / FastAPI (async)
+  • SQLAlchemy 2.0 + asyncpg on PostgreSQL + PostGIS
+  • Alembic migrations
+  • Pydantic v2 validation
+  • Solders library for Solana transaction building/signing
+  • Server-side Solana relayer (custodial keypair engine)
+  • Custom clients for Obiex (HMAC-SHA256) and FossaPay APIs
+  • Redis caching
+  • Firebase push notifications
+  • ~21,000+ lines of Python, 158 tests
+
+  FRONTEND
+  • Next.js 16 + React 19 + TypeScript
+  • Tailwind CSS v4
+  • Phosphor Icons
+  • ~8,500+ lines of TypeScript/TSX
+  • pnpm, multi-stage Docker build
+
+  SMART CONTRACT
+  • Solana Anchor program (Rust, ~2,300+ lines)
+  • Program ID: 5iCtrxFDsPQf6qyR2nfjkDgUJyuH7oxoA5Lf1qQiDfwY
+  • Stablecoin: USDC (EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v)
+  • Instructions: create_task, apply, accept, provide_collateral,
+    claim_advance, complete_task, approve_work, cancel_task,
+    raise_dispute, resolve_dispute, admin functions
+
+  INFRASTRUCTURE
+  • Docker Compose (backend + frontend)
+  • PostGIS database
+  • Cloudinary CDN
+
+
+8. BUSINESS MODEL & REVENUE
+───────────────────────────
+
+  Revenue stream               Rate / Amount
+  ──────────────────────────    ─────────────
+  Task creation fee             2.5% of escrow amount (250 BPS)
+  Platform commission           5% of provider payout (500 BPS)
+  Cancellation fee              10% of escrow (on creator cancellation)
+  Off-ramp pass-through fee     ~₦50 per withdrawal (Obiex fee)
+
+  All revenue flows into the on-chain protocol fee vault — transparent,
+  auditable, and verifiable on Solana.
+
+
+9. COMPETITIVE DIFFERENTIATORS
+──────────────────────────────
+
+  1. TRUSTLESS ESCROW FOR LOCAL SERVICES
+     No other Nigerian gig platform settles payments through on-chain
+     escrow. Reach eliminates the "will I get paid?" / "will I get
+     scammed?" problem with cryptographic guarantees.
+
+  2. FIAT-FIRST, CRYPTO-POWERED
+     Users pay in naira. They never see a wallet address or sign a
+     transaction. The blockchain is infrastructure, not UX friction.
+
+  3. PROVIDER ACCOUNTABILITY ON-CHAIN
+     Collateral deposits, debt tracking, and advance recovery are all
+     enforced by the smart contract — not by terms of service.
+
+  4. GEOSPATIAL MATCHING
+     PostGIS-powered location search. "Who is nearby right now?" is a
+     first-class feature, not an afterthought.
+
+  5. MULTICHAIN ACCESS (PLANNED)
+     Users on any chain (Ethereum, Base, Arbitrum, NEAR, Polygon) will
+     be able to access the marketplace via NEAR Intents + Chain
+     Signatures, with all settlement funneling to Solana.
+
+  6. TRANSPARENT REVENUE
+     Platform fees sit in an on-chain vault. Revenue is public and
+     auditable — a trust signal for investors and users alike.
+
+
+10. CURRENT STATUS
+──────────────────
+
+  Component       Completion    Notes
+  ──────────      ──────────    ─────
+  Backend         ~85%          Core payment lifecycle, Solana integration,
+                                treasury, webhooks, off-ramp all built and
+                                tested. Obiex access pending confirmation.
+  Frontend        ~50%          Auth, home, listings, provider dashboard,
+                                chat, requests, profiles exist. Payment
+                                and wallet screens still needed.
+  Smart Contract  ~95%          Complete with security patches. Needs
+                                end-to-end staging testing.
+  Overall         Pre-launch    Late prototype / early beta stage.
+
+
+11. TEAM
+────────
+
+  Organization:   Penivera
+  Contact:        hello@peni.dev
+  Domain:         reachapp.xyz
+  License:        Unlicense (public domain)
+  Development:    Active, feature-branch workflow
+  Documentation:  Extensive — architecture docs, changelogs, runbooks,
+                  integration guides, gap analyses
+
+
+================================================================================
+                         reach — reachapp.xyz
+================================================================================

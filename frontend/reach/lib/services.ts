@@ -1,18 +1,20 @@
 import { api } from "./api";
 
 export type ServiceStatus = "active" | "paused" | "archived";
+export type ListingKind = "good" | "service";
 
 export type ServiceRequestStatus = "start" | "accepted" | "declined" | "completed" | "cancelled" | string;
 
 export type Service = {
   id: number;
-  business_name: string;
+  business_id: number;
   title: string;
   description: string;
   price: number;
+  kind: ListingKind;
+  stock: number | null;
   status: ServiceStatus;
   category_id: number;
-  owner_id: number;
   location_name: string;
   latitude: number;
   longitude: number;
@@ -22,10 +24,12 @@ export type Service = {
 };
 
 export type CreateServiceInput = {
-  business_name: string;
+  business_id: number;
   title: string;
   description: string;
   price: number;
+  kind: ListingKind;
+  stock?: number | null;
   category_id: number;
   latitude: number;
   longitude: number;
@@ -41,6 +45,7 @@ export type NearbyServicesQuery = {
   longitude: number;
   radius?: number;
   category_id?: number;
+  kind?: ListingKind;
 };
 
 export type ServiceRequest = {
@@ -73,6 +78,16 @@ export function createService(data: CreateServiceInput): Promise<Service> {
     method: "POST",
     body: JSON.stringify(data),
   });
+}
+
+export async function getMyBusinessId(): Promise<number> {
+  const result = await api<{ business_id: number | null }>("/businesses/me/exists", {
+    method: "GET",
+  });
+  if (result.business_id === null) {
+    throw new Error("Create a business before publishing a listing.");
+  }
+  return result.business_id;
 }
 
 export function getServices(): Promise<Service[]> {
@@ -113,6 +128,7 @@ export function getNearbyServices(query: NearbyServicesQuery): Promise<Service[]
   });
   if (query.radius !== undefined) params.set("radius", String(query.radius));
   if (query.category_id !== undefined) params.set("category_id", String(query.category_id));
+  if (query.kind !== undefined) params.set("kind", query.kind);
 
   return api(`/services/nearby?${params.toString()}`, {
     method: "GET",

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none">
+  <rect width="128" height="128" rx="28" fill="#EA580C" />
+  <!-- Crisp Reach 'R' Monogram -->
+  <path
+    d="M40 32H74C87.2548 32 98 42.7452 98 56C98 67.2882 90.1878 76.7501 79.6844 79.2319L99.2 100H80.8L63.5 80H56V100H40V32ZM56 66.5H72.5C78.299 66.5 83 61.799 83 56C83 50.201 78.299 45.5 72.5 45.5H56V66.5Z"
+    fill="#FFFFFF"
+  />
+</svg>

@@ -1,4 +1,6 @@
+import enum
 from enum import Enum
+
 
 class UserRole(str, Enum):
     USER = "user"
@@ -32,6 +34,12 @@ class ServiceStatus(str, Enum):
     ACTIVE = "active"
     PAUSED = "paused"
     ARCHIVED = "archived"
+
+
+class ListingKind(str, enum.Enum):
+    GOOD = "good"
+    SERVICE = "service"
+
 
 class ServiceRequestStatus(str, Enum):
     START = "start"

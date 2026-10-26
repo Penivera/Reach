@@ -3,7 +3,7 @@ from sqlalchemy import select, or_
 from utils import upload_image
 from sqlalchemy.ext.asyncio import AsyncSession
 from dependencies import get_db, get_current_user
-from schemas import (ServiceCreate, ServiceResponse, ServiceUpdate, ServiceStatus, NearbyServiceQuery,ServiceRequestResponse, 
+from schemas import (ServiceCreate, ServiceResponse, ServiceUpdate, ServiceStatus, ListingKind, NearbyServiceQuery,ServiceRequestResponse,
                      ServiceRequestCreate, ServiceRequestStatus, MediaType, MediaResponse)
 from models import Category, Service, ServiceRequest, Business, Media
 from geoalchemy2.functions import ST_Distance, ST_DWithin, ST_GeogFromText
@@ -79,6 +79,7 @@ async def create_service(service_data: ServiceCreate, db: AsyncSession = Depends
 async def get_services(
     q: str | None = None,
     category_id: int | None = None,
+    kind: ListingKind | None = None,
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
     db: AsyncSession = Depends(get_db),
@@ -98,6 +99,9 @@ async def get_services(
 
     if category_id is not None:
         query = query.where(Service.category_id == category_id)
+
+    if kind is not None:
+        query = query.where(Service.kind == kind)
 
     query = query.order_by(Service.created_at.desc()).offset(offset).limit(limit)
 
@@ -128,6 +132,9 @@ async def get_services_nearby(data:NearbyServiceQuery=Depends(), db:AsyncSession
 
     if data.category_id is not None:
         query = query.where(Service.category_id == data.category_id)
+
+    if data.kind is not None:
+        query = query.where(Service.kind == data.kind)
 
     needle = (data.q or "").strip()
     if needle:
@@ -261,7 +268,7 @@ async def archive_service(service_id: int, db: AsyncSession = Depends(get_db), c
     return {"message": "service archived successfully"}
 
 
-@router.post("/{service_id}/images")
+@router.post("/{service_id}/images", response_model=MediaResponse)
 async def upload_service_image(service_id: int, file: UploadFile = File(...), db: AsyncSession = Depends(get_db), current_user=Depends(get_current_user)):
 
     result = await db.execute(select(Service).where(Service.id == service_id))
@@ -345,7 +352,12 @@ async def create_service_request(requests_data: ServiceRequestCreate, db: AsyncS
     result = await db.execute(
         select(ServiceRequest).where(
             ServiceRequest.service_id == service.id,
-            ServiceRequest.requester_id == current_user.id
+            ServiceRequest.requester_id == current_user.id,
+            ServiceRequest.status.in_([
+                ServiceRequestStatus.PENDING,
+                ServiceRequestStatus.ACCEPTED,
+                ServiceRequestStatus.START,
+            ]),
         )
     )
 
@@ -390,6 +402,16 @@ async def get_service_requests(db:AsyncSession=Depends(get_db), current_user=Dep
     requests = result.scalars().all()
 
     return requests
+
+# Provider
+
+@router.get("/requests/received", response_model=list[ServiceRequestResponse])
+async def get_service_request_received(db:AsyncSession=Depends(get_db), current_user=Depends(get_current_user)):
+    result = await db.execute(select(ServiceRequest).where(ServiceRequest.provider_id == current_user.id))
+
+    received_request = result.scalars().all()
+
+    return received_request
 
 @router.patch("/requests/{request_id}/cancel")
 async def cancel_service_request(request_id:int, db:AsyncSession=Depends(get_db), current_user=Depends(get_current_user)):
@@ -436,17 +458,6 @@ async def get_service_request(request_id: int, db: AsyncSession = Depends(get_db
         )
 
     return request
-
-
-# Provider
-
-@router.get("/requests/received", response_model=list[ServiceRequestResponse])
-async def get_service_request_received(db:AsyncSession=Depends(get_db), current_user=Depends(get_current_user)):
-    result = await db.execute(select(ServiceRequest).where(ServiceRequest.provider_id == current_user.id))
-
-    received_request = result.scalars().all()
-
-    return received_request
 
 @router.patch("/requests/{request_id}/accept")
 async def accept_service_request(request_id:int, db:AsyncSession=Depends(get_db), current_user=Depends(get_current_user)):
