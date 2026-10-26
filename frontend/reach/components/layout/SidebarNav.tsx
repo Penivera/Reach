@@ -2,7 +2,8 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import NavSection from "../ui/NavSection";
-import { customerItems, activityItems, settingsItems } from "@/data";
+// 1. Import providerItems here
+import { customerItems, providerItems, activityItems, settingsItems } from "@/data";
 import { XIcon, Wrench, ArrowRight, SignOut } from "@phosphor-icons/react";
 import { useAuth } from "@/context/AuthContext"; 
 import { useScope } from "@/context/ScopeContext";
@@ -55,7 +56,6 @@ function SidebarSkeleton({ isOpen, onClose }: { isOpen: boolean; onClose: () => 
 }
 
 function SidebarNav({ isOpen, onClose }: SidebarNavProps) {
-  // Hooks must be inside the component body
   const { user, loading, logout } = useAuth();
   const pathname = usePathname();
   const router = useRouter(); 
@@ -63,7 +63,9 @@ function SidebarNav({ isOpen, onClose }: SidebarNavProps) {
   
   const isCustomer = scope === "customer";
   const roleTitle = isCustomer ? "Customer" : "Provider";
-  const roleItems = isCustomer ? customerItems : []; 
+  
+  // 2. Change the fallback array [] to providerItems
+  const roleItems = isCustomer ? customerItems : providerItems; 
   
   const handleNavigate = (href: string) => {
     router.push(href);

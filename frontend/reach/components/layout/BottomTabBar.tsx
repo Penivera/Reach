@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { HouseIcon, MagnifyingGlassIcon, ChatIcon, ClipboardTextIcon } from "@phosphor-icons/react";
+import { HouseIcon, MagnifyingGlassIcon, ChatIcon, ClipboardTextIcon, StorefrontIcon, ChatCircleIcon } from "@phosphor-icons/react";
 
 const TABS = [
   { href: "/home", label: "Home", icon: HouseIcon },
   { href: "/requests", label: "Requests", icon: MagnifyingGlassIcon },
-  { href: "/chats", label: "Chats", icon: ChatIcon },
+  { href: "/chats", label: "Chats", icon: ChatCircleIcon },
   { href: "/orders", label: "Orders", icon: ClipboardTextIcon },
+  { href: "/businesses", label: "Shops", icon: StorefrontIcon },
 ];
 
 export default function BottomTabBar() {
@@ -27,7 +28,7 @@ export default function BottomTabBar() {
   return (
     <nav
       className="
-        fixed bottom-0 left-0 right-0 z-50
+        fixed bottom-0 left-0 right-0 z-30
         flex md:hidden
         bg-[var(--tab-bg)]/95 backdrop-blur
         border-t border-[var(--tab-border)]

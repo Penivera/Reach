@@ -91,7 +91,7 @@ export default function ChatInbox() {
             <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex gap-4 active:scale-[0.98] transition-transform">
               
               {/* Avatar */}
-              <div className={`w-12 h-12 rounded-full flex-shrink-0 flex items-center justify-center font-bold ${chat.avatarColor}`}>
+              <div className={`w-12 h-12 rounded-full shrink-0 flex items-center justify-center font-bold ${chat.avatarColor}`}>
                 {chat.initials}
               </div>
 
@@ -112,7 +112,7 @@ export default function ChatInbox() {
                 <div className="flex justify-between items-center gap-2">
                   <p className="text-sm text-gray-600 truncate">{chat.snippet}</p>
                   {chat.unread && (
-                    <div className="w-2 h-2 rounded-full bg-orange-500 flex-shrink-0"></div>
+                    <div className="w-2 h-2 rounded-full bg-orange-500 shrink-0"></div>
                   )}
                 </div>
               </div>

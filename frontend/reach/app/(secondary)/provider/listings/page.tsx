@@ -27,8 +27,12 @@ function statusBadge(status: ServiceStatus) {
   );
 }
 
+// function formatPriceRange(service: Service) {
+//   return `₦${service.starting_price.toLocaleString()}`;
+// }
+
 function formatPriceRange(service: Service) {
-  return `₦${service.starting_price.toLocaleString()}`;
+  return `₦${service.price.toLocaleString()}`;
 }
 
 export default function ProviderListingsPage() {
@@ -87,11 +91,10 @@ export default function ProviderListingsPage() {
             <button
               key={key}
               onClick={() => setFilter(key)}
-              className={`pb-2 text-sm font-semibold transition-colors ${
-                filter === key
+              className={`pb-2 text-sm font-semibold transition-colors ${filter === key
                   ? "border-b-2 border-primary text-primary"
                   : "text-muted-foreground"
-              }`}
+                }`}
             >
               {label} ({countFor(key)})
             </button>
@@ -119,8 +122,15 @@ export default function ProviderListingsPage() {
                 onClick={() => router.push(`/provider/listings/${service.id}`)}
                 className="flex items-center gap-4 rounded-xl border border-stroke bg-shade p-3 md:p-4 text-left transition-colors hover:border-primary/50"
               >
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-muted">
+                {/* <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-muted">
                   <PackageIcon size={20} className="text-muted-foreground" />
+                </div> */}
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-muted border border-stroke">
+                  {service.images?.[0]?.url ? (
+                    <img src={service.images[0].url} alt={service.title} className="h-full w-full object-cover" />
+                  ) : (
+                    <PackageIcon size={20} className="text-muted-foreground" />
+                  )}
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">

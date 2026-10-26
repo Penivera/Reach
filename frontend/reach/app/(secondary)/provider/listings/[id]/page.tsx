@@ -22,7 +22,7 @@ function statusBadge(status: ServiceStatus) {
 }
 
 function formatPriceRange(service: Service) {
-  return `₦${service.starting_price.toLocaleString()}`;
+  return `₦${service.price.toLocaleString()}`;
 }
 
 export default function ManageListingPage() {
@@ -77,6 +77,18 @@ export default function ManageListingPage() {
       setUpdating(false);
     }
   };
+
+  // const handleArchive = async () => {
+  //   if (!service) return;
+  //   setUpdating(true);
+  //   try {
+  //     // Use updateService instead of archiveService
+  //     await updateService(service.id, { status: "archived" });
+  //     router.push("/provider/listings");
+  //   } finally {
+  //     setUpdating(false);
+  //   }
+  // };
 
 if (loading) {
     return (

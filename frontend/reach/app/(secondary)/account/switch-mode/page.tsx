@@ -8,19 +8,21 @@ import { getDisplayName, getInitials } from "@/utils";
 import { useScope } from "@/context/ScopeContext";
 import { getProviderProfile } from "@/lib/providerProfile";
 
-type Mode = "customer" | "provider";
-
 export default function SwitchModePage() {
   const router = useRouter();
   const { user } = useAuth();
-  const [mode, setMode] = useState<Mode>("customer");
-  const { setScope } = useScope();
+  const { scope, setScope } = useScope();
 
   const [isProviderActive, setIsProviderActive] = useState(false);
 
   useEffect(() => {
     setIsProviderActive(getProviderProfile() !== null);
   }, []);
+
+  const handleSelectCustomer = () => {
+    setScope("customer");
+    router.push("/home");
+  };
 
   const handleSelectProvider = () => {
     if (!isProviderActive) {
@@ -36,12 +38,9 @@ export default function SwitchModePage() {
       <div className="mx-auto w-full max-w-3xl px-4 py-6 md:py-10">
         <div className="flex items-center gap-3">
           <button
-            onClick={() => {
-              setScope("customer");
-              router.push("/home");
-            }}
+            onClick={() => router.back()}
             aria-label="Go back"
-            className="flex h-9 w-9 items-center justify-center rounded-lg text-foreground hover:bg-shade transition-colors"
+            className="flex h-9 w-9 items-center justify-center rounded-lg text-foreground transition-colors hover:bg-shade"
           >
             <ArrowLeftIcon size={20} weight="regular" />
           </button>
@@ -64,12 +63,12 @@ export default function SwitchModePage() {
 
         <div className="mt-2 grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
           <button
-            onClick={() => setMode("customer")}
+            onClick={handleSelectCustomer}
             className={`relative rounded-xl border p-4 text-left transition-colors md:p-5 ${
-              mode === "customer" ? "border-primary bg-primary/5" : "border-stroke bg-shade"
+              scope === "customer" ? "border-primary bg-primary/5" : "border-stroke bg-shade"
             }`}
           >
-            {mode === "customer" && (
+            {scope === "customer" && (
               <CheckCircleIcon size={22} weight="fill" className="absolute right-3 top-3 text-primary" />
             )}
             <div className="flex items-start gap-3">
@@ -79,7 +78,7 @@ export default function SwitchModePage() {
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <p className="text-sm font-semibold text-foreground md:text-base">Customer Mode</p>
-                  {mode === "customer" && (
+                  {scope === "customer" && (
                     <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
                       Active
                     </span>
@@ -102,10 +101,10 @@ export default function SwitchModePage() {
           <button
             onClick={handleSelectProvider}
             className={`relative rounded-xl border p-4 text-left transition-colors md:p-5 ${
-              mode === "provider" ? "border-primary bg-primary/5" : "border-stroke bg-shade"
+              scope === "provider" ? "border-primary bg-primary/5" : "border-stroke bg-shade"
             }`}
           >
-            {mode === "provider" && (
+            {scope === "provider" && (
               <CheckCircleIcon size={22} weight="fill" className="absolute right-3 top-3 text-primary" />
             )}
             <div className="flex items-start gap-3">

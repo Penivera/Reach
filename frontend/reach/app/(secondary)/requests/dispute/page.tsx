@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Button from "@/components/ui/Button";
 
 const REASONS = [
@@ -44,14 +44,15 @@ function CameraIcon(props: React.SVGProps<SVGSVGElement>) {
   );
 }
 
-export default function DisputePage({ params }: { params: { id: string } }) {
+export default function DisputePage() {
   const router = useRouter();
+  const params = useParams<{ id?: string }>();
   const [reason, setReason] = useState(REASONS[0]);
   const [evidence, setEvidence] = useState<File | null>(null);
 
   const handleSubmit = () => {
     // TODO: real submit — lock escrow for params.id and open the dispute case
-    router.push(`/requests/${params.id}`);
+    router.push(params.id ? `/requests/${params.id}` : "/requests");
   };
 
   return (

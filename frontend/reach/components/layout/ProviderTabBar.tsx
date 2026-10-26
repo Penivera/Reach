@@ -1,13 +1,14 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { ChartBarIcon, PackageIcon, ChatCircleIcon, CreditCardIcon } from "@phosphor-icons/react";
+import { ChartBarIcon, PackageIcon, ChatCircleIcon, CreditCardIcon, GearIcon } from "@phosphor-icons/react";
 
 const TABS = [
   { href: "/provider/dashboard", label: "Dashboard", icon: ChartBarIcon },
   { href: "/provider/listings", label: "Listings", icon: PackageIcon },
   { href: "/provider/chats", label: "Chats", icon: ChatCircleIcon },
   { href: "/provider/payouts", label: "Payouts", icon: CreditCardIcon },
+  // { href: "/provider/settings", label: "Settings", icon: GearIcon },
 ];
 
 export default function ProviderTabBar() {

@@ -147,6 +147,10 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
   const formattedPrice = !isNaN(numericPrice) 
     ? `₦${numericPrice.toLocaleString()}` 
     : product.price;
+
+  const businessHref = /^\d+$/.test(String(product.business.id))
+    ? `/businesses/${product.business.id}`
+    : "/businesses";
   
   const distanceLabel =
     product.distanceKm < 1
@@ -227,7 +231,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
 
             {/* Provider Profile Card */}
             <Link
-              href={`/provider/${product.business.id}`}
+              href={businessHref}
               className="mt-8 flex items-center gap-3.5 transition-colors active:opacity-70 hover:bg-neutral-50 p-2 -mx-2 rounded-xl"
             >
               <div className="flex h-11.5 w-11.5 md:h-13 md:w-13 shrink-0 items-center justify-center rounded-full bg-slate-100 text-base font-bold text-foreground">

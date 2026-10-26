@@ -9,7 +9,7 @@ export type Service = {
   business_name: string;
   title: string;
   description: string;
-  starting_price: number;
+  price: number;
   status: ServiceStatus;
   category_id: number;
   owner_id: number;
@@ -18,13 +18,14 @@ export type Service = {
   longitude: number;
   created_at: string;
   updated_at: string;
+  images?: { id: number; url: string }[];
 };
 
 export type CreateServiceInput = {
   business_name: string;
   title: string;
   description: string;
-  starting_price: number;
+  price: number;
   category_id: number;
   latitude: number;
   longitude: number;
