@@ -1,0 +1,2515 @@
+{
+  "address": "5iCtrxFDsPQf6qyR2nfjkDgUJyuH7oxoA5Lf1qQiDfwY",
+  "metadata": {
+    "name": "sol_contract",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Created with Anchor"
+  },
+  "instructions": [
+    {
+      "name": "accept",
+      "discriminator": [
+        65,
+        150,
+        70,
+        216,
+        133,
+        6,
+        107,
+        4
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "signer": true
+        },
+        {
+          "name": "task",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  97,
+                  115,
+                  107
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "task_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "application",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  112,
+                  112,
+                  108,
+                  105,
+                  99,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "provider"
+              },
+              {
+                "kind": "account",
+                "path": "task"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "task_id",
+          "type": "u64"
+        },
+        {
+          "name": "provider",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "add_admin",
+      "discriminator": [
+        177,
+        236,
+        33,
+        205,
+        124,
+        152,
+        55,
+        186
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "reach_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  97,
+                  99,
+                  104,
+                  95,
+                  115,
+                  116,
+                  97,
+                  116,
+                  101
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "address",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "add_supported_stable",
+      "discriminator": [
+        180,
+        186,
+        11,
+        185,
+        153,
+        10,
+        253,
+        117
+      ],
+      "accounts": [
+        {
+          "name": "caller",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "reach_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  97,
+                  99,
+                  104,
+                  95,
+                  115,
+                  116,
+                  97,
+                  116,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "stable_coin_mint"
+        },
+        {
+          "name": "supported_token",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  117,
+                  112,
+                  112,
+                  111,
+                  114,
+                  116,
+                  101,
+                  100,
+                  95,
+                  115,
+                  116,
+                  97,
+                  98,
+                  108,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "stable_coin_mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "stable_name",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "apply",
+      "discriminator": [
+        248,
+        243,
+        145,
+        24,
+        105,
+        50,
+        162,
+        225
+      ],
+      "accounts": [
+        {
+          "name": "provider",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "task",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  97,
+                  115,
+                  107
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "task_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "application",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  112,
+                  112,
+                  108,
+                  105,
+                  99,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "provider"
+              },
+              {
+                "kind": "account",
+                "path": "task"
+              }
+            ]
+          }
+        },
+        {
+          "name": "provider_debt",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  118,
+                  105,
+                  100,
+                  101,
+                  114,
+                  95,
+                  100,
+                  101,
+                  98,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "provider"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "task_id",
+          "type": "u64"
+        },
+        {
+          "name": "expires_at",
+          "type": "i64"
+        }
+      ]
+    },
+    {
+      "name": "approve_work",
+      "discriminator": [
+        181,
+        118,
+        45,
+        143,
+        204,
+        88,
+        237,
+        109
+      ],
+      "accounts": [
+        {
+          "name": "creator",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "task",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  97,
+                  115,
+                  107
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "task_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "task_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  97,
+                  115,
+                  107
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "task"
+              }
+            ]
+          }
+        },
+        {
+          "name": "provider_token_account",
+          "writable": true
+        },
+        {
+          "name": "stable_coin_mint"
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "task_id",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "cancel_approved_application",
+      "discriminator": [
+        173,
+        152,
+        68,
+        90,
+        104,
+        34,
+        24,
+        11
+      ],
+      "accounts": [
+        {
+          "name": "provider",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "task",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  97,
+                  115,
+                  107
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "task_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "task_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  97,
+                  115,
+                  107
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "task"
+              }
+            ]
+          }
+        },
+        {
+          "name": "application",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  112,
+                  112,
+                  108,
+                  105,
+                  99,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "provider"
+              },
+              {
+                "kind": "account",
+                "path": "task"
+              }
+            ]
+          }
+        },
+        {
+          "name": "reach_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  97,
+                  99,
+                  104,
+                  95,
+                  115,
+                  116,
+                  97,
+                  116,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "fee_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  102,
+                  101,
+                  101,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "stable_coin_mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "provider_token_account",
+          "writable": true
+        },
+        {
+          "name": "stable_coin_mint"
+        },
+        {
+          "name": "provider_debt",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  118,
+                  105,
+                  100,
+                  101,
+                  114,
+                  95,
+                  100,
+                  101,
+                  98,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "provider"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "rent",
+          "address": "SysvarRent111111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "task_id",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "cancel_task",
+      "discriminator": [
+        69,
+        228,
+        134,
+        187,
+        134,
+        105,
+        238,
+        48
+      ],
+      "accounts": [
+        {
+          "name": "creator",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "task",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  97,
+                  115,
+                  107
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "task_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "task_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  97,
+                  115,
+                  107
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "task"
+              }
+            ]
+          }
+        },
+        {
+          "name": "reach_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  97,
+                  99,
+                  104,
+                  95,
+                  115,
+                  116,
+                  97,
+                  116,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "fee_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  102,
+                  101,
+                  101,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "stable_coin_mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "creator_token_account",
+          "writable": true
+        },
+        {
+          "name": "stable_coin_mint"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "rent",
+          "address": "SysvarRent111111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "task_id",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "claim_advance",
+      "discriminator": [
+        225,
+        108,
+        86,
+        138,
+        99,
+        172,
+        89,
+        142
+      ],
+      "accounts": [
+        {
+          "name": "provider",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "task",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  97,
+                  115,
+                  107
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "task_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "task_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  97,
+                  115,
+                  107
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "task"
+              }
+            ]
+          }
+        },
+        {
+          "name": "provider_token_account",
+          "writable": true
+        },
+        {
+          "name": "stable_coin_mint"
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "task_id",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "complete_task",
+      "discriminator": [
+        109,
+        167,
+        192,
+        41,
+        129,
+        108,
+        220,
+        196
+      ],
+      "accounts": [
+        {
+          "name": "provider",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "task",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  97,
+                  115,
+                  107
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "task_id"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "task_id",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "create_task",
+      "discriminator": [
+        194,
+        80,
+        6,
+        180,
+        232,
+        127,
+        48,
+        171
+      ],
+      "accounts": [
+        {
+          "name": "creator",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "stable_coin_mint"
+        },
+        {
+          "name": "supported_token_check",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  117,
+                  112,
+                  112,
+                  111,
+                  114,
+                  116,
+                  101,
+                  100,
+                  95,
+                  115,
+                  116,
+                  97,
+                  98,
+                  108,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "stable_coin_mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "reach_state",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  97,
+                  99,
+                  104,
+                  95,
+                  115,
+                  116,
+                  97,
+                  116,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "fee_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  102,
+                  101,
+                  101,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "stable_coin_mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "task",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  97,
+                  115,
+                  107
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "task_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "task_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  97,
+                  115,
+                  107
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "task"
+              }
+            ]
+          }
+        },
+        {
+          "name": "creator_token_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "creator"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "stable_coin_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "rent",
+          "address": "SysvarRent111111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "task_id",
+          "type": "u64"
+        },
+        {
+          "name": "terms",
+          "type": {
+            "defined": {
+              "name": "FinancialTerms"
+            }
+          }
+        },
+        {
+          "name": "tag",
+          "type": {
+            "option": "string"
+          }
+        },
+        {
+          "name": "desc",
+          "type": {
+            "option": "string"
+          }
+        }
+      ]
+    },
+    {
+      "name": "initialize",
+      "discriminator": [
+        175,
+        175,
+        109,
+        31,
+        13,
+        152,
+        155,
+        237
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "reach_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  97,
+                  99,
+                  104,
+                  95,
+                  115,
+                  116,
+                  97,
+                  116,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "owner_name",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "propose_owner_update",
+      "discriminator": [
+        235,
+        160,
+        122,
+        28,
+        160,
+        129,
+        85,
+        137
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "reach_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  97,
+                  99,
+                  104,
+                  95,
+                  115,
+                  116,
+                  97,
+                  116,
+                  101
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "new_owner",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "provide_collateral",
+      "discriminator": [
+        5,
+        40,
+        104,
+        142,
+        25,
+        203,
+        71,
+        130
+      ],
+      "accounts": [
+        {
+          "name": "provider",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "task",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  97,
+                  115,
+                  107
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "task_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "application",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  112,
+                  112,
+                  108,
+                  105,
+                  99,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "provider"
+              },
+              {
+                "kind": "account",
+                "path": "task"
+              }
+            ]
+          }
+        },
+        {
+          "name": "task_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  97,
+                  115,
+                  107
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "task"
+              }
+            ]
+          }
+        },
+        {
+          "name": "provider_token_account",
+          "writable": true
+        },
+        {
+          "name": "stable_coin_mint"
+        },
+        {
+          "name": "supported_token_check",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  117,
+                  112,
+                  112,
+                  111,
+                  114,
+                  116,
+                  101,
+                  100,
+                  95,
+                  115,
+                  116,
+                  97,
+                  98,
+                  108,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "stable_coin_mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "task_id",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "raise_dispute",
+      "discriminator": [
+        41,
+        243,
+        1,
+        51,
+        150,
+        95,
+        246,
+        73
+      ],
+      "accounts": [
+        {
+          "name": "caller",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "task",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  97,
+                  115,
+                  107
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "task_id"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "task_id",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "remove_admin",
+      "discriminator": [
+        74,
+        202,
+        71,
+        106,
+        252,
+        31,
+        72,
+        183
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "reach_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  97,
+                  99,
+                  104,
+                  95,
+                  115,
+                  116,
+                  97,
+                  116,
+                  101
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "address",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "remove_supported_stable",
+      "discriminator": [
+        75,
+        88,
+        122,
+        37,
+        4,
+        108,
+        222,
+        8
+      ],
+      "accounts": [
+        {
+          "name": "caller",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "reach_state",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  97,
+                  99,
+                  104,
+                  95,
+                  115,
+                  116,
+                  97,
+                  116,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "stable_coin_mint"
+        },
+        {
+          "name": "supported_token",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  117,
+                  112,
+                  112,
+                  111,
+                  114,
+                  116,
+                  101,
+                  100,
+                  95,
+                  115,
+                  116,
+                  97,
+                  98,
+                  108,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "stable_coin_mint"
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "resolve_dispute",
+      "discriminator": [
+        231,
+        6,
+        202,
+        6,
+        96,
+        103,
+        12,
+        230
+      ],
+      "accounts": [
+        {
+          "name": "caller",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "reach_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  97,
+                  99,
+                  104,
+                  95,
+                  115,
+                  116,
+                  97,
+                  116,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "task",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  97,
+                  115,
+                  107
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "task_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "task_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  97,
+                  115,
+                  107
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "task"
+              }
+            ]
+          }
+        },
+        {
+          "name": "creator_token_account",
+          "writable": true
+        },
+        {
+          "name": "provider_token_account",
+          "writable": true
+        },
+        {
+          "name": "stable_coin_mint"
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "task_id",
+          "type": "u64"
+        },
+        {
+          "name": "creator_refund_pct",
+          "type": "u8"
+        },
+        {
+          "name": "provider_payment_pct",
+          "type": "u8"
+        }
+      ]
+    },
+    {
+      "name": "update_cancellation_fee_pct",
+      "discriminator": [
+        225,
+        68,
+        123,
+        168,
+        227,
+        60,
+        91,
+        172
+      ],
+      "accounts": [
+        {
+          "name": "caller",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "reach_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  97,
+                  99,
+                  104,
+                  95,
+                  115,
+                  116,
+                  97,
+                  116,
+                  101
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "fee_pct",
+          "type": "u16"
+        }
+      ]
+    },
+    {
+      "name": "update_creation_fee_pct",
+      "discriminator": [
+        172,
+        160,
+        236,
+        146,
+        99,
+        75,
+        44,
+        117
+      ],
+      "accounts": [
+        {
+          "name": "caller",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "reach_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  97,
+                  99,
+                  104,
+                  95,
+                  115,
+                  116,
+                  97,
+                  116,
+                  101
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "fee_pct",
+          "type": "u16"
+        }
+      ]
+    },
+    {
+      "name": "vote_owner_update",
+      "discriminator": [
+        158,
+        183,
+        175,
+        207,
+        6,
+        16,
+        165,
+        189
+      ],
+      "accounts": [
+        {
+          "name": "caller",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "reach_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  97,
+                  99,
+                  104,
+                  95,
+                  115,
+                  116,
+                  97,
+                  116,
+                  101
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "withdraw_application",
+      "discriminator": [
+        222,
+        82,
+        83,
+        147,
+        78,
+        67,
+        50,
+        203
+      ],
+      "accounts": [
+        {
+          "name": "provider",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "task",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  97,
+                  115,
+                  107
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "task_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "application",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  112,
+                  112,
+                  108,
+                  105,
+                  99,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "provider"
+              },
+              {
+                "kind": "account",
+                "path": "task"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "task_id",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "withdraw_protocol_fees",
+      "discriminator": [
+        11,
+        68,
+        165,
+        98,
+        18,
+        208,
+        134,
+        73
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "reach_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  97,
+                  99,
+                  104,
+                  95,
+                  115,
+                  116,
+                  97,
+                  116,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "stable_coin_mint"
+        },
+        {
+          "name": "fee_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  102,
+                  101,
+                  101,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "stable_coin_mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "receiver",
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "ProviderApplication",
+      "discriminator": [
+        197,
+        212,
+        35,
+        253,
+        169,
+        138,
+        224,
+        216
+      ]
+    },
+    {
+      "name": "ProviderDebt",
+      "discriminator": [
+        129,
+        223,
+        162,
+        102,
+        151,
+        240,
+        27,
+        253
+      ]
+    },
+    {
+      "name": "ReachState",
+      "discriminator": [
+        162,
+        230,
+        197,
+        6,
+        245,
+        174,
+        114,
+        228
+      ]
+    },
+    {
+      "name": "SupportedStable",
+      "discriminator": [
+        203,
+        157,
+        151,
+        37,
+        140,
+        20,
+        212,
+        119
+      ]
+    },
+    {
+      "name": "Task",
+      "discriminator": [
+        79,
+        34,
+        229,
+        55,
+        88,
+        90,
+        55,
+        84
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "ApplicationNotAccepted",
+      "msg": "Cannot Provide Collateral Until Application is Accepted"
+    },
+    {
+      "code": 6001,
+      "name": "NotAnAdmin",
+      "msg": "Must Be An Admin"
+    },
+    {
+      "code": 6002,
+      "name": "NotOwner",
+      "msg": "Only the owner can perform this action"
+    },
+    {
+      "code": 6003,
+      "name": "FeeTooHigh",
+      "msg": "Fee percentage cannot exceed 100 (10000 basis points)"
+    },
+    {
+      "code": 6004,
+      "name": "NoOwnerProposal",
+      "msg": "No owner proposal is currently active"
+    },
+    {
+      "code": 6005,
+      "name": "OwnerProposalAlreadyActive",
+      "msg": "An owner proposal is already active"
+    },
+    {
+      "code": 6006,
+      "name": "AlreadyVoted",
+      "msg": "Admin has already voted for this proposal"
+    },
+    {
+      "code": 6007,
+      "name": "NoCollateralRequired",
+      "msg": "Task does not require collateral lock"
+    },
+    {
+      "code": 6008,
+      "name": "NotAwaitingEscrow",
+      "msg": "Task is not awaiting escrow"
+    },
+    {
+      "code": 6009,
+      "name": "AdvanceAlreadyDisbursed",
+      "msg": "Advance has already been disbursed"
+    },
+    {
+      "code": 6010,
+      "name": "NoAdvanceToClaim",
+      "msg": "No upfront advance configured for this task"
+    },
+    {
+      "code": 6011,
+      "name": "NotTaskProvider",
+      "msg": "Only the assigned provider can perform this action"
+    },
+    {
+      "code": 6012,
+      "name": "CannotCancelTask",
+      "msg": "Task cannot be cancelled in its current state"
+    },
+    {
+      "code": 6013,
+      "name": "CannotCancelApplication",
+      "msg": "Application cannot be cancelled in its current state"
+    },
+    {
+      "code": 6014,
+      "name": "ProviderHasDebt",
+      "msg": "Provider has cancelled with debt and cannot apply to tasks"
+    },
+    {
+      "code": 6015,
+      "name": "InvalidDisputeSplit",
+      "msg": "Dispute split percentages must sum to 100"
+    },
+    {
+      "code": 6016,
+      "name": "TooManyAdmins",
+      "msg": "Cannot add more than 10 admins"
+    },
+    {
+      "code": 6017,
+      "name": "InvalidTaskStatus",
+      "msg": "Task is not in the correct state for this action"
+    },
+    {
+      "code": 6018,
+      "name": "InvalidDisputeCaller",
+      "msg": "Only the creator or provider can perform this action"
+    },
+    {
+      "code": 6019,
+      "name": "InvalidDisputeStatus",
+      "msg": "Task must be in InProgress or AwaitingApproval state to dispute"
+    }
+  ],
+  "types": [
+    {
+      "name": "Admin",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "name": "address",
+            "type": "pubkey"
+          },
+          {
+            "name": "active",
+            "type": "bool"
+          }
+        ]
+      }
+    },
+    {
+      "name": "EscrowState",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "creator_locked_balance",
+            "type": "u64"
+          },
+          {
+            "name": "provider_locked_balance",
+            "type": {
+              "option": "u64"
+            }
+          },
+          {
+            "name": "advanced_disbursed",
+            "type": "bool"
+          }
+        ]
+      }
+    },
+    {
+      "name": "FinancialTerms",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "labor_fee",
+            "type": "u64"
+          },
+          {
+            "name": "material_cost",
+            "type": "u64"
+          },
+          {
+            "name": "upfront_release_pct",
+            "type": "u8"
+          },
+          {
+            "name": "required_provider_collateral",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ProviderApplication",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "provider",
+            "type": "pubkey"
+          },
+          {
+            "name": "task_id",
+            "type": "u64"
+          },
+          {
+            "name": "status",
+            "type": {
+              "defined": {
+                "name": "ProviderApplicationStatus"
+              }
+            }
+          },
+          {
+            "name": "created_at",
+            "type": "i64"
+          },
+          {
+            "name": "expires_at",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ProviderApplicationStatus",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Pending"
+          },
+          {
+            "name": "Accepted"
+          },
+          {
+            "name": "AcceptedPendingCollateral"
+          },
+          {
+            "name": "AcceptedAndCollateralProvided"
+          },
+          {
+            "name": "Rejected"
+          },
+          {
+            "name": "CancelledWithDebt"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ProviderDebt",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "provider",
+            "type": "pubkey"
+          },
+          {
+            "name": "has_debt",
+            "type": "bool"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ReachState",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "task_count",
+            "type": "u64"
+          },
+          {
+            "name": "application_count",
+            "type": "u64"
+          },
+          {
+            "name": "creation_fee_pct",
+            "type": "u16"
+          },
+          {
+            "name": "cancellation_fee_pct",
+            "type": "u16"
+          },
+          {
+            "name": "owner_proposal",
+            "type": {
+              "option": "pubkey"
+            }
+          },
+          {
+            "name": "owner_votes",
+            "type": {
+              "vec": "pubkey"
+            }
+          },
+          {
+            "name": "admins",
+            "type": {
+              "vec": {
+                "defined": {
+                  "name": "Admin"
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "SupportedStable",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "name",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Task",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "id",
+            "type": "u64"
+          },
+          {
+            "name": "creator",
+            "type": "pubkey"
+          },
+          {
+            "name": "provider",
+            "type": {
+              "option": "pubkey"
+            }
+          },
+          {
+            "name": "stable_coin_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "desc",
+            "type": {
+              "option": "string"
+            }
+          },
+          {
+            "name": "tag",
+            "type": {
+              "option": "string"
+            }
+          },
+          {
+            "name": "status",
+            "type": {
+              "defined": {
+                "name": "TaskStatus"
+              }
+            }
+          },
+          {
+            "name": "terms",
+            "type": {
+              "defined": {
+                "name": "FinancialTerms"
+              }
+            }
+          },
+          {
+            "name": "escrow",
+            "type": {
+              "defined": {
+                "name": "EscrowState"
+              }
+            }
+          },
+          {
+            "name": "created_at",
+            "type": "i64"
+          },
+          {
+            "name": "updated_at",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TaskStatus",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Open"
+          },
+          {
+            "name": "InProgress"
+          },
+          {
+            "name": "AwaitingEscrow"
+          },
+          {
+            "name": "AwaitingApproval"
+          },
+          {
+            "name": "Completed"
+          },
+          {
+            "name": "Disputed"
+          },
+          {
+            "name": "Refunded"
+          }
+        ]
+      }
+    }
+  ],
+  "constants": [
+    {
+      "name": "APPLICATION_SEED",
+      "type": "bytes",
+      "value": "[97, 112, 112, 108, 105, 99, 97, 116, 105, 111, 110]"
+    },
+    {
+      "name": "REACH_STATE_SEED",
+      "type": "bytes",
+      "value": "[114, 101, 97, 99, 104, 95, 115, 116, 97, 116, 101]"
+    },
+    {
+      "name": "STABLE_COIN_SEED",
+      "type": "bytes",
+      "value": "[115, 117, 112, 112, 111, 114, 116, 101, 100, 95, 115, 116, 97, 98, 108, 101]"
+    },
+    {
+      "name": "TASK_SEED",
+      "type": "bytes",
+      "value": "[116, 97, 115, 107]"
+    }
+  ]
+}
