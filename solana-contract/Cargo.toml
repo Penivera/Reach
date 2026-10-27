@@ -1,7 +1,8 @@
 [package]
-name = "reach-pinocchio"
+name = "reach-escrow"
 version = "0.1.0"
 edition = "2021"
+description = "High-performance, ultra-compact zero-copy Solana escrow program for Reach"
 
 [lib]
 crate-type = ["cdylib", "lib"]
@@ -17,6 +18,14 @@ solana-signer = "3.0.0"
 solana-keypair = "3.0.1"
 anchor-spl = "1.1.2"
 anchor-lang = "1.1.2"
+
+[profile.release]
+opt-level = "z"
+overflow-checks = false
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = true
 
 [lints.rust]
 unexpected_cfgs = { level = "allow" }

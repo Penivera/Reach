@@ -23,7 +23,7 @@ fn setup_svm() -> (LiteSVM, Keypair) {
     let mut svm = LiteSVM::new();
     let bytes = include_bytes!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../target/deploy/reach_pinocchio.so"
+        "/target/deploy/reach_escrow.so"
     ));
     svm.add_program(PROGRAM_ID, bytes).unwrap();
     let payer = Keypair::new();
