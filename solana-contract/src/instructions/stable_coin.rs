@@ -1,4 +1,4 @@
-use pinocchio::{AccountView, Address, ProgramResult, error::ProgramError};
+use pinocchio::{error::ProgramError, AccountView, Address, ProgramResult};
 
 use crate::{
     constants::{FEE_VAULT_SEED, STABLE_COIN_SEED, SUPPORTED_STABLE_DISCM},
@@ -13,7 +13,9 @@ pub fn add_supported_stable(
     accounts: &[AccountView],
     name: [u8; 10],
 ) -> ProgramResult {
-    let [caller, reach_state, stable_coin_mint, supported_token, fee_vault, _system_program, _token_program, ..] = accounts else {
+    let [caller, reach_state, stable_coin_mint, supported_token, fee_vault, _system_program, _token_program, ..] =
+        accounts
+    else {
         return Err(ProgramError::NotEnoughAccountKeys);
     };
     require_admin(reach_state, caller)?;
@@ -52,9 +54,7 @@ pub fn add_supported_stable(
 }
 
 #[inline(never)]
-pub fn remove_supported_stable(
-    accounts: &[AccountView],
-) -> ProgramResult {
+pub fn remove_supported_stable(accounts: &[AccountView]) -> ProgramResult {
     let [caller, reach_state, _stable_coin_mint, supported_token, ..] = accounts else {
         return Err(ProgramError::NotEnoughAccountKeys);
     };

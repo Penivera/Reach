@@ -1,5 +1,5 @@
-use pinocchio::{AccountView, Address};
 use crate::constants::MAX_ADMINS;
+use pinocchio::{AccountView, Address};
 
 #[repr(u8)]
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]

@@ -161,7 +161,8 @@ pub fn vote_owner_update(accounts: &[AccountView]) -> ProgramResult {
 
 #[inline(never)]
 pub fn withdraw_protocol_fees(accounts: &[AccountView], amount: u64) -> ProgramResult {
-    let [owner, reach_state, stable_coin_mint, fee_vault, receiver, _token_program, ..] = accounts else {
+    let [owner, reach_state, stable_coin_mint, fee_vault, receiver, _token_program, ..] = accounts
+    else {
         return Err(ProgramError::NotEnoughAccountKeys);
     };
     require_owner(reach_state, owner)?;

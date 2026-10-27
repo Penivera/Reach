@@ -7,8 +7,8 @@ use pinocchio::{
 use crate::{
     constants::{TASK_DISCM, TASK_SEED},
     cpi::{
-        cpi_task_transfer_checked, cpi_task_transfer_checked_pair,
-        cpi_user_transfer_checked_pair, create_pda_account, create_pda_token_account,
+        cpi_task_transfer_checked, cpi_task_transfer_checked_pair, cpi_user_transfer_checked_pair,
+        create_pda_account, create_pda_token_account,
     },
     error::ReachError,
     instructions::admin::require_admin,
@@ -44,7 +44,8 @@ pub fn create_task(
     if !supported_token_check.owned_by(program_id) || supported_token_check.data_len() != 56 {
         return Err(ProgramError::InvalidAccountOwner);
     }
-    let supported_token = unsafe { const_data::<crate::state::SupportedStable>(supported_token_check) };
+    let supported_token =
+        unsafe { const_data::<crate::state::SupportedStable>(supported_token_check) };
     if supported_token.mint != *stable_coin_mint.address() {
         return Err(ProgramError::InvalidAccountData);
     }
@@ -113,10 +114,10 @@ pub fn create_task(
 }
 
 #[inline(never)]
-pub fn cancel_task(
-    accounts: &[AccountView],
-) -> ProgramResult {
-    let [creator, task, task_vault, reach_state, fee_vault, creator_token_account, stable_coin_mint, _system_program, _token_program, ..] = accounts else {
+pub fn cancel_task(accounts: &[AccountView]) -> ProgramResult {
+    let [creator, task, task_vault, reach_state, fee_vault, creator_token_account, stable_coin_mint, _system_program, _token_program, ..] =
+        accounts
+    else {
         return Err(ProgramError::NotEnoughAccountKeys);
     };
 
@@ -129,14 +130,18 @@ pub fn cancel_task(
         return Err(ReachError::NotOwner.into());
     }
 
-    if task_data.status != TaskStatus::Open as u8 && task_data.status != TaskStatus::AwaitingEscrow as u8 {
+    if task_data.status != TaskStatus::Open as u8
+        && task_data.status != TaskStatus::AwaitingEscrow as u8
+    {
         return Err(ReachError::CannotCancelTask.into());
     }
 
     let state = unsafe { const_data::<ReachState>(reach_state) };
     let total_escrow = task_data.escrow.creator_locked_balance;
     let cancellation_fee = mul_div_64(total_escrow, state.cancellation_fee_pct as u64, 10_000)?;
-    let refund_amount = total_escrow.checked_sub(cancellation_fee).ok_or(ProgramError::ArithmeticOverflow)?;
+    let refund_amount = total_escrow
+        .checked_sub(cancellation_fee)
+        .ok_or(ProgramError::ArithmeticOverflow)?;
 
     cpi_task_transfer_checked_pair(
         task_vault,
@@ -155,9 +160,7 @@ pub fn cancel_task(
 }
 
 #[inline(never)]
-pub fn complete_task(
-    accounts: &[AccountView],
-) -> ProgramResult {
+pub fn complete_task(accounts: &[AccountView]) -> ProgramResult {
     let [provider, task, ..] = accounts else {
         return Err(ProgramError::NotEnoughAccountKeys);
     };
@@ -180,10 +183,10 @@ pub fn complete_task(
 }
 
 #[inline(never)]
-pub fn approve_work(
-    accounts: &[AccountView],
-) -> ProgramResult {
-    let [creator, task, task_vault, provider_token_account, stable_coin_mint, _token_program, ..] = accounts else {
+pub fn approve_work(accounts: &[AccountView]) -> ProgramResult {
+    let [creator, task, task_vault, provider_token_account, stable_coin_mint, _token_program, ..] =
+        accounts
+    else {
         return Err(ProgramError::NotEnoughAccountKeys);
     };
 
@@ -206,11 +209,16 @@ pub fn approve_work(
         0
     };
 
-    let advance_amount = if task_data.escrow.advanced_disbursed != 0 && task_data.terms.upfront_release_pct > 0 {
-        mul_div_64(task_data.terms.material_cost, task_data.terms.upfront_release_pct as u64, 100)?
-    } else {
-        0
-    };
+    let advance_amount =
+        if task_data.escrow.advanced_disbursed != 0 && task_data.terms.upfront_release_pct > 0 {
+            mul_div_64(
+                task_data.terms.material_cost,
+                task_data.terms.upfront_release_pct as u64,
+                100,
+            )?
+        } else {
+            0
+        };
 
     let remaining_creator_escrow = task_data
         .escrow
@@ -239,9 +247,7 @@ pub fn approve_work(
 }
 
 #[inline(never)]
-pub fn raise_dispute(
-    accounts: &[AccountView],
-) -> ProgramResult {
+pub fn raise_dispute(accounts: &[AccountView]) -> ProgramResult {
     let [caller, task, ..] = accounts else {
         return Err(ProgramError::NotEnoughAccountKeys);
     };
@@ -258,7 +264,9 @@ pub fn raise_dispute(
         return Err(ReachError::InvalidDisputeCaller.into());
     }
 
-    if task_data.status != TaskStatus::InProgress as u8 && task_data.status != TaskStatus::AwaitingApproval as u8 {
+    if task_data.status != TaskStatus::InProgress as u8
+        && task_data.status != TaskStatus::AwaitingApproval as u8
+    {
         return Err(ReachError::InvalidDisputeStatus.into());
     }
 
@@ -272,7 +280,9 @@ pub fn resolve_dispute(
     creator_refund_pct: u8,
     provider_payment_pct: u8,
 ) -> ProgramResult {
-    let [caller, reach_state, task, task_vault, creator_token_account, provider_token_account, stable_coin_mint, _token_program, ..] = accounts else {
+    let [caller, reach_state, task, task_vault, creator_token_account, provider_token_account, stable_coin_mint, _token_program, ..] =
+        accounts
+    else {
         return Err(ProgramError::NotEnoughAccountKeys);
     };
     require_admin(reach_state, caller)?;
@@ -288,7 +298,9 @@ pub fn resolve_dispute(
 
     let total_funds = get_token_balance(task_vault);
     let creator_refund = mul_div_64(total_funds, creator_refund_pct as u64, 100)?;
-    let provider_payment = total_funds.checked_sub(creator_refund).ok_or(ProgramError::ArithmeticOverflow)?;
+    let provider_payment = total_funds
+        .checked_sub(creator_refund)
+        .ok_or(ProgramError::ArithmeticOverflow)?;
 
     cpi_task_transfer_checked_pair(
         task_vault,

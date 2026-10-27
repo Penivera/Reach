@@ -12,8 +12,8 @@ use crate::{
 
 pub const SYSTEM_PROGRAM_ID: Address = Address::new_from_array([0u8; 32]);
 pub const TOKEN_PROGRAM_ID: Address = Address::new_from_array([
-    6, 221, 246, 225, 215, 101, 161, 147, 217, 203, 225, 70, 206, 235, 121, 172,
-    28, 180, 133, 237, 95, 91, 55, 145, 58, 140, 245, 133, 126, 255, 0, 169,
+    6, 221, 246, 225, 215, 101, 161, 147, 217, 203, 225, 70, 206, 235, 121, 172, 28, 180, 133, 237,
+    95, 91, 55, 145, 58, 140, 245, 133, 126, 255, 0, 169,
 ]);
 
 #[inline(never)]
@@ -58,7 +58,10 @@ pub fn cpi_create_account(
         owner: *owner,
     };
     let data_bytes = unsafe {
-        core::slice::from_raw_parts(&data as *const _ as *const u8, core::mem::size_of::<CreateAccountIx>())
+        core::slice::from_raw_parts(
+            &data as *const _ as *const u8,
+            core::mem::size_of::<CreateAccountIx>(),
+        )
     };
     let ix_accounts = [
         InstructionAccount::writable_signer(payer.address()),
@@ -95,7 +98,10 @@ pub fn cpi_init_token_account(
         owner: *owner,
     };
     let data_bytes = unsafe {
-        core::slice::from_raw_parts(&data as *const _ as *const u8, core::mem::size_of::<InitAccount3Ix>())
+        core::slice::from_raw_parts(
+            &data as *const _ as *const u8,
+            core::mem::size_of::<InitAccount3Ix>(),
+        )
     };
 
     let ix_accounts = [
@@ -141,7 +147,10 @@ pub fn cpi_transfer_checked(
         decimals,
     };
     let data_bytes = unsafe {
-        core::slice::from_raw_parts(&data as *const _ as *const u8, core::mem::size_of::<TransferCheckedIx>())
+        core::slice::from_raw_parts(
+            &data as *const _ as *const u8,
+            core::mem::size_of::<TransferCheckedIx>(),
+        )
     };
 
     let ix_accounts = [
@@ -302,9 +311,8 @@ pub fn create_pda_account(
         return Err(ProgramError::InvalidAccountOwner);
     }
 
-    let seed_slice: &[Seed] = unsafe {
-        core::slice::from_raw_parts(seeds_raw.as_ptr() as *const Seed, n + 1)
-    };
+    let seed_slice: &[Seed] =
+        unsafe { core::slice::from_raw_parts(seeds_raw.as_ptr() as *const Seed, n + 1) };
     let signers = [Signer::from(seed_slice)];
     let lamports = rent_exempt_minimum(space);
 
@@ -327,10 +335,7 @@ pub fn create_pda_token_account(
 }
 
 #[inline(never)]
-pub fn close_account(
-    mut source: AccountView,
-    mut destination: AccountView,
-) -> ProgramResult {
+pub fn close_account(mut source: AccountView, mut destination: AccountView) -> ProgramResult {
     let source_lamports = source.lamports();
     let new_dest_lamports = destination
         .lamports()

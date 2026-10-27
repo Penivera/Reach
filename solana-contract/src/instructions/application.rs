@@ -12,7 +12,10 @@ use crate::{
     },
     error::ReachError,
     math::{get_mint_decimals, mul_div_64},
-    state::{const_data, mut_data, ProviderApplication, ProviderApplicationStatus, ProviderDebt, ReachState, Task, TaskStatus},
+    state::{
+        const_data, mut_data, ProviderApplication, ProviderApplicationStatus, ProviderDebt,
+        ReachState, Task, TaskStatus,
+    },
 };
 
 #[inline(never)]
@@ -41,7 +44,11 @@ pub fn apply(
     let app_bump = create_pda_account(
         provider,
         application,
-        &[APPLICATION_SEED, provider.address().as_ref(), task.address().as_ref()],
+        &[
+            APPLICATION_SEED,
+            provider.address().as_ref(),
+            task.address().as_ref(),
+        ],
         app_space,
         program_id,
         program_id,
@@ -63,10 +70,7 @@ pub fn apply(
 }
 
 #[inline(never)]
-pub fn accept(
-    accounts: &[AccountView],
-    provider: Address,
-) -> ProgramResult {
+pub fn accept(accounts: &[AccountView], provider: Address) -> ProgramResult {
     let [owner, task, application, ..] = accounts else {
         return Err(ProgramError::NotEnoughAccountKeys);
     };
@@ -104,10 +108,10 @@ pub fn accept(
 }
 
 #[inline(never)]
-pub fn provide_collateral(
-    accounts: &[AccountView],
-) -> ProgramResult {
-    let [provider, task, application, task_vault, provider_token_account, stable_coin_mint, _supported_token_check, _token_program, ..] = accounts else {
+pub fn provide_collateral(accounts: &[AccountView]) -> ProgramResult {
+    let [provider, task, application, task_vault, provider_token_account, stable_coin_mint, _supported_token_check, _token_program, ..] =
+        accounts
+    else {
         return Err(ProgramError::NotEnoughAccountKeys);
     };
 
@@ -151,12 +155,7 @@ pub fn provide_collateral(
 
     // Disburse advance if configured
     if task_data.terms.upfront_release_pct > 0 {
-        disburse_advance(
-            task,
-            task_vault,
-            stable_coin_mint,
-            provider_token_account,
-        )?;
+        disburse_advance(task, task_vault, stable_coin_mint, provider_token_account)?;
     }
 
     Ok(())
@@ -170,7 +169,11 @@ fn disburse_advance(
     provider_token_account: &AccountView,
 ) -> ProgramResult {
     let task_data = unsafe { mut_data::<Task>(task) };
-    let advance_amount = mul_div_64(task_data.terms.material_cost, task_data.terms.upfront_release_pct as u64, 100)?;
+    let advance_amount = mul_div_64(
+        task_data.terms.material_cost,
+        task_data.terms.upfront_release_pct as u64,
+        100,
+    )?;
     cpi_task_transfer_checked(
         task_vault,
         stable_coin_mint,
@@ -183,10 +186,10 @@ fn disburse_advance(
 }
 
 #[inline(never)]
-pub fn claim_advance(
-    accounts: &[AccountView],
-) -> ProgramResult {
-    let [provider, task, task_vault, provider_token_account, stable_coin_mint, _token_program, ..] = accounts else {
+pub fn claim_advance(accounts: &[AccountView]) -> ProgramResult {
+    let [provider, task, task_vault, provider_token_account, stable_coin_mint, _token_program, ..] =
+        accounts
+    else {
         return Err(ProgramError::NotEnoughAccountKeys);
     };
 
@@ -207,12 +210,7 @@ pub fn claim_advance(
         return Err(ReachError::AdvanceAlreadyDisbursed.into());
     }
 
-    disburse_advance(
-        task,
-        task_vault,
-        stable_coin_mint,
-        provider_token_account,
-    )
+    disburse_advance(task, task_vault, stable_coin_mint, provider_token_account)
 }
 
 #[inline(never)]
@@ -220,7 +218,9 @@ pub fn cancel_approved_application(
     program_id: &Address,
     accounts: &[AccountView],
 ) -> ProgramResult {
-    let [provider, task, task_vault, application, reach_state, fee_vault, provider_token_account, stable_coin_mint, provider_debt, _system_program, _token_program, ..] = accounts else {
+    let [provider, task, task_vault, application, reach_state, fee_vault, provider_token_account, stable_coin_mint, provider_debt, _system_program, _token_program, ..] =
+        accounts
+    else {
         return Err(ProgramError::NotEnoughAccountKeys);
     };
 
@@ -258,11 +258,16 @@ pub fn cancel_approved_application(
         0
     };
 
-    let advance_amount = if task_data.escrow.advanced_disbursed != 0 && task_data.terms.upfront_release_pct > 0 {
-        mul_div_64(task_data.terms.material_cost, task_data.terms.upfront_release_pct as u64, 100)?
-    } else {
-        0
-    };
+    let advance_amount =
+        if task_data.escrow.advanced_disbursed != 0 && task_data.terms.upfront_release_pct > 0 {
+            mul_div_64(
+                task_data.terms.material_cost,
+                task_data.terms.upfront_release_pct as u64,
+                100,
+            )?
+        } else {
+            0
+        };
 
     let decimals = get_mint_decimals(stable_coin_mint);
 
@@ -287,7 +292,11 @@ pub fn cancel_approved_application(
             .ok_or(ProgramError::ArithmeticOverflow)?;
 
         let state = unsafe { const_data::<ReachState>(reach_state) };
-        let fee_amount = mul_div_64(task_data.escrow.creator_locked_balance, state.cancellation_fee_pct as u64, 10_000)?;
+        let fee_amount = mul_div_64(
+            task_data.escrow.creator_locked_balance,
+            state.cancellation_fee_pct as u64,
+            10_000,
+        )?;
 
         cpi_user_transfer_checked_pair(
             provider_token_account,
@@ -323,14 +332,16 @@ pub fn cancel_approved_application(
 }
 
 #[inline(never)]
-pub fn withdraw_application(
-    accounts: &[AccountView],
-) -> ProgramResult {
+pub fn withdraw_application(accounts: &[AccountView]) -> ProgramResult {
     if accounts.len() < 2 {
         return Err(ProgramError::NotEnoughAccountKeys);
     }
     let provider = &accounts[0];
-    let application = if accounts.len() == 2 { &accounts[1] } else { &accounts[2] };
+    let application = if accounts.len() == 2 {
+        &accounts[1]
+    } else {
+        &accounts[2]
+    };
 
     if !provider.is_signer() {
         return Err(ProgramError::MissingRequiredSignature);

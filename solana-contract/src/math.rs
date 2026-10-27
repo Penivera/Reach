@@ -5,7 +5,9 @@ pub fn mul_div_64(val: u64, num: u64, den: u64) -> Result<u64, ProgramError> {
     if den == 0 {
         return Err(ProgramError::InvalidArgument);
     }
-    let prod = val.checked_mul(num).ok_or(ProgramError::ArithmeticOverflow)?;
+    let prod = val
+        .checked_mul(num)
+        .ok_or(ProgramError::ArithmeticOverflow)?;
     Ok(prod / den)
 }
 

@@ -1,6 +1,6 @@
 use {
     anchor_lang::{
-        prelude::{Pubkey, sysvar::SysvarId},
+        prelude::{sysvar::SysvarId, Pubkey},
         solana_program::{
             instruction::{AccountMeta, Instruction},
             system_instruction, system_program,
@@ -14,9 +14,8 @@ use {
 };
 
 const PROGRAM_ID: Pubkey = Pubkey::new_from_array([
-    0x51, 0x72, 0x65, 0x61, 0x63, 0x68, 0x50, 0x69, 0x6e, 0x6f, 0x63, 0x63, 0x68, 0x69, 0x6f,
-    0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31,
-    0x31, 0x31,
+    0x51, 0x72, 0x65, 0x61, 0x63, 0x68, 0x50, 0x69, 0x6e, 0x6f, 0x63, 0x63, 0x68, 0x69, 0x6f, 0x31,
+    0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31,
 ]);
 
 fn setup_svm() -> (LiteSVM, Keypair) {
@@ -42,7 +41,8 @@ fn setup_mint(svm: &mut LiteSVM, payer: &Keypair, mint: &Keypair, authority: &Pu
     );
     let blockhash1 = svm.latest_blockhash();
     let msg1 = Message::new_with_blockhash(&[create_idx], Some(&payer.pubkey()), &blockhash1);
-    let tx1 = VersionedTransaction::try_new(VersionedMessage::Legacy(msg1), &[payer, mint]).unwrap();
+    let tx1 =
+        VersionedTransaction::try_new(VersionedMessage::Legacy(msg1), &[payer, mint]).unwrap();
     svm.send_transaction(tx1).unwrap();
 
     let init_mint_idx = anchor_spl::token::spl_token::instruction::initialize_mint(
@@ -51,14 +51,20 @@ fn setup_mint(svm: &mut LiteSVM, payer: &Keypair, mint: &Keypair, authority: &Pu
         authority,
         None,
         6,
-    ).unwrap();
+    )
+    .unwrap();
     let blockhash2 = svm.latest_blockhash();
     let msg2 = Message::new_with_blockhash(&[init_mint_idx], Some(&payer.pubkey()), &blockhash2);
     let tx2 = VersionedTransaction::try_new(VersionedMessage::Legacy(msg2), &[payer]).unwrap();
     svm.send_transaction(tx2).unwrap();
 }
 
-fn setup_token_account(svm: &mut LiteSVM, payer: &Keypair, owner: &Pubkey, mint: &Pubkey) -> Pubkey {
+fn setup_token_account(
+    svm: &mut LiteSVM,
+    payer: &Keypair,
+    owner: &Pubkey,
+    mint: &Pubkey,
+) -> Pubkey {
     let ata = anchor_spl::associated_token::get_associated_token_address(owner, mint);
     let create_ata_idx = anchor_spl::associated_token::spl_associated_token_account::instruction::create_associated_token_account(
         &payer.pubkey(),
@@ -73,7 +79,14 @@ fn setup_token_account(svm: &mut LiteSVM, payer: &Keypair, owner: &Pubkey, mint:
     ata
 }
 
-fn mint_to(svm: &mut LiteSVM, payer: &Keypair, mint: &Pubkey, mint_authority: &Keypair, recipient: &Pubkey, amount: u64) {
+fn mint_to(
+    svm: &mut LiteSVM,
+    payer: &Keypair,
+    mint: &Pubkey,
+    mint_authority: &Keypair,
+    recipient: &Pubkey,
+    amount: u64,
+) {
     let mint_to_idx = anchor_spl::token::spl_token::instruction::mint_to(
         &anchor_spl::token::ID,
         mint,
@@ -81,13 +94,15 @@ fn mint_to(svm: &mut LiteSVM, payer: &Keypair, mint: &Pubkey, mint_authority: &K
         &mint_authority.pubkey(),
         &[],
         amount,
-    ).unwrap();
+    )
+    .unwrap();
     let blockhash = svm.latest_blockhash();
     let msg = Message::new_with_blockhash(&[mint_to_idx], Some(&payer.pubkey()), &blockhash);
     let tx = if payer.pubkey() == mint_authority.pubkey() {
         VersionedTransaction::try_new(VersionedMessage::Legacy(msg), &[payer]).unwrap()
     } else {
-        VersionedTransaction::try_new(VersionedMessage::Legacy(msg), &[payer, mint_authority]).unwrap()
+        VersionedTransaction::try_new(VersionedMessage::Legacy(msg), &[payer, mint_authority])
+            .unwrap()
     };
     svm.send_transaction(tx).unwrap();
 }
@@ -111,12 +126,28 @@ fn test_full_happy_path() {
 
     let creator_ata = setup_token_account(&mut svm, &owner, &creator.pubkey(), &mint.pubkey());
     let provider_ata = setup_token_account(&mut svm, &owner, &provider.pubkey(), &mint.pubkey());
-    mint_to(&mut svm, &owner, &mint.pubkey(), &mint_auth, &creator_ata, 50_000_000);
-    mint_to(&mut svm, &owner, &mint.pubkey(), &mint_auth, &provider_ata, 10_000_000);
+    mint_to(
+        &mut svm,
+        &owner,
+        &mint.pubkey(),
+        &mint_auth,
+        &creator_ata,
+        50_000_000,
+    );
+    mint_to(
+        &mut svm,
+        &owner,
+        &mint.pubkey(),
+        &mint_auth,
+        &provider_ata,
+        10_000_000,
+    );
 
     let (reach_state_pda, _) = Pubkey::find_program_address(&[b"reach_state"], &PROGRAM_ID);
-    let (supported_stable_pda, _) = Pubkey::find_program_address(&[b"supported_stable", mint.pubkey().as_ref()], &PROGRAM_ID);
-    let (fee_vault_pda, _) = Pubkey::find_program_address(&[b"fee_vault", mint.pubkey().as_ref()], &PROGRAM_ID);
+    let (supported_stable_pda, _) =
+        Pubkey::find_program_address(&[b"supported_stable", mint.pubkey().as_ref()], &PROGRAM_ID);
+    let (fee_vault_pda, _) =
+        Pubkey::find_program_address(&[b"fee_vault", mint.pubkey().as_ref()], &PROGRAM_ID);
 
     // 1. Initialize
     let mut init_data = vec![0u8];
@@ -133,7 +164,15 @@ fn test_full_happy_path() {
         data: init_data,
     };
     let blockhash = svm.latest_blockhash();
-    let tx = VersionedTransaction::try_new(VersionedMessage::Legacy(Message::new_with_blockhash(&[init_ix], Some(&owner.pubkey()), &blockhash)), &[&owner]).unwrap();
+    let tx = VersionedTransaction::try_new(
+        VersionedMessage::Legacy(Message::new_with_blockhash(
+            &[init_ix],
+            Some(&owner.pubkey()),
+            &blockhash,
+        )),
+        &[&owner],
+    )
+    .unwrap();
     svm.send_transaction(tx).unwrap();
 
     // 2. Add Supported Stable
@@ -156,13 +195,23 @@ fn test_full_happy_path() {
         data: add_stable_data,
     };
     let blockhash = svm.latest_blockhash();
-    let tx = VersionedTransaction::try_new(VersionedMessage::Legacy(Message::new_with_blockhash(&[add_stable_ix], Some(&owner.pubkey()), &blockhash)), &[&owner]).unwrap();
+    let tx = VersionedTransaction::try_new(
+        VersionedMessage::Legacy(Message::new_with_blockhash(
+            &[add_stable_ix],
+            Some(&owner.pubkey()),
+            &blockhash,
+        )),
+        &[&owner],
+    )
+    .unwrap();
     svm.send_transaction(tx).unwrap();
 
     // 3. Create Task (task_id: 1, labor: 600, material: 400, upfront: 50%, collateral: 200)
     let task_id = 1u64;
-    let (task_pda, _) = Pubkey::find_program_address(&[b"task", &task_id.to_le_bytes()], &PROGRAM_ID);
-    let (task_vault_pda, _) = Pubkey::find_program_address(&[b"task", task_pda.as_ref()], &PROGRAM_ID);
+    let (task_pda, _) =
+        Pubkey::find_program_address(&[b"task", &task_id.to_le_bytes()], &PROGRAM_ID);
+    let (task_vault_pda, _) =
+        Pubkey::find_program_address(&[b"task", task_pda.as_ref()], &PROGRAM_ID);
 
     let mut create_task_data = vec![6u8];
     create_task_data.extend_from_slice(&task_id.to_le_bytes());
@@ -191,14 +240,30 @@ fn test_full_happy_path() {
         data: create_task_data,
     };
     let blockhash = svm.latest_blockhash();
-    let tx = VersionedTransaction::try_new(VersionedMessage::Legacy(Message::new_with_blockhash(&[create_task_ix], Some(&creator.pubkey()), &blockhash)), &[&creator]).unwrap();
+    let tx = VersionedTransaction::try_new(
+        VersionedMessage::Legacy(Message::new_with_blockhash(
+            &[create_task_ix],
+            Some(&creator.pubkey()),
+            &blockhash,
+        )),
+        &[&creator],
+    )
+    .unwrap();
     svm.send_transaction(tx).unwrap();
 
     assert_eq!(get_token_balance(&svm, &task_vault_pda), 1_000_000);
 
     // 4. Provider Applies
-    let (app_pda, _) = Pubkey::find_program_address(&[b"application", provider.pubkey().as_ref(), task_pda.as_ref()], &PROGRAM_ID);
-    let (debt_pda, _) = Pubkey::find_program_address(&[b"provider_debt", provider.pubkey().as_ref()], &PROGRAM_ID);
+    let (app_pda, _) = Pubkey::find_program_address(
+        &[
+            b"application",
+            provider.pubkey().as_ref(),
+            task_pda.as_ref(),
+        ],
+        &PROGRAM_ID,
+    );
+    let (debt_pda, _) =
+        Pubkey::find_program_address(&[b"provider_debt", provider.pubkey().as_ref()], &PROGRAM_ID);
 
     let mut apply_data = vec![7u8];
     apply_data.extend_from_slice(&task_id.to_le_bytes());
@@ -216,7 +281,15 @@ fn test_full_happy_path() {
         data: apply_data,
     };
     let blockhash = svm.latest_blockhash();
-    let tx = VersionedTransaction::try_new(VersionedMessage::Legacy(Message::new_with_blockhash(&[apply_ix], Some(&provider.pubkey()), &blockhash)), &[&provider]).unwrap();
+    let tx = VersionedTransaction::try_new(
+        VersionedMessage::Legacy(Message::new_with_blockhash(
+            &[apply_ix],
+            Some(&provider.pubkey()),
+            &blockhash,
+        )),
+        &[&provider],
+    )
+    .unwrap();
     svm.send_transaction(tx).unwrap();
 
     // 5. Creator Accepts Provider
@@ -234,7 +307,15 @@ fn test_full_happy_path() {
         data: accept_data,
     };
     let blockhash = svm.latest_blockhash();
-    let tx = VersionedTransaction::try_new(VersionedMessage::Legacy(Message::new_with_blockhash(&[accept_ix], Some(&creator.pubkey()), &blockhash)), &[&creator]).unwrap();
+    let tx = VersionedTransaction::try_new(
+        VersionedMessage::Legacy(Message::new_with_blockhash(
+            &[accept_ix],
+            Some(&creator.pubkey()),
+            &blockhash,
+        )),
+        &[&creator],
+    )
+    .unwrap();
     svm.send_transaction(tx).unwrap();
 
     // 6. Provider Deposits Collateral (200,000) & Gets Advance (200,000)
@@ -256,7 +337,15 @@ fn test_full_happy_path() {
         data: col_data,
     };
     let blockhash = svm.latest_blockhash();
-    let tx = VersionedTransaction::try_new(VersionedMessage::Legacy(Message::new_with_blockhash(&[col_ix], Some(&provider.pubkey()), &blockhash)), &[&provider]).unwrap();
+    let tx = VersionedTransaction::try_new(
+        VersionedMessage::Legacy(Message::new_with_blockhash(
+            &[col_ix],
+            Some(&provider.pubkey()),
+            &blockhash,
+        )),
+        &[&provider],
+    )
+    .unwrap();
     svm.send_transaction(tx).unwrap();
 
     // 7. Provider Completes Task
@@ -272,7 +361,15 @@ fn test_full_happy_path() {
         data: complete_data,
     };
     let blockhash = svm.latest_blockhash();
-    let tx = VersionedTransaction::try_new(VersionedMessage::Legacy(Message::new_with_blockhash(&[complete_ix], Some(&provider.pubkey()), &blockhash)), &[&provider]).unwrap();
+    let tx = VersionedTransaction::try_new(
+        VersionedMessage::Legacy(Message::new_with_blockhash(
+            &[complete_ix],
+            Some(&provider.pubkey()),
+            &blockhash,
+        )),
+        &[&provider],
+    )
+    .unwrap();
     svm.send_transaction(tx).unwrap();
 
     // 8. Creator Approves Work
@@ -292,7 +389,15 @@ fn test_full_happy_path() {
         data: approve_data,
     };
     let blockhash = svm.latest_blockhash();
-    let tx = VersionedTransaction::try_new(VersionedMessage::Legacy(Message::new_with_blockhash(&[approve_ix], Some(&creator.pubkey()), &blockhash)), &[&creator]).unwrap();
+    let tx = VersionedTransaction::try_new(
+        VersionedMessage::Legacy(Message::new_with_blockhash(
+            &[approve_ix],
+            Some(&creator.pubkey()),
+            &blockhash,
+        )),
+        &[&creator],
+    )
+    .unwrap();
     svm.send_transaction(tx).unwrap();
 
     // Verify final balances: task_vault is 0, provider received full payout + collateral
@@ -310,11 +415,20 @@ fn test_task_cancellation_with_fee() {
     let creator = Keypair::new();
     svm.airdrop(&creator.pubkey(), 10_000_000_000).unwrap();
     let creator_ata = setup_token_account(&mut svm, &owner, &creator.pubkey(), &mint.pubkey());
-    mint_to(&mut svm, &owner, &mint.pubkey(), &mint_auth, &creator_ata, 50_000_000);
+    mint_to(
+        &mut svm,
+        &owner,
+        &mint.pubkey(),
+        &mint_auth,
+        &creator_ata,
+        50_000_000,
+    );
 
     let (reach_state_pda, _) = Pubkey::find_program_address(&[b"reach_state"], &PROGRAM_ID);
-    let (supported_stable_pda, _) = Pubkey::find_program_address(&[b"supported_stable", mint.pubkey().as_ref()], &PROGRAM_ID);
-    let (fee_vault_pda, _) = Pubkey::find_program_address(&[b"fee_vault", mint.pubkey().as_ref()], &PROGRAM_ID);
+    let (supported_stable_pda, _) =
+        Pubkey::find_program_address(&[b"supported_stable", mint.pubkey().as_ref()], &PROGRAM_ID);
+    let (fee_vault_pda, _) =
+        Pubkey::find_program_address(&[b"fee_vault", mint.pubkey().as_ref()], &PROGRAM_ID);
 
     // Initialize & add stable
     let mut init_data = vec![0u8];
@@ -331,7 +445,18 @@ fn test_task_cancellation_with_fee() {
         data: init_data,
     };
     let blockhash = svm.latest_blockhash();
-    svm.send_transaction(VersionedTransaction::try_new(VersionedMessage::Legacy(Message::new_with_blockhash(&[init_ix], Some(&owner.pubkey()), &blockhash)), &[&owner]).unwrap()).unwrap();
+    svm.send_transaction(
+        VersionedTransaction::try_new(
+            VersionedMessage::Legacy(Message::new_with_blockhash(
+                &[init_ix],
+                Some(&owner.pubkey()),
+                &blockhash,
+            )),
+            &[&owner],
+        )
+        .unwrap(),
+    )
+    .unwrap();
 
     let mut add_stable_data = vec![20u8];
     add_stable_data.extend_from_slice(&[0u8; 10]);
@@ -350,12 +475,25 @@ fn test_task_cancellation_with_fee() {
         data: add_stable_data,
     };
     let blockhash = svm.latest_blockhash();
-    svm.send_transaction(VersionedTransaction::try_new(VersionedMessage::Legacy(Message::new_with_blockhash(&[add_stable_ix], Some(&owner.pubkey()), &blockhash)), &[&owner]).unwrap()).unwrap();
+    svm.send_transaction(
+        VersionedTransaction::try_new(
+            VersionedMessage::Legacy(Message::new_with_blockhash(
+                &[add_stable_ix],
+                Some(&owner.pubkey()),
+                &blockhash,
+            )),
+            &[&owner],
+        )
+        .unwrap(),
+    )
+    .unwrap();
 
     // Create Task (1_000_000 escrow)
     let task_id = 2u64;
-    let (task_pda, _) = Pubkey::find_program_address(&[b"task", &task_id.to_le_bytes()], &PROGRAM_ID);
-    let (task_vault_pda, _) = Pubkey::find_program_address(&[b"task", task_pda.as_ref()], &PROGRAM_ID);
+    let (task_pda, _) =
+        Pubkey::find_program_address(&[b"task", &task_id.to_le_bytes()], &PROGRAM_ID);
+    let (task_vault_pda, _) =
+        Pubkey::find_program_address(&[b"task", task_pda.as_ref()], &PROGRAM_ID);
 
     let mut create_task_data = vec![6u8];
     create_task_data.extend_from_slice(&task_id.to_le_bytes());
@@ -384,7 +522,18 @@ fn test_task_cancellation_with_fee() {
         data: create_task_data,
     };
     let blockhash = svm.latest_blockhash();
-    svm.send_transaction(VersionedTransaction::try_new(VersionedMessage::Legacy(Message::new_with_blockhash(&[create_task_ix], Some(&creator.pubkey()), &blockhash)), &[&creator]).unwrap()).unwrap();
+    svm.send_transaction(
+        VersionedTransaction::try_new(
+            VersionedMessage::Legacy(Message::new_with_blockhash(
+                &[create_task_ix],
+                Some(&creator.pubkey()),
+                &blockhash,
+            )),
+            &[&creator],
+        )
+        .unwrap(),
+    )
+    .unwrap();
 
     // Cancel task: 10% cancellation fee = 100_000, refund = 900_000
     let mut cancel_data = vec![11u8];
@@ -407,7 +556,18 @@ fn test_task_cancellation_with_fee() {
         data: cancel_data,
     };
     let blockhash = svm.latest_blockhash();
-    svm.send_transaction(VersionedTransaction::try_new(VersionedMessage::Legacy(Message::new_with_blockhash(&[cancel_ix], Some(&creator.pubkey()), &blockhash)), &[&creator]).unwrap()).unwrap();
+    svm.send_transaction(
+        VersionedTransaction::try_new(
+            VersionedMessage::Legacy(Message::new_with_blockhash(
+                &[cancel_ix],
+                Some(&creator.pubkey()),
+                &blockhash,
+            )),
+            &[&creator],
+        )
+        .unwrap(),
+    )
+    .unwrap();
 
     assert_eq!(get_token_balance(&svm, &fee_vault_pda), 100_000);
     assert_eq!(get_token_balance(&svm, &creator_ata), 49_900_000);
@@ -428,11 +588,20 @@ fn test_dispute_resolution() {
 
     let creator_ata = setup_token_account(&mut svm, &owner, &creator.pubkey(), &mint.pubkey());
     let provider_ata = setup_token_account(&mut svm, &owner, &provider.pubkey(), &mint.pubkey());
-    mint_to(&mut svm, &owner, &mint.pubkey(), &mint_auth, &creator_ata, 50_000_000);
+    mint_to(
+        &mut svm,
+        &owner,
+        &mint.pubkey(),
+        &mint_auth,
+        &creator_ata,
+        50_000_000,
+    );
 
     let (reach_state_pda, _) = Pubkey::find_program_address(&[b"reach_state"], &PROGRAM_ID);
-    let (supported_stable_pda, _) = Pubkey::find_program_address(&[b"supported_stable", mint.pubkey().as_ref()], &PROGRAM_ID);
-    let (fee_vault_pda, _) = Pubkey::find_program_address(&[b"fee_vault", mint.pubkey().as_ref()], &PROGRAM_ID);
+    let (supported_stable_pda, _) =
+        Pubkey::find_program_address(&[b"supported_stable", mint.pubkey().as_ref()], &PROGRAM_ID);
+    let (fee_vault_pda, _) =
+        Pubkey::find_program_address(&[b"fee_vault", mint.pubkey().as_ref()], &PROGRAM_ID);
 
     // Initialize & add stable
     let mut init_data = vec![0u8];
@@ -447,7 +616,18 @@ fn test_dispute_resolution() {
         data: init_data,
     };
     let blockhash = svm.latest_blockhash();
-    svm.send_transaction(VersionedTransaction::try_new(VersionedMessage::Legacy(Message::new_with_blockhash(&[init_ix], Some(&owner.pubkey()), &blockhash)), &[&owner]).unwrap()).unwrap();
+    svm.send_transaction(
+        VersionedTransaction::try_new(
+            VersionedMessage::Legacy(Message::new_with_blockhash(
+                &[init_ix],
+                Some(&owner.pubkey()),
+                &blockhash,
+            )),
+            &[&owner],
+        )
+        .unwrap(),
+    )
+    .unwrap();
 
     let mut add_stable_data = vec![20u8];
     add_stable_data.extend_from_slice(&[0u8; 10]);
@@ -466,12 +646,25 @@ fn test_dispute_resolution() {
         data: add_stable_data,
     };
     let blockhash = svm.latest_blockhash();
-    svm.send_transaction(VersionedTransaction::try_new(VersionedMessage::Legacy(Message::new_with_blockhash(&[add_stable_ix], Some(&owner.pubkey()), &blockhash)), &[&owner]).unwrap()).unwrap();
+    svm.send_transaction(
+        VersionedTransaction::try_new(
+            VersionedMessage::Legacy(Message::new_with_blockhash(
+                &[add_stable_ix],
+                Some(&owner.pubkey()),
+                &blockhash,
+            )),
+            &[&owner],
+        )
+        .unwrap(),
+    )
+    .unwrap();
 
     // Create Task (1_000_000 escrow)
     let task_id = 3u64;
-    let (task_pda, _) = Pubkey::find_program_address(&[b"task", &task_id.to_le_bytes()], &PROGRAM_ID);
-    let (task_vault_pda, _) = Pubkey::find_program_address(&[b"task", task_pda.as_ref()], &PROGRAM_ID);
+    let (task_pda, _) =
+        Pubkey::find_program_address(&[b"task", &task_id.to_le_bytes()], &PROGRAM_ID);
+    let (task_vault_pda, _) =
+        Pubkey::find_program_address(&[b"task", task_pda.as_ref()], &PROGRAM_ID);
 
     let mut create_task_data = vec![6u8];
     create_task_data.extend_from_slice(&task_id.to_le_bytes());
@@ -500,11 +693,30 @@ fn test_dispute_resolution() {
         data: create_task_data,
     };
     let blockhash = svm.latest_blockhash();
-    svm.send_transaction(VersionedTransaction::try_new(VersionedMessage::Legacy(Message::new_with_blockhash(&[create_task_ix], Some(&creator.pubkey()), &blockhash)), &[&creator]).unwrap()).unwrap();
+    svm.send_transaction(
+        VersionedTransaction::try_new(
+            VersionedMessage::Legacy(Message::new_with_blockhash(
+                &[create_task_ix],
+                Some(&creator.pubkey()),
+                &blockhash,
+            )),
+            &[&creator],
+        )
+        .unwrap(),
+    )
+    .unwrap();
 
     // Apply & Accept
-    let (app_pda, _) = Pubkey::find_program_address(&[b"application", provider.pubkey().as_ref(), task_pda.as_ref()], &PROGRAM_ID);
-    let (debt_pda, _) = Pubkey::find_program_address(&[b"provider_debt", provider.pubkey().as_ref()], &PROGRAM_ID);
+    let (app_pda, _) = Pubkey::find_program_address(
+        &[
+            b"application",
+            provider.pubkey().as_ref(),
+            task_pda.as_ref(),
+        ],
+        &PROGRAM_ID,
+    );
+    let (debt_pda, _) =
+        Pubkey::find_program_address(&[b"provider_debt", provider.pubkey().as_ref()], &PROGRAM_ID);
 
     let mut apply_data = vec![7u8];
     apply_data.extend_from_slice(&task_id.to_le_bytes());
@@ -521,7 +733,18 @@ fn test_dispute_resolution() {
         data: apply_data.clone(),
     };
     let blockhash = svm.latest_blockhash();
-    svm.send_transaction(VersionedTransaction::try_new(VersionedMessage::Legacy(Message::new_with_blockhash(&[apply_ix], Some(&provider.pubkey()), &blockhash)), &[&provider]).unwrap()).unwrap();
+    svm.send_transaction(
+        VersionedTransaction::try_new(
+            VersionedMessage::Legacy(Message::new_with_blockhash(
+                &[apply_ix],
+                Some(&provider.pubkey()),
+                &blockhash,
+            )),
+            &[&provider],
+        )
+        .unwrap(),
+    )
+    .unwrap();
 
     let mut accept_data = vec![8u8];
     accept_data.extend_from_slice(&task_id.to_le_bytes());
@@ -536,7 +759,18 @@ fn test_dispute_resolution() {
         data: accept_data,
     };
     let blockhash = svm.latest_blockhash();
-    svm.send_transaction(VersionedTransaction::try_new(VersionedMessage::Legacy(Message::new_with_blockhash(&[accept_ix], Some(&creator.pubkey()), &blockhash)), &[&creator]).unwrap()).unwrap();
+    svm.send_transaction(
+        VersionedTransaction::try_new(
+            VersionedMessage::Legacy(Message::new_with_blockhash(
+                &[accept_ix],
+                Some(&creator.pubkey()),
+                &blockhash,
+            )),
+            &[&creator],
+        )
+        .unwrap(),
+    )
+    .unwrap();
 
     // Raise Dispute
     let mut dispute_data = vec![15u8];
@@ -550,7 +784,18 @@ fn test_dispute_resolution() {
         data: dispute_data,
     };
     let blockhash = svm.latest_blockhash();
-    svm.send_transaction(VersionedTransaction::try_new(VersionedMessage::Legacy(Message::new_with_blockhash(&[dispute_ix], Some(&creator.pubkey()), &blockhash)), &[&creator]).unwrap()).unwrap();
+    svm.send_transaction(
+        VersionedTransaction::try_new(
+            VersionedMessage::Legacy(Message::new_with_blockhash(
+                &[dispute_ix],
+                Some(&creator.pubkey()),
+                &blockhash,
+            )),
+            &[&creator],
+        )
+        .unwrap(),
+    )
+    .unwrap();
 
     // Resolve Dispute: 60% creator refund (600,000), 40% provider payment (400,000)
     let mut resolve_data = vec![16u8];
@@ -573,10 +818,21 @@ fn test_dispute_resolution() {
         data: resolve_data,
     };
     let blockhash = svm.latest_blockhash();
-    svm.send_transaction(VersionedTransaction::try_new(VersionedMessage::Legacy(Message::new_with_blockhash(&[resolve_ix], Some(&owner.pubkey()), &blockhash)), &[&owner]).unwrap()).unwrap();
+    svm.send_transaction(
+        VersionedTransaction::try_new(
+            VersionedMessage::Legacy(Message::new_with_blockhash(
+                &[resolve_ix],
+                Some(&owner.pubkey()),
+                &blockhash,
+            )),
+            &[&owner],
+        )
+        .unwrap(),
+    )
+    .unwrap();
 
     assert_eq!(get_token_balance(&svm, &creator_ata), 49_600_000); // 49M + 600k refund
-    assert_eq!(get_token_balance(&svm, &provider_ata), 400_000);   // 400k payment
+    assert_eq!(get_token_balance(&svm, &provider_ata), 400_000); // 400k payment
     assert_eq!(get_token_balance(&svm, &task_vault_pda), 0);
 }
 
@@ -594,12 +850,28 @@ fn test_approved_application_cancellation_and_debt_enforcement() {
 
     let creator_ata = setup_token_account(&mut svm, &owner, &creator.pubkey(), &mint.pubkey());
     let provider_ata = setup_token_account(&mut svm, &owner, &provider.pubkey(), &mint.pubkey());
-    mint_to(&mut svm, &owner, &mint.pubkey(), &mint_auth, &creator_ata, 50_000_000);
-    mint_to(&mut svm, &owner, &mint.pubkey(), &mint_auth, &provider_ata, 10_000_000);
+    mint_to(
+        &mut svm,
+        &owner,
+        &mint.pubkey(),
+        &mint_auth,
+        &creator_ata,
+        50_000_000,
+    );
+    mint_to(
+        &mut svm,
+        &owner,
+        &mint.pubkey(),
+        &mint_auth,
+        &provider_ata,
+        10_000_000,
+    );
 
     let (reach_state_pda, _) = Pubkey::find_program_address(&[b"reach_state"], &PROGRAM_ID);
-    let (supported_stable_pda, _) = Pubkey::find_program_address(&[b"supported_stable", mint.pubkey().as_ref()], &PROGRAM_ID);
-    let (fee_vault_pda, _) = Pubkey::find_program_address(&[b"fee_vault", mint.pubkey().as_ref()], &PROGRAM_ID);
+    let (supported_stable_pda, _) =
+        Pubkey::find_program_address(&[b"supported_stable", mint.pubkey().as_ref()], &PROGRAM_ID);
+    let (fee_vault_pda, _) =
+        Pubkey::find_program_address(&[b"fee_vault", mint.pubkey().as_ref()], &PROGRAM_ID);
 
     // Initialize & add stable
     let mut init_data = vec![0u8];
@@ -614,7 +886,18 @@ fn test_approved_application_cancellation_and_debt_enforcement() {
         data: init_data,
     };
     let blockhash = svm.latest_blockhash();
-    svm.send_transaction(VersionedTransaction::try_new(VersionedMessage::Legacy(Message::new_with_blockhash(&[init_ix], Some(&owner.pubkey()), &blockhash)), &[&owner]).unwrap()).unwrap();
+    svm.send_transaction(
+        VersionedTransaction::try_new(
+            VersionedMessage::Legacy(Message::new_with_blockhash(
+                &[init_ix],
+                Some(&owner.pubkey()),
+                &blockhash,
+            )),
+            &[&owner],
+        )
+        .unwrap(),
+    )
+    .unwrap();
 
     let mut add_stable_data = vec![20u8];
     add_stable_data.extend_from_slice(&[0u8; 10]);
@@ -633,18 +916,31 @@ fn test_approved_application_cancellation_and_debt_enforcement() {
         data: add_stable_data,
     };
     let blockhash = svm.latest_blockhash();
-    svm.send_transaction(VersionedTransaction::try_new(VersionedMessage::Legacy(Message::new_with_blockhash(&[add_stable_ix], Some(&owner.pubkey()), &blockhash)), &[&owner]).unwrap()).unwrap();
+    svm.send_transaction(
+        VersionedTransaction::try_new(
+            VersionedMessage::Legacy(Message::new_with_blockhash(
+                &[add_stable_ix],
+                Some(&owner.pubkey()),
+                &blockhash,
+            )),
+            &[&owner],
+        )
+        .unwrap(),
+    )
+    .unwrap();
 
     // Create Task: material 500_000, 50% upfront = 250_000, 0 collateral
     let task_id = 4u64;
-    let (task_pda, _) = Pubkey::find_program_address(&[b"task", &task_id.to_le_bytes()], &PROGRAM_ID);
-    let (task_vault_pda, _) = Pubkey::find_program_address(&[b"task", task_pda.as_ref()], &PROGRAM_ID);
+    let (task_pda, _) =
+        Pubkey::find_program_address(&[b"task", &task_id.to_le_bytes()], &PROGRAM_ID);
+    let (task_vault_pda, _) =
+        Pubkey::find_program_address(&[b"task", task_pda.as_ref()], &PROGRAM_ID);
 
     let mut create_task_data = vec![6u8];
     create_task_data.extend_from_slice(&task_id.to_le_bytes());
     create_task_data.extend_from_slice(&500_000u64.to_le_bytes()); // labor
     create_task_data.extend_from_slice(&500_000u64.to_le_bytes()); // material
-    create_task_data.extend_from_slice(&0u64.to_le_bytes());       // collateral = 0
+    create_task_data.extend_from_slice(&0u64.to_le_bytes()); // collateral = 0
     create_task_data.push(50); // 50% upfront
     create_task_data.extend_from_slice(&[0u8; 7]);
     create_task_data.extend_from_slice(&[0xdd; 32]);
@@ -667,11 +963,30 @@ fn test_approved_application_cancellation_and_debt_enforcement() {
         data: create_task_data,
     };
     let blockhash = svm.latest_blockhash();
-    svm.send_transaction(VersionedTransaction::try_new(VersionedMessage::Legacy(Message::new_with_blockhash(&[create_task_ix], Some(&creator.pubkey()), &blockhash)), &[&creator]).unwrap()).unwrap();
+    svm.send_transaction(
+        VersionedTransaction::try_new(
+            VersionedMessage::Legacy(Message::new_with_blockhash(
+                &[create_task_ix],
+                Some(&creator.pubkey()),
+                &blockhash,
+            )),
+            &[&creator],
+        )
+        .unwrap(),
+    )
+    .unwrap();
 
     // Apply & Accept (collateral = 0 -> status is Accepted, InProgress)
-    let (app_pda, _) = Pubkey::find_program_address(&[b"application", provider.pubkey().as_ref(), task_pda.as_ref()], &PROGRAM_ID);
-    let (debt_pda, _) = Pubkey::find_program_address(&[b"provider_debt", provider.pubkey().as_ref()], &PROGRAM_ID);
+    let (app_pda, _) = Pubkey::find_program_address(
+        &[
+            b"application",
+            provider.pubkey().as_ref(),
+            task_pda.as_ref(),
+        ],
+        &PROGRAM_ID,
+    );
+    let (debt_pda, _) =
+        Pubkey::find_program_address(&[b"provider_debt", provider.pubkey().as_ref()], &PROGRAM_ID);
 
     let mut apply_data = vec![7u8];
     apply_data.extend_from_slice(&task_id.to_le_bytes());
@@ -688,7 +1003,18 @@ fn test_approved_application_cancellation_and_debt_enforcement() {
         data: apply_data.clone(),
     };
     let blockhash = svm.latest_blockhash();
-    svm.send_transaction(VersionedTransaction::try_new(VersionedMessage::Legacy(Message::new_with_blockhash(&[apply_ix], Some(&provider.pubkey()), &blockhash)), &[&provider]).unwrap()).unwrap();
+    svm.send_transaction(
+        VersionedTransaction::try_new(
+            VersionedMessage::Legacy(Message::new_with_blockhash(
+                &[apply_ix],
+                Some(&provider.pubkey()),
+                &blockhash,
+            )),
+            &[&provider],
+        )
+        .unwrap(),
+    )
+    .unwrap();
 
     let mut accept_data = vec![8u8];
     accept_data.extend_from_slice(&task_id.to_le_bytes());
@@ -703,7 +1029,18 @@ fn test_approved_application_cancellation_and_debt_enforcement() {
         data: accept_data,
     };
     let blockhash = svm.latest_blockhash();
-    svm.send_transaction(VersionedTransaction::try_new(VersionedMessage::Legacy(Message::new_with_blockhash(&[accept_ix], Some(&creator.pubkey()), &blockhash)), &[&creator]).unwrap()).unwrap();
+    svm.send_transaction(
+        VersionedTransaction::try_new(
+            VersionedMessage::Legacy(Message::new_with_blockhash(
+                &[accept_ix],
+                Some(&creator.pubkey()),
+                &blockhash,
+            )),
+            &[&creator],
+        )
+        .unwrap(),
+    )
+    .unwrap();
 
     // Provider claims advance (250_000)
     let mut claim_data = vec![10u8];
@@ -721,7 +1058,18 @@ fn test_approved_application_cancellation_and_debt_enforcement() {
         data: claim_data,
     };
     let blockhash = svm.latest_blockhash();
-    svm.send_transaction(VersionedTransaction::try_new(VersionedMessage::Legacy(Message::new_with_blockhash(&[claim_ix], Some(&provider.pubkey()), &blockhash)), &[&provider]).unwrap()).unwrap();
+    svm.send_transaction(
+        VersionedTransaction::try_new(
+            VersionedMessage::Legacy(Message::new_with_blockhash(
+                &[claim_ix],
+                Some(&provider.pubkey()),
+                &blockhash,
+            )),
+            &[&provider],
+        )
+        .unwrap(),
+    )
+    .unwrap();
 
     assert_eq!(get_token_balance(&svm, &provider_ata), 10_250_000);
 
@@ -748,7 +1096,18 @@ fn test_approved_application_cancellation_and_debt_enforcement() {
         data: cancel_app_data,
     };
     let blockhash = svm.latest_blockhash();
-    svm.send_transaction(VersionedTransaction::try_new(VersionedMessage::Legacy(Message::new_with_blockhash(&[cancel_app_ix], Some(&provider.pubkey()), &blockhash)), &[&provider]).unwrap()).unwrap();
+    svm.send_transaction(
+        VersionedTransaction::try_new(
+            VersionedMessage::Legacy(Message::new_with_blockhash(
+                &[cancel_app_ix],
+                Some(&provider.pubkey()),
+                &blockhash,
+            )),
+            &[&provider],
+        )
+        .unwrap(),
+    )
+    .unwrap();
 
     // Task vault is restored to full 1_000_000 escrow
     assert_eq!(get_token_balance(&svm, &task_vault_pda), 1_000_000);
@@ -759,7 +1118,14 @@ fn test_approved_application_cancellation_and_debt_enforcement() {
     assert_eq!(debt_acc.data[40], 1); // has_debt = 1
 
     // Now provider attempts to apply for another task -> must FAIL with ProviderHasDebt
-    let (app2_pda, _) = Pubkey::find_program_address(&[b"application", provider.pubkey().as_ref(), task_pda.as_ref()], &PROGRAM_ID);
+    let (app2_pda, _) = Pubkey::find_program_address(
+        &[
+            b"application",
+            provider.pubkey().as_ref(),
+            task_pda.as_ref(),
+        ],
+        &PROGRAM_ID,
+    );
     let apply_fail_ix = Instruction {
         program_id: PROGRAM_ID,
         accounts: vec![
@@ -772,7 +1138,17 @@ fn test_approved_application_cancellation_and_debt_enforcement() {
         data: apply_data,
     };
     let blockhash = svm.latest_blockhash();
-    let res = svm.send_transaction(VersionedTransaction::try_new(VersionedMessage::Legacy(Message::new_with_blockhash(&[apply_fail_ix], Some(&provider.pubkey()), &blockhash)), &[&provider]).unwrap());
+    let res = svm.send_transaction(
+        VersionedTransaction::try_new(
+            VersionedMessage::Legacy(Message::new_with_blockhash(
+                &[apply_fail_ix],
+                Some(&provider.pubkey()),
+                &blockhash,
+            )),
+            &[&provider],
+        )
+        .unwrap(),
+    );
     assert!(res.is_err()); // Blocked because of debt!
 }
 
@@ -784,8 +1160,10 @@ fn test_admin_and_protocol_fee_withdrawal() {
     setup_mint(&mut svm, &owner, &mint, &mint_auth.pubkey());
 
     let (reach_state_pda, _) = Pubkey::find_program_address(&[b"reach_state"], &PROGRAM_ID);
-    let (supported_stable_pda, _) = Pubkey::find_program_address(&[b"supported_stable", mint.pubkey().as_ref()], &PROGRAM_ID);
-    let (fee_vault_pda, _) = Pubkey::find_program_address(&[b"fee_vault", mint.pubkey().as_ref()], &PROGRAM_ID);
+    let (supported_stable_pda, _) =
+        Pubkey::find_program_address(&[b"supported_stable", mint.pubkey().as_ref()], &PROGRAM_ID);
+    let (fee_vault_pda, _) =
+        Pubkey::find_program_address(&[b"fee_vault", mint.pubkey().as_ref()], &PROGRAM_ID);
 
     // Initialize & add stable
     let mut init_data = vec![0u8];
@@ -800,7 +1178,18 @@ fn test_admin_and_protocol_fee_withdrawal() {
         data: init_data,
     };
     let blockhash = svm.latest_blockhash();
-    svm.send_transaction(VersionedTransaction::try_new(VersionedMessage::Legacy(Message::new_with_blockhash(&[init_ix], Some(&owner.pubkey()), &blockhash)), &[&owner]).unwrap()).unwrap();
+    svm.send_transaction(
+        VersionedTransaction::try_new(
+            VersionedMessage::Legacy(Message::new_with_blockhash(
+                &[init_ix],
+                Some(&owner.pubkey()),
+                &blockhash,
+            )),
+            &[&owner],
+        )
+        .unwrap(),
+    )
+    .unwrap();
 
     let mut add_stable_data = vec![20u8];
     add_stable_data.extend_from_slice(&[0u8; 10]);
@@ -819,10 +1208,28 @@ fn test_admin_and_protocol_fee_withdrawal() {
         data: add_stable_data,
     };
     let blockhash = svm.latest_blockhash();
-    svm.send_transaction(VersionedTransaction::try_new(VersionedMessage::Legacy(Message::new_with_blockhash(&[add_stable_ix], Some(&owner.pubkey()), &blockhash)), &[&owner]).unwrap()).unwrap();
+    svm.send_transaction(
+        VersionedTransaction::try_new(
+            VersionedMessage::Legacy(Message::new_with_blockhash(
+                &[add_stable_ix],
+                Some(&owner.pubkey()),
+                &blockhash,
+            )),
+            &[&owner],
+        )
+        .unwrap(),
+    )
+    .unwrap();
 
     // Mint fees directly to fee_vault
-    mint_to(&mut svm, &owner, &mint.pubkey(), &mint_auth, &fee_vault_pda, 5_000_000);
+    mint_to(
+        &mut svm,
+        &owner,
+        &mint.pubkey(),
+        &mint_auth,
+        &fee_vault_pda,
+        5_000_000,
+    );
     assert_eq!(get_token_balance(&svm, &fee_vault_pda), 5_000_000);
 
     // Owner withdraws protocol fees
@@ -843,7 +1250,18 @@ fn test_admin_and_protocol_fee_withdrawal() {
         data: withdraw_data,
     };
     let blockhash = svm.latest_blockhash();
-    svm.send_transaction(VersionedTransaction::try_new(VersionedMessage::Legacy(Message::new_with_blockhash(&[withdraw_ix], Some(&owner.pubkey()), &blockhash)), &[&owner]).unwrap()).unwrap();
+    svm.send_transaction(
+        VersionedTransaction::try_new(
+            VersionedMessage::Legacy(Message::new_with_blockhash(
+                &[withdraw_ix],
+                Some(&owner.pubkey()),
+                &blockhash,
+            )),
+            &[&owner],
+        )
+        .unwrap(),
+    )
+    .unwrap();
 
     assert_eq!(get_token_balance(&svm, &receiver), 3_000_000);
     assert_eq!(get_token_balance(&svm, &fee_vault_pda), 2_000_000);
@@ -866,7 +1284,18 @@ fn test_admin_and_protocol_fee_withdrawal() {
         data: add_admin_data,
     };
     let blockhash = svm.latest_blockhash();
-    svm.send_transaction(VersionedTransaction::try_new(VersionedMessage::Legacy(Message::new_with_blockhash(&[add_admin_ix], Some(&owner.pubkey()), &blockhash)), &[&owner]).unwrap()).unwrap();
+    svm.send_transaction(
+        VersionedTransaction::try_new(
+            VersionedMessage::Legacy(Message::new_with_blockhash(
+                &[add_admin_ix],
+                Some(&owner.pubkey()),
+                &blockhash,
+            )),
+            &[&owner],
+        )
+        .unwrap(),
+    )
+    .unwrap();
 
     // Verify admin can update creation fee pct
     let mut update_fee_data = vec![1u8];
@@ -880,5 +1309,16 @@ fn test_admin_and_protocol_fee_withdrawal() {
         data: update_fee_data,
     };
     let blockhash = svm.latest_blockhash();
-    svm.send_transaction(VersionedTransaction::try_new(VersionedMessage::Legacy(Message::new_with_blockhash(&[update_fee_ix], Some(&admin_user.pubkey()), &blockhash)), &[&admin_user]).unwrap()).unwrap();
+    svm.send_transaction(
+        VersionedTransaction::try_new(
+            VersionedMessage::Legacy(Message::new_with_blockhash(
+                &[update_fee_ix],
+                Some(&admin_user.pubkey()),
+                &blockhash,
+            )),
+            &[&admin_user],
+        )
+        .unwrap(),
+    )
+    .unwrap();
 }

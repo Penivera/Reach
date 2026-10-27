@@ -7,10 +7,7 @@ pub mod instructions;
 pub mod math;
 pub mod state;
 
-use pinocchio::{
-    error::ProgramError,
-    AccountView, Address, ProgramResult,
-};
+use pinocchio::{error::ProgramError, AccountView, Address, ProgramResult};
 
 use crate::{
     error::ReachError,
@@ -28,7 +25,11 @@ pub unsafe extern "C" fn entrypoint(mut input: *mut u8) -> u64 {
     let num_accounts = *(input as *const u64) as usize;
     input = input.add(core::mem::size_of::<u64>());
 
-    let to_process = if num_accounts > MAX_ACCOUNTS { MAX_ACCOUNTS } else { num_accounts };
+    let to_process = if num_accounts > MAX_ACCOUNTS {
+        MAX_ACCOUNTS
+    } else {
+        num_accounts
+    };
 
     for i in 0..num_accounts {
         let is_dup = *input != 0xff;
@@ -42,7 +43,9 @@ pub unsafe extern "C" fn entrypoint(mut input: *mut u8) -> u64 {
             }
         } else {
             if i < to_process {
-                accounts_ptr.add(i).write(AccountView::new_unchecked(account));
+                accounts_ptr
+                    .add(i)
+                    .write(AccountView::new_unchecked(account));
             }
             let data_len = (*account).data_len as usize;
             input = input.add(10328 + data_len);
@@ -170,11 +173,7 @@ pub fn process_instruction(
                     }
                     let creator_refund_pct = instruction_data[9];
                     let provider_payment_pct = instruction_data[10];
-                    task::resolve_dispute(
-                        accounts,
-                        creator_refund_pct,
-                        provider_payment_pct,
-                    )
+                    task::resolve_dispute(accounts, creator_refund_pct, provider_payment_pct)
                 }
                 17 => application::withdraw_application(accounts),
                 _ => unreachable!(),
