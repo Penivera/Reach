@@ -1,7 +1,9 @@
+from datetime import datetime, timedelta, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from solders.pubkey import Pubkey
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, true
+from sqlalchemy import select, func, true, or_
 from core import settings
 from core.relayer import RelayerNotConfigured
 from models import Category, Job, JobApplication, Media, User
@@ -11,7 +13,7 @@ from schemas import (JobCreate, JobUpdate, JobResponse, JobApplicationCreate,
                      JobApplicationStatusUpdate, JobApplicationUpdate, JobAppplicationResponse,
                        JobOnchainPrepareResponse, JobOnchainSubmitRequest,
                        JobOnchainFundRequest, JobOnchainStateResponse,
-                       JobStatus, ApplicationStatus, NearbyJobQuery, MediaType,
+                       JobStatus, JobUrgency, ApplicationStatus, NearbyJobQuery, MediaType,
                        FundingStatus, PayerType, ProviderAction, ChainTransactionResponse)
 from geoalchemy2.functions import ST_GeogFromText, ST_DWithin, ST_Distance
 from services.chain import get_relayer, notify_nearby_providers
@@ -45,6 +47,21 @@ router = APIRouter(prefix="/jobs", tags=["jobs"])
 
 def _funded_clause():
     return Job.funding_status == FundingStatus.FUNDED if settings.ESCROW_ENABLED else true()
+
+
+_URGENCY_WINDOW = {
+    JobUrgency.ASAP: timedelta(days=2),
+    JobUrgency.THIS_WEEK: timedelta(days=7),
+    JobUrgency.FLEXIBLE: timedelta(days=30),
+}
+
+
+def _expiry_for(urgency: JobUrgency) -> datetime:
+    return datetime.now(timezone.utc) + _URGENCY_WINDOW[urgency]
+
+
+def _not_expired():
+    return or_(Job.expires_at.is_(None), Job.expires_at > func.now())
 
 
 def _provider_flow_error(exc: ProviderFlowError) -> HTTPException:
@@ -124,6 +141,7 @@ async def create_job(job_data:JobCreate, db:AsyncSession=Depends(get_db), curren
     point = ST_GeogFromText(f"POINT({job_data.longitude} {job_data.latitude})")
 
     data = job_data.model_dump()
+    data["expires_at"] = _expiry_for(job_data.urgency)
 
     if settings.ESCROW_ENABLED:
         try:
@@ -162,6 +180,7 @@ async def get_jobs(db:AsyncSession=Depends(get_db), current_user=Depends(get_cur
         .where(
             Job.status == JobStatus.OPEN,
             _funded_clause(),
+            _not_expired(),
         )
         .order_by(Job.created_at.desc())
     )
@@ -186,6 +205,7 @@ async def get_nearby_jobs(data: NearbyJobQuery = Depends(), db: AsyncSession = D
     query = select(Job).where(
         Job.status == JobStatus.OPEN,
         _funded_clause(),
+        _not_expired(),
         ST_DWithin(Job.location, search_point, data.radius * 1000),
     )
 
@@ -225,6 +245,11 @@ async def update_job(job_id:int, job_data:JobUpdate, db:AsyncSession=Depends(get
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You are not allowed to update this job")
 
     data = job_data.model_dump(exclude_unset=True)
+
+    if data.get("urgency") is not None:
+        data["expires_at"] = _expiry_for(data["urgency"])
+    else:
+        data.pop("urgency", None)
 
     if settings.ESCROW_ENABLED and "budget" in data:
         try:
@@ -386,7 +411,10 @@ async def create_job_application(job_id:int, data: JobApplicationCreate, db:Asyn
     if job.owner_id == current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="you cannot apply to your own job")
 
-    if job.status != JobStatus.OPEN:
+    if job.status != JobStatus.OPEN or (
+        job.expires_at is not None
+        and job.expires_at < datetime.now(timezone.utc)
+    ):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="This job is no longer accepting application")
 
     #prevent duplicate application
@@ -439,7 +467,14 @@ async def prepare_onchain_application(
             detail="you cannot apply to your own job",
         )
 
-    if job.status != JobStatus.OPEN or job.funding_status != FundingStatus.FUNDED:
+    if (
+        job.status != JobStatus.OPEN
+        or job.funding_status != FundingStatus.FUNDED
+        or (
+            job.expires_at is not None
+            and job.expires_at < datetime.now(timezone.utc)
+        )
+    ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="This job is not open for applications on-chain yet",

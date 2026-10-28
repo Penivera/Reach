@@ -1,7 +1,8 @@
-from sqlalchemy import String, Integer, ForeignKey, Enum, Float, Boolean
+from datetime import datetime
+from sqlalchemy import String, Integer, ForeignKey, Enum, Float, Boolean, DateTime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from DB.database import Base
-from schemas import ApplicationStatus, FundingStatus, JobStatus, PayerType
+from schemas import ApplicationStatus, FundingStatus, JobStatus, JobUrgency, PayerType
 from .mixins import TimeStampMixin
 from geoalchemy2 import Geography
 from geoalchemy2.elements import WKBElement
@@ -23,6 +24,18 @@ class Job(Base, TimeStampMixin):
     location: Mapped[WKBElement] = mapped_column(Geography(geometry_type="POINT", srid=4326, spatial_index=False, nullable=False))
 
     location_name: Mapped[str]
+
+    urgency: Mapped[JobUrgency] = mapped_column(
+        Enum(JobUrgency),
+        nullable=False,
+        default=JobUrgency.FLEXIBLE,
+        server_default="FLEXIBLE",
+    )
+
+    expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
 
     client_completed = mapped_column(Boolean, default=False, nullable=False)
 
@@ -116,4 +129,3 @@ class JobApplication(Base, TimeStampMixin):
     )
 
     applicant = relationship("User")
-

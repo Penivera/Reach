@@ -2,7 +2,7 @@ from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from datetime import datetime
-from .enums import ApplicationStatus, FundingStatus, PayerType
+from .enums import ApplicationStatus, FundingStatus, JobUrgency, PayerType
 
 class LocationBase(BaseModel):
     latitude: float
@@ -29,6 +29,7 @@ class JobCreate(LocationBase):
     title: str 
     description: str
     budget: float = Field(...,gt=0)
+    urgency: JobUrgency = JobUrgency.FLEXIBLE
 
 
 
@@ -36,6 +37,7 @@ class JobUpdate(BaseModel):
     title: str | None = None
     description: str | None = None
     budget: float | None = Field(None, gt=0)
+    urgency: JobUrgency | None = None
 
     latitude: float | None = None
     longitude: float | None = None
@@ -61,6 +63,8 @@ class JobResponse(BaseModel):
     description: str
     budget: float
     status: str
+    urgency: JobUrgency
+    expires_at: datetime | None = None
 
     category_id: int
     posted_by: int
@@ -177,4 +181,3 @@ class NearbyJobQuery(BaseModel):
     radius: float = Field(10, gt=0)
 
     category_id: int | None = None
-
