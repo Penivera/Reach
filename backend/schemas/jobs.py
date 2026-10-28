@@ -2,7 +2,8 @@ from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from datetime import datetime
-from .enums import ApplicationStatus, FundingStatus, JobUrgency, PayerType
+from .enums import ApplicationStatus, FundingStatus, UrgencyLevel, PayerType
+from datetime import datetime, timezone
 
 class LocationBase(BaseModel):
     latitude: float
@@ -15,7 +16,7 @@ class LocationBase(BaseModel):
         if not -90 <= value <= 90:
             raise ValueError("Invalid latitude")
         return value
-        
+
     @field_validator("longitude")
     @classmethod
     def validate_longitude(cls, value):
@@ -26,10 +27,22 @@ class LocationBase(BaseModel):
 
 class JobCreate(LocationBase):
     category_id: int
-    title: str 
+    title: str
     description: str
     budget: float = Field(...,gt=0)
-    urgency: JobUrgency = JobUrgency.FLEXIBLE
+    urgency: UrgencyLevel = UrgencyLevel.FLEXIBLE
+    scheduled_for: datetime | None = None
+    address_details: str | None = Field(default=None, max_length=300)
+    @field_validator("scheduled_for")
+    @classmethod
+    def scheduled_in_future(cls, v):
+        if v is None:
+            return v
+        if v.tzinfo is None:
+            v = v.replace(tzinfo=timezone.utc)
+        if v <= datetime.now(timezone.utc):
+            raise ValueError("scheduled_for must be in the future")
+        return v
 
 
 
@@ -37,11 +50,12 @@ class JobUpdate(BaseModel):
     title: str | None = None
     description: str | None = None
     budget: float | None = Field(None, gt=0)
-    urgency: JobUrgency | None = None
-
+    urgency: UrgencyLevel | None = None
+    scheduled_for: datetime | None = None
     latitude: float | None = None
     longitude: float | None = None
     location_name: str | None = None
+    address_details: str | None = Field(default=None, max_length=300)
 
     @field_validator("latitude")
     @classmethod
@@ -49,13 +63,23 @@ class JobUpdate(BaseModel):
         if value is not None and not -90 <= value <= 90:
             raise ValueError("Invalid latitude")
         return value
-        
+
     @field_validator("longitude")
     @classmethod
     def validate_longitude(cls, value):
         if value is not None and not -180 <= value <= 180:
             raise ValueError("Invalide Longitude")
         return value
+    @field_validator("scheduled_for")
+    @classmethod
+    def scheduled_in_future(cls, v):
+        if v is None:
+            return v
+        if v.tzinfo is None:
+            v = v.replace(tzinfo=timezone.utc)
+        if v <= datetime.now(timezone.utc):
+            raise ValueError("scheduled_for must be in the future")
+        return v
 
 class JobResponse(BaseModel):
     id: int
@@ -63,8 +87,9 @@ class JobResponse(BaseModel):
     description: str
     budget: float
     status: str
-    urgency: JobUrgency
-    expires_at: datetime | None = None
+    urgency: UrgencyLevel
+    scheduled_for: datetime | None = None
+    expires_at: datetime
 
     category_id: int
     posted_by: int

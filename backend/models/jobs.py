@@ -2,7 +2,7 @@ from datetime import datetime
 from sqlalchemy import String, Integer, ForeignKey, Enum, Float, Boolean, DateTime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from DB.database import Base
-from schemas import ApplicationStatus, FundingStatus, JobStatus, JobUrgency, PayerType
+from schemas import ApplicationStatus, FundingStatus, JobStatus, UrgencyLevel, PayerType
 from .mixins import TimeStampMixin
 from geoalchemy2 import Geography
 from geoalchemy2.elements import WKBElement
@@ -21,21 +21,15 @@ class Job(Base, TimeStampMixin):
     budget: Mapped[float] = mapped_column(Float, nullable=False)
     status: Mapped[JobStatus] = mapped_column(Enum(JobStatus), nullable=False, default=JobStatus.OPEN)
 
+
     location: Mapped[WKBElement] = mapped_column(Geography(geometry_type="POINT", srid=4326, spatial_index=False, nullable=False))
 
     location_name: Mapped[str]
 
-    urgency: Mapped[JobUrgency] = mapped_column(
-        Enum(JobUrgency),
-        nullable=False,
-        default=JobUrgency.FLEXIBLE,
-        server_default="FLEXIBLE",
-    )
-
-    expires_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True),
-        nullable=True,
-    )
+    urgency: Mapped[UrgencyLevel] = mapped_column(Enum(UrgencyLevel), nullable=False, server_default="FLEXIBLE")
+    scheduled_for: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    address_details: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
 
     client_completed = mapped_column(Boolean, default=False, nullable=False)
 

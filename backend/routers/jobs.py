@@ -13,7 +13,7 @@ from schemas import (JobCreate, JobUpdate, JobResponse, JobApplicationCreate,
                      JobApplicationStatusUpdate, JobApplicationUpdate, JobAppplicationResponse,
                        JobOnchainPrepareResponse, JobOnchainSubmitRequest,
                        JobOnchainFundRequest, JobOnchainStateResponse,
-                       JobStatus, JobUrgency, ApplicationStatus, NearbyJobQuery, MediaType,
+                       JobStatus, UrgencyLevel, ApplicationStatus, NearbyJobQuery, MediaType,
                        FundingStatus, PayerType, ProviderAction, ChainTransactionResponse)
 from geoalchemy2.functions import ST_GeogFromText, ST_DWithin, ST_Distance
 from services.chain import get_relayer, notify_nearby_providers
@@ -50,18 +50,19 @@ def _funded_clause():
 
 
 _URGENCY_WINDOW = {
-    JobUrgency.ASAP: timedelta(days=2),
-    JobUrgency.THIS_WEEK: timedelta(days=7),
-    JobUrgency.FLEXIBLE: timedelta(days=30),
+    UrgencyLevel.ASAP: timedelta(days=2),
+    UrgencyLevel.THIS_WEEK: timedelta(days=7),
+    UrgencyLevel.FLEXIBLE: timedelta(days=30),
 }
 
 
-def _expiry_for(urgency: JobUrgency) -> datetime:
+def _compute_expiry(urgency, scheduled_for=None):
+    if scheduled_for is not None:
+        return scheduled_for
     return datetime.now(timezone.utc) + _URGENCY_WINDOW[urgency]
 
-
 def _not_expired():
-    return or_(Job.expires_at.is_(None), Job.expires_at > func.now())
+    return Job.expires_at > func.now()
 
 
 def _provider_flow_error(exc: ProviderFlowError) -> HTTPException:
@@ -141,7 +142,7 @@ async def create_job(job_data:JobCreate, db:AsyncSession=Depends(get_db), curren
     point = ST_GeogFromText(f"POINT({job_data.longitude} {job_data.latitude})")
 
     data = job_data.model_dump()
-    data["expires_at"] = _expiry_for(job_data.urgency)
+    data["expires_at"] = _compute_expiry(job_data.urgency, job_data.scheduled_for)
 
     if settings.ESCROW_ENABLED:
         try:
@@ -246,10 +247,11 @@ async def update_job(job_id:int, job_data:JobUpdate, db:AsyncSession=Depends(get
 
     data = job_data.model_dump(exclude_unset=True)
 
-    if data.get("urgency") is not None:
-        data["expires_at"] = _expiry_for(data["urgency"])
-    else:
-        data.pop("urgency", None)
+    if "urgency" in data or "scheduled_for" in data:
+        data["expires_at"] = _compute_expiry(
+            data.get("urgency", job.urgency),
+            data.get("scheduled_for", job.scheduled_for),
+        )
 
     if settings.ESCROW_ENABLED and "budget" in data:
         try:
@@ -397,6 +399,18 @@ async def upload_job_image(job_id: int, file: UploadFile = File(...),
 
     return media
 
+@router.get("/{job_id}/address")
+async def get_job_address(job_id: int, db: AsyncSession = Depends(get_db), current_user=Depends(get_current_user)):
+    job = await _get_job_or_404(job_id, db)
+    if job.owner_id != current_user.id:
+        accepted = (await db.execute(select(JobApplication).where(
+            JobApplication.job_id == job.id,
+            JobApplication.applicant_id == current_user.id,
+            JobApplication.status == ApplicationStatus.ACCEPTED))).scalar_one_or_none()
+        if not accepted:
+            raise HTTPException(status_code=403, detail="not allowed to see this address")
+    return {"address_details": job.address_details}
+
 #Job Applications
 
 @router.post("/{job_id}/apply", response_model=JobAppplicationResponse)
@@ -411,11 +425,8 @@ async def create_job_application(job_id:int, data: JobApplicationCreate, db:Asyn
     if job.owner_id == current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="you cannot apply to your own job")
 
-    if job.status != JobStatus.OPEN or (
-        job.expires_at is not None
-        and job.expires_at < datetime.now(timezone.utc)
-    ):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="This job is no longer accepting application")
+    if job.status != JobStatus.OPEN or job.expires_at < datetime.now(timezone.utc):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="This job is no longer accepting applications")
 
     #prevent duplicate application
 

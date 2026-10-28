@@ -6,14 +6,14 @@ import { CloudArrowDown } from "@phosphor-icons/react";
 import Input from "../ui/Input";
 import Button from "../ui/Button";
 import { useCategories } from "@/context/CategoriesContext";
-import { createJob, updateJob, Job, type JobUrgency } from "@/lib/jobs";
+import { createJob, updateJob, Job, type UrgencyLevel } from "@/lib/jobs";
 import { api } from "@/lib/api";
 
 const URGENCY_OPTIONS = [
   { value: "asap", label: "ASAP / Today" },
   { value: "this_week", label: "This week" },
   { value: "flexible", label: "Flexible" },
-] satisfies { value: JobUrgency; label: string }[];
+] satisfies { value: UrgencyLevel; label: string }[];
 
 const FIELD_STYLE = `
   w-full px-4 py-3.5 rounded-[12px] bg-white
@@ -48,7 +48,7 @@ export default function PostRequestForm({ mode = "create", jobId, initialData }:
   const [category, setCategory] = useState<number | null>(initialData?.category_id ?? null);
   const [budget, setBudget] = useState(initialData ? String(initialData.budget) : "");
   const [negotiable, setNegotiable] = useState(true);
-  const [urgency, setUrgency] = useState<JobUrgency>(initialData?.urgency ?? "asap");
+  const [urgency, setUrgency] = useState<UrgencyLevel>(initialData?.urgency ?? "asap");
   const [details, setDetails] = useState(initialData?.description ?? "");
   const [photo, setPhoto] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -212,10 +212,10 @@ export default function PostRequestForm({ mode = "create", jobId, initialData }:
         <p className="text-[13px] font-medium text-[#D32F2F] text-center">{submitError}</p>
       )}
 
-      <Button 
-        type="submit" 
-        intent="form" 
-        className="mt-6 w-full h-13.5 rounded-[14px] text-[16px] font-semibold tracking-wide bg-[#E25C43] hover:bg-[#D44E36] text-white" 
+      <Button
+        type="submit"
+        intent="form"
+        className="mt-6 w-full h-13.5 rounded-[14px] text-[16px] font-semibold tracking-wide bg-[#E25C43] hover:bg-[#D44E36] text-white"
         loading={submitting}
       >
         {mode === "edit" ? "Save Changes" : "Publish Request Post"}
