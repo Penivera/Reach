@@ -29,8 +29,6 @@ export type CreateServiceInput = {
   price: number;
   kind: ListingKind;
   stock?: number | null;
-  kind: ListingKind;
-  stock?: number | null;
   category_id: number;
   latitude: number;
   longitude: number;

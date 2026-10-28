@@ -145,13 +145,13 @@ Known gaps:
 `GET /services` now accepts:
 
 ```text
-q, category_id, limit, offset
+q, category_id, kind, limit, offset
 ```
 
 `GET /services/nearby` now accepts:
 
 ```text
-latitude, longitude, radius, category_id, q, limit, offset
+latitude, longitude, radius, category_id, kind, q, limit, offset
 ```
 
 `q` searches service title, description and business name. Nearby results are
@@ -204,19 +204,22 @@ flow are implemented.
 
 ---
 
-## 7. Service create/response contract — still needs alignment
+## 7. Service create/response contract
 
-This is **not fixed** by the gap pass. The frontend and backend currently
-disagree:
+The listing create and response contracts are aligned. `kind` distinguishes
+goods from services, and goods require a non-negative `stock` value. Services
+always store `stock` as `null`. `kind` cannot be changed after creation.
 
 Backend `ServiceCreate` expects:
 
 ```json
 {
   "business_id": 1,
+  "kind": "good",
   "title": "...",
   "description": "...",
-  "starting_price": 4500,
+  "price": 4500,
+  "stock": 20,
   "category_id": 1,
   "latitude": 6.5,
   "longitude": 3.3,
@@ -224,21 +227,9 @@ Backend `ServiceCreate` expects:
 }
 ```
 
-Frontend `createService` currently sends `min_price` / `max_price` and does
-not send `business_id` or location. The frontend `Service` type also expects
-`business_name`, `owner_id`, `min_price` and `max_price`, while the backend
-returns `business_id` and `starting_price`.
-
-This will 422 or render undefined values until one side is aligned. Decide
-whether:
-
-1. the frontend sends the backend's `business_id` and location fields, or
-2. the backend accepts `min_price` / `max_price` and derives the business
-   (e.g. the caller's business) and location.
-
-The first is the smaller change if the frontend already has the user's
-business/location; the second is a product decision about multiple businesses
-per user.
+`GET /services` and `/services/nearby` accept an optional `kind` filter.
+Service prices remain naira floats; convert to kobo only when a payment
+checkout flow is added.
 
 ---
 
@@ -246,5 +237,4 @@ per user.
 
 - Product orders.
 - A provider balance/pending-release summary endpoint.
-- The service create/response contract alignment above.
 - A staging run with ZeptoMail credentials and a real verified sender domain.

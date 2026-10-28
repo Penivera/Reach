@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import { useCategories } from "@/context/CategoriesContext";
-import { createService } from "@/lib/services";
+import { createService, getMyBusinessId, type ListingKind } from "@/lib/services";
 import { ArrowLeftIcon, PlusIcon } from "@phosphor-icons/react";
 
 const FIELD_STYLE = `
@@ -28,6 +28,8 @@ export default function NewListingPage() {
   const [title, setTitle] = useState("");
   const [categoryId, setCategoryId] = useState<number | null>(null);
   const [minPrice, setMinPrice] = useState("");
+  const [kind, setKind] = useState<ListingKind>("service");
+  const [stock, setStock] = useState("");
   const [description, setDescription] = useState("");
   const [photo, setPhoto] = useState<File | null>(null);
   const [publishing, setPublishing] = useState(false);
@@ -35,16 +37,22 @@ export default function NewListingPage() {
 
   const handlePublish = async () => {
     if (!categoryId) return;
+    if (kind === "good" && stock === "") {
+      setSubmitError("Stock is required for goods.");
+      return;
+    }
 
     setPublishing(true);
     setSubmitError(null);
     try {
       await createService({
+        business_id: await getMyBusinessId(),
         title,
         description,
         category_id: categoryId,
-        starting_price: Number(minPrice),
-        business_name: "",
+        price: Number(minPrice),
+        kind,
+        stock: kind === "good" ? Number(stock) : null,
         location_name: "",
         latitude: 0,
         longitude: 0,
@@ -84,11 +92,40 @@ return (
         <div className="space-y-5">
           <Input
             id="title"
-            label="Service title"
+            label="Listing title"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="e.g. Local rice delivery, 5kg bags"
           />
+
+          <div className="space-y-1.5 text-left">
+            <label htmlFor="kind" className={LABEL_STYLE}>
+              Listing type
+            </label>
+            <select
+              id="kind"
+              value={kind}
+              onChange={(e) => setKind(e.target.value === "good" ? "good" : "service")}
+              className={FIELD_STYLE}
+            >
+              <option value="service">Service</option>
+              <option value="good">Good</option>
+            </select>
+          </div>
+
+          {kind === "good" && (
+            <Input
+              id="stock"
+              label="Stock"
+              type="number"
+              min="0"
+              step="1"
+              value={stock}
+              onChange={(e) => setStock(e.target.value)}
+              inputMode="numeric"
+              placeholder="20"
+            />
+          )}
 
           <div className="space-y-1.5 text-left">
             <label htmlFor="category" className={LABEL_STYLE}>

@@ -22,7 +22,7 @@ function statusBadge(status: ServiceStatus) {
 }
 
 function formatPriceRange(service: Service) {
-  return `₦${service.starting_price.toLocaleString()}`;
+  return `₦${service.price.toLocaleString()}`;
 }
 
 export default function ManageListingPage() {
