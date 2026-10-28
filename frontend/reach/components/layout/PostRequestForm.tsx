@@ -6,14 +6,14 @@ import { CloudArrowDown } from "@phosphor-icons/react";
 import Input from "../ui/Input";
 import Button from "../ui/Button";
 import { useCategories } from "@/context/CategoriesContext";
-import { createJob, updateJob, Job } from "@/lib/jobs";
+import { createJob, updateJob, Job, type JobUrgency } from "@/lib/jobs";
 import { api } from "@/lib/api";
 
 const URGENCY_OPTIONS = [
-  { value: "asap", label: "Asap / Today" },
-  { value: "week", label: "This week" },
+  { value: "asap", label: "ASAP / Today" },
+  { value: "this_week", label: "This week" },
   { value: "flexible", label: "Flexible" },
-];
+] satisfies { value: JobUrgency; label: string }[];
 
 const FIELD_STYLE = `
   w-full px-4 py-3.5 rounded-[12px] bg-white
@@ -48,7 +48,7 @@ export default function PostRequestForm({ mode = "create", jobId, initialData }:
   const [category, setCategory] = useState<number | null>(initialData?.category_id ?? null);
   const [budget, setBudget] = useState(initialData ? String(initialData.budget) : "");
   const [negotiable, setNegotiable] = useState(true);
-  const [urgency, setUrgency] = useState(URGENCY_OPTIONS[0].value);
+  const [urgency, setUrgency] = useState<JobUrgency>(initialData?.urgency ?? "asap");
   const [details, setDetails] = useState(initialData?.description ?? "");
   const [photo, setPhoto] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -74,6 +74,7 @@ export default function PostRequestForm({ mode = "create", jobId, initialData }:
           latitude: initialData?.latitude ?? 5.0377,
           longitude: initialData?.longitude ?? 7.9128,
           location_name: initialData?.location_name ?? "",
+          urgency,
         });
 
         // Upload image if a new one was selected
@@ -93,6 +94,7 @@ export default function PostRequestForm({ mode = "create", jobId, initialData }:
           latitude: 5.0377,
           longitude: 7.9128,
           location_name: "",
+          urgency,
         });
 
         // Upload image immediately after job creation

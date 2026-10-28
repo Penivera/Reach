@@ -2,6 +2,7 @@ import { api } from "./api";
 
 export type JobStatus = "open" | "in_progress" | "completed" | "cancelled";
 export type ApplicationStatus = "pending" | "accepted" | "rejected" | "withdrawn";
+export type JobUrgency = "asap" | "this_week" | "flexible";
 
 export type Job = {
   id: number;
@@ -9,6 +10,8 @@ export type Job = {
   description: string;
   budget: number;
   status: JobStatus;
+  urgency: JobUrgency;
+  expires_at: string | null;
   category_id: number;
   posted_by: number;
   latitude: number;
@@ -30,6 +33,7 @@ export type CreateJobInput = {
   title: string;
   description: string;
   budget: number;
+  urgency: JobUrgency;
 };
 
 export type UpdateJobInput = {
@@ -39,6 +43,7 @@ export type UpdateJobInput = {
   latitude: number;
   longitude: number;
   location_name: string;
+  urgency?: JobUrgency;
 };
 
 export type JobApplication = {
