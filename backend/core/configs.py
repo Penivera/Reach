@@ -83,6 +83,7 @@ class Settings(BaseSettings):
 
     PLATFORM_FEE_BPS: int = 500
     MIN_ESCROW_KOBO: int = 100000
+    ESCROW_ENABLED: bool = False
 
     model_config = SettingsConfigDict(
         env_file=".env",

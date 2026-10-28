@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from solders.pubkey import Pubkey
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, true
+from core import settings
 from core.relayer import RelayerNotConfigured
 from models import Category, Job, JobApplication, Media, User
 from utils import upload_image
@@ -40,6 +41,10 @@ from services.creator_flow import (
 
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
+
+
+def _funded_clause():
+    return Job.funding_status == FundingStatus.FUNDED if settings.ESCROW_ENABLED else true()
 
 
 def _provider_flow_error(exc: ProviderFlowError) -> HTTPException:
@@ -109,7 +114,7 @@ async def _get_accepted_application_or_400(
 
 @router.post("", response_model=JobResponse)
 async def create_job(job_data:JobCreate, db:AsyncSession=Depends(get_db), current_user = Depends(get_current_user)):
-    
+
     category = (
         await db.execute(select(Category).where(Category.id == job_data.category_id))
     ).scalar_one_or_none()
@@ -117,15 +122,14 @@ async def create_job(job_data:JobCreate, db:AsyncSession=Depends(get_db), curren
         raise HTTPException(status_code=404, detail="Category not found")
 
     point = ST_GeogFromText(f"POINT({job_data.longitude} {job_data.latitude})")
-    
+
     data = job_data.model_dump()
 
-    try:
-        # Reject a budget that cannot be funded before the job exists, so the
-        # failure happens at creation rather than at checkout.
-        data["budget"] = float(budget_naira(job_data.budget))
-    except FundingError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+    if settings.ESCROW_ENABLED:
+        try:
+            data["budget"] = float(budget_naira(job_data.budget))
+        except FundingError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
 
     data.pop("latitude")
     data.pop("longitude")
@@ -134,9 +138,8 @@ async def create_job(job_data:JobCreate, db:AsyncSession=Depends(get_db), curren
     new_job = Job(
         **data,
         owner_id=current_user.id,
-        # Model 1: a task is created waiting for its escrow to be locked.
-        # It opens for providers once the funding is on-chain.
-        status=JobStatus.PENDING_FUNDING,
+        # Escrow-backed tasks open for providers once funding is on-chain.
+        status=JobStatus.PENDING_FUNDING if settings.ESCROW_ENABLED else JobStatus.OPEN,
     )
 
 
@@ -153,13 +156,12 @@ async def create_job(job_data:JobCreate, db:AsyncSession=Depends(get_db), curren
 
 @router.get("", response_model=list[JobResponse])
 async def get_jobs(db:AsyncSession=Depends(get_db), current_user=Depends(get_current_user)):
-    # Only funded, open tasks belong in the provider-facing feed. Drafts and
-    # tasks whose escrow has not been locked yet stay private to the owner.
+    # Escrow-backed tasks appear in the provider-facing feed only after funding.
     result = await db.execute(
         select(Job)
         .where(
             Job.status == JobStatus.OPEN,
-            Job.funding_status == FundingStatus.FUNDED,
+            _funded_clause(),
         )
         .order_by(Job.created_at.desc())
     )
@@ -167,7 +169,7 @@ async def get_jobs(db:AsyncSession=Depends(get_db), current_user=Depends(get_cur
     jobs = result.scalars().all()
 
     return jobs
-    
+
 @router.get("/me", response_model=list[JobResponse])
 async def my_jobs(db:AsyncSession=Depends(get_db), current_user=Depends(get_current_user)):
     result = await db.execute(select(Job).where(Job.owner_id == current_user.id))
@@ -183,7 +185,7 @@ async def get_nearby_jobs(data: NearbyJobQuery = Depends(), db: AsyncSession = D
 
     query = select(Job).where(
         Job.status == JobStatus.OPEN,
-        Job.funding_status == FundingStatus.FUNDED,
+        _funded_clause(),
         ST_DWithin(Job.location, search_point, data.radius * 1000),
     )
 
@@ -207,7 +209,7 @@ async def get_job(job_id:int, db:AsyncSession=Depends(get_db), current_user=Depe
 
     if not job:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
-    
+
     return job
 
 @router.put("/{job_id}", response_model=JobResponse)
@@ -218,13 +220,13 @@ async def update_job(job_id:int, job_data:JobUpdate, db:AsyncSession=Depends(get
 
     if not job:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
-    
+
     if job.owner_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You are not allowed to update this job")
-    
+
     data = job_data.model_dump(exclude_unset=True)
 
-    if "budget" in data:
+    if settings.ESCROW_ENABLED and "budget" in data:
         try:
             data["budget"] = float(budget_naira(data["budget"]))
         except FundingError as exc:
@@ -284,10 +286,9 @@ async def complete_job(job_id:int, db:AsyncSession=Depends(get_db), current_user
         job.client_completed = True
 
     elif current_user.id == application.applicant_id:
-        # The provider's completion is an on-chain instruction they sign with
-        # their own wallet. Do not let the DB claim the work is complete before
-        # the task has actually moved to AwaitingApproval.
-        if job.onchain_status != "AwaitingApproval":
+        # When escrow is enabled, the provider must first complete the on-chain
+        # instruction so the DB does not get ahead of the escrow state.
+        if settings.ESCROW_ENABLED and job.onchain_status != "AwaitingApproval":
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=(
@@ -300,11 +301,8 @@ async def complete_job(job_id:int, db:AsyncSession=Depends(get_db), current_user
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="you are not involved in this job")
 
 
-    # Both confirmations are recorded, but the job stays IN_PROGRESS. In
-    # Model 1 the program completes the task when the creator signs
-    # `approve_work`; that is also when the provider is paid. Marking the job
-    # complete before the escrow is released would make the DB claim a
-    # settlement that has not happened.
+    if not settings.ESCROW_ENABLED and job.client_completed and job.worker_completed:
+        job.status = JobStatus.COMPLETED
 
     try:
         await db.commit()
@@ -314,7 +312,7 @@ async def complete_job(job_id:int, db:AsyncSession=Depends(get_db), current_user
         raise
 
     return job
-    
+
 
 
 
@@ -326,13 +324,13 @@ async def delete_job(job_id:int, db:AsyncSession=Depends(get_db), current_user=D
 
     if not job:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="job not found")
-    
+
     if job.owner_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="you are not allowed to delete this job")
-    
+
     await db.delete(job)
 
-    try: 
+    try:
         await db.commit()
 
     except Exception:
@@ -342,7 +340,7 @@ async def delete_job(job_id:int, db:AsyncSession=Depends(get_db), current_user=D
     return
 
 @router.post("/{job_id}/images")
-async def upload_job_image(job_id: int, file: UploadFile = File(...), 
+async def upload_job_image(job_id: int, file: UploadFile = File(...),
                            db: AsyncSession = Depends(get_db),current_user=Depends(get_current_user)):
     result = await db.execute(select(Job).where(Job.id == job_id))
 
@@ -379,28 +377,28 @@ async def upload_job_image(job_id: int, file: UploadFile = File(...),
 @router.post("/{job_id}/apply", response_model=JobAppplicationResponse)
 async def create_job_application(job_id:int, data: JobApplicationCreate, db:AsyncSession=Depends(get_db), current_user=Depends(get_current_user)):
     result = await db.execute(select(Job).where(Job.id == job_id))
-    
+
     job = result.scalar_one_or_none()
 
     if not job:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="job not found")
-    
+
     if job.owner_id == current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="you cannot apply to your own job")
-    
+
     if job.status != JobStatus.OPEN:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="This job is no longer accepting application")
-    
+
     #prevent duplicate application
 
-    result = await db.execute(select(JobApplication).where(JobApplication.job_id == job.id, 
+    result = await db.execute(select(JobApplication).where(JobApplication.job_id == job.id,
                                                            JobApplication.applicant_id == current_user.id))
-    
+
     existing_application = result.scalar_one_or_none()
 
     if existing_application:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="you already applied")
-    
+
     application = JobApplication(**data.model_dump(),
                                  job_id=job.id, applicant_id = current_user.id)
 
@@ -962,7 +960,7 @@ async def get_onchain_task(
 @router.get("/{job_id}/applications", response_model=list[JobAppplicationResponse])
 async def get_job_applications(job_id:int, db:AsyncSession=Depends(get_db),
                                current_user=Depends(get_current_user)):
-    
+
     result = await db.execute(select(Job).where(Job.id == job_id))
 
     job = result.scalar_one_or_none()
@@ -999,10 +997,10 @@ async def update_application(id:int, data: JobApplicationUpdate,
 
     if not application:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="application not found")
-    
+
     if application.applicant_id  != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="only applied users can edit their application")
-    
+
     update_data = data.model_dump(exclude_unset=True)
 
     for field, value in update_data.items():
@@ -1016,7 +1014,9 @@ async def update_application(id:int, data: JobApplicationUpdate,
     except Exception:
         await db.rollback()
         raise
-    
+
+    return application
+
 
 @router.delete("/applications/{id}")
 async def delete(id:int, db:AsyncSession=Depends(get_db), current_user=Depends(get_current_user)):
@@ -1029,7 +1029,7 @@ async def delete(id:int, db:AsyncSession=Depends(get_db), current_user=Depends(g
 
     if application.applicant_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="you are not authorized to delete this application")
-    
+
 
     await db.delete(application)
 
@@ -1042,9 +1042,9 @@ async def delete(id:int, db:AsyncSession=Depends(get_db), current_user=Depends(g
     return {"message": "application deleted successfully"}
 
 @router.patch("/applications/{id}/status", response_model=JobAppplicationResponse)
-async def update_application_status(id: int,data: JobApplicationStatusUpdate, 
+async def update_application_status(id: int,data: JobApplicationStatusUpdate,
                                     db: AsyncSession = Depends(get_db), current_user=Depends(get_current_user)):
-    
+
     # Get application
     result = await db.execute(select(JobApplication).where(JobApplication.id == id))
 
@@ -1084,9 +1084,8 @@ async def update_application_status(id: int,data: JobApplicationStatusUpdate,
                 detail="Only pending applications can be accepted.",
             )
 
-        # Model 1: the escrow is locked when the task is created, so a task
-        # cannot be staffed until its funding is on-chain.
-        if job.funding_status != FundingStatus.FUNDED:
+        # Escrow-backed tasks cannot be staffed until their funding is on-chain.
+        if settings.ESCROW_ENABLED and job.funding_status != FundingStatus.FUNDED:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="This task is not funded yet. Providers can be accepted once the escrow is on-chain.",
@@ -1100,7 +1099,7 @@ async def update_application_status(id: int,data: JobApplicationStatusUpdate,
 
         # Prevent accepting another applicant if one is already accepted
         result = await db.execute(select(JobApplication).where(JobApplication.job_id == job.id, JobApplication.status == ApplicationStatus.ACCEPTED, JobApplication.id != application.id))
-        
+
         existing_accepted = result.scalar_one_or_none()
 
         if existing_accepted:
@@ -1113,21 +1112,22 @@ async def update_application_status(id: int,data: JobApplicationStatusUpdate,
                 detail="The applicant no longer exists",
             )
 
-        # The program's `accept` is signed by the task creator. For a
-        # custodial escrow the relayer is the creator, so the backend signs it.
-        # This also verifies that the provider actually applied on-chain.
-        try:
-            await accept_application_onchain(
-                db,
-                job=job,
-                provider=provider,
-            )
-        except ProviderFlowError as exc:
-            raise _provider_flow_error(exc)
-        except RelayerNotConfigured as exc:
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
-            )
+        if settings.ESCROW_ENABLED:
+            # The program's `accept` is signed by the task creator. For a
+            # custodial escrow the relayer is the creator, so the backend signs it.
+            # This also verifies that the provider actually applied on-chain.
+            try:
+                await accept_application_onchain(
+                    db,
+                    job=job,
+                    provider=provider,
+                )
+            except ProviderFlowError as exc:
+                raise _provider_flow_error(exc)
+            except RelayerNotConfigured as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
+                )
 
         # Accept this application
         application.status = ApplicationStatus.ACCEPTED
@@ -1143,9 +1143,8 @@ async def update_application_status(id: int,data: JobApplicationStatusUpdate,
         for pending_application in pending_applications:
             pending_application.status = ApplicationStatus.REJECTED
 
-        # The program moves the task to InProgress when the creator accepts.
-        # This mirrors that state; the on-chain `accept` instruction must be
-        # signed by the creator before the provider can complete the task.
+        # Mirror the accepted task in the application lifecycle. When escrow
+        # is enabled, the on-chain accept instruction also moves it to InProgress.
         job.status = JobStatus.IN_PROGRESS
 
     # Rejecting an applicant
@@ -1206,7 +1205,7 @@ async def link_job_chain(
         raise HTTPException(status_code=404, detail="job not found")
     if job.owner_id != current_user.id:
         raise HTTPException(status_code=403, detail="not your job")
-    
+
     task_id_val = onchain_task_id if onchain_task_id is not None else near_task_id
     if task_id_val is not None:
         if task_id_val != job.id:
@@ -1288,7 +1287,7 @@ async def link_application_chain(
         raise HTTPException(status_code=404, detail="application not found")
     if application.applicant_id != current_user.id:
         raise HTTPException(status_code=403, detail="not your application")
-    
+
     app_id_val = onchain_application_id if onchain_application_id is not None else near_application_id
     if app_id_val is not None:
         application.onchain_application_id = app_id_val
