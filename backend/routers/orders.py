@@ -4,8 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from geoalchemy2.functions import ST_GeogFromText
 
-from DB.database import get_db
-from dependencies import get_current_user
+from dependencies import get_db, get_current_user
 from models import User, Business, Order
 from models.services import Service # Assuming this is where your Service model lives
 from schemas.enums import OrderStatus, ListingKind, ServiceStatus
