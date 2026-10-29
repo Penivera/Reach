@@ -24,6 +24,14 @@ class JobStatus(str, Enum):
     CANCELLED = "cancelled"
    # CLOSED = "closed"
 
+class OrderStatus(str, Enum):
+    PENDING = "pending"
+    ACCEPTED = "accepted"
+    FULFILLED = "fulfilled"
+    COMPLETED = "completed"
+    DECLINED = "declined"
+    CANCELLED = "cancelled"
+
 class UrgencyLevel(str, Enum):
     ASAP = "asap"
     THIS_WEEK = "this_week"
