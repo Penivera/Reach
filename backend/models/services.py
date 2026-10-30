@@ -50,6 +50,10 @@ class Service(Base, TimeStampMixin):
     def longitude(self) -> float:
         return to_shape(self.location).x
 
+    @property
+    def images(self):
+        return self.media
+
 
 class ServiceRequest(Base, TimeStampMixin):
     __tablename__ = "service_requests"

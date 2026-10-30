@@ -4,6 +4,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from datetime import datetime
 from .enums import ApplicationStatus, FundingStatus, UrgencyLevel, PayerType
 from datetime import datetime, timezone
+from .chat import ChatUser
 
 class LocationBase(BaseModel):
     latitude: float
@@ -56,6 +57,13 @@ class JobUpdate(BaseModel):
     longitude: float | None = None
     location_name: str | None = None
     address_details: str | None = Field(default=None, max_length=300)
+
+    @field_validator("urgency")
+    @classmethod
+    def urgency_cannot_be_null(cls, value):
+        if value is None:
+            raise ValueError("urgency cannot be null")
+        return value
 
     @field_validator("latitude")
     @classmethod
@@ -144,6 +152,11 @@ class JobAppplicationResponse(BaseModel):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class JobApplicantResponse(JobAppplicationResponse):
+    applicant: ChatUser | None = None
+
 
 class JobOnchainPrepareResponse(BaseModel):
     """An unsigned transaction a user's wallet has to sign."""

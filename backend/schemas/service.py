@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator
 from .enums import ListingKind, ServiceStatus, ServiceRequestStatus
+from .media import MediaResponse
 from datetime import datetime
 from typing import Optional
 
@@ -107,6 +108,10 @@ class ServiceResponse(BaseModel):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class ServiceDetailResponse(ServiceResponse):
+    images: list[MediaResponse] = []
 
 
 class NearbyServiceQuery(BaseModel):

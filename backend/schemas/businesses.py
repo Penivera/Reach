@@ -1,4 +1,5 @@
 from pydantic import BaseModel, ConfigDict
+from .media import MediaResponse
 
 
 class BusinessCreate(BaseModel):
@@ -12,6 +13,10 @@ class BusinessResponse(BaseModel):
     name: str
     description: str | None = None
     model_config = ConfigDict(from_attributes=True)
+
+
+class BusinessDetailResponse(BusinessResponse):
+    images: list[MediaResponse] = []
 
 
 class BusinessUpdate(BaseModel):

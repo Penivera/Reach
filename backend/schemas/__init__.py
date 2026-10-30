@@ -3,12 +3,12 @@ from .users import UserCreate, UserResponse, ChangePasswordRequest, UserUpdate, 
 from .verification import EmailVerificationRequest, ForgotPasswordRequest, ResetPasswordRequest, ResendEmailVerificationRequest, FCMTokenUpdate
 from .categories import CategoryCreate, CategoryResponse, CategoryUpdate
 from .skills import SkillCreate, SkillResponse, SkillUpdate, UserSkillUpdate
-from .jobs import JobApplicationCreate, JobApplicationUpdate, JobUpdate, JobAppplicationResponse, JobCreate, JobResponse, JobApplicationStatusUpdate, JobOnchainPrepareResponse, JobOnchainSubmitRequest, JobOnchainFundRequest, JobOnchainStateResponse, NearbyJobQuery, JobCompletionRequest
-from .service import ServiceCreate, ServiceUpdate, ServiceResponse, NearbyServiceQuery, ServiceRequestCreate, ServiceRequestResponse
-from .businesses import BusinessCreate, BusinessResponse, BusinessUpdate
+from .jobs import JobApplicationCreate, JobApplicationUpdate, JobUpdate, JobAppplicationResponse, JobApplicantResponse, JobCreate, JobResponse, JobApplicationStatusUpdate, JobOnchainPrepareResponse, JobOnchainSubmitRequest, JobOnchainFundRequest, JobOnchainStateResponse, NearbyJobQuery, JobCompletionRequest
+from .service import ServiceCreate, ServiceUpdate, ServiceResponse, ServiceDetailResponse, NearbyServiceQuery, ServiceRequestCreate, ServiceRequestResponse
+from .businesses import BusinessCreate, BusinessResponse, BusinessDetailResponse, BusinessUpdate
 from .media import MediaResponse
 from .reviews import ReviewCreate, ReviewResponse
-from .chat import ConversationCreate, ConversationResponse, MessageCreate, MessageResponse
+from .chat import ConversationCreate, ConversationResponse, MessageCreate, MessageResponse, ConversationListItem
 from .reports import ReportCreate, ReportResponse
 from .payments import (
     ChainTransactionResponse,

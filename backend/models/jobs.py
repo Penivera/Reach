@@ -1,5 +1,15 @@
 from datetime import datetime
-from sqlalchemy import String, Integer, ForeignKey, Enum, Float, Boolean, DateTime
+from sqlalchemy import (
+    String,
+    Integer,
+    ForeignKey,
+    Enum,
+    Float,
+    Boolean,
+    DateTime,
+    Index,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from DB.database import Base
 from schemas import ApplicationStatus, FundingStatus, JobStatus, UrgencyLevel, PayerType
@@ -87,6 +97,12 @@ class Job(Base, TimeStampMixin):
 
 class JobApplication(Base, TimeStampMixin):
     __tablename__ = "job_applications"
+    __table_args__ = (
+        UniqueConstraint(
+            "job_id", "applicant_id", name="uq_job_applications_job_applicant"
+        ),
+        Index("ix_job_applications_job_id", "job_id"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
 

@@ -27,3 +27,23 @@ class MessageResponse(BaseModel):
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+class ChatUser(BaseModel):
+    id: int
+    username: str
+    first_name: str
+    last_name: str
+    profile_image: str | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ConversationListItem(BaseModel):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+    other_user: ChatUser | None = None
+    last_message: MessageResponse | None = None
+    unread_count: int = 0
+
+    model_config = ConfigDict(from_attributes=True)

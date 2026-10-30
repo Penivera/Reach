@@ -1,9 +1,10 @@
 from fastapi import APIRouter, HTTPException, Depends, status, UploadFile, File, Query
 from sqlalchemy import select, or_
+from sqlalchemy.orm import selectinload
 from utils import upload_image
 from sqlalchemy.ext.asyncio import AsyncSession
 from dependencies import get_db, get_current_user
-from schemas import (ServiceCreate, ServiceResponse, ServiceUpdate, ServiceStatus, ListingKind, NearbyServiceQuery,ServiceRequestResponse,
+from schemas import (ServiceCreate, ServiceResponse, ServiceDetailResponse, ServiceUpdate, ServiceStatus, ListingKind, NearbyServiceQuery,ServiceRequestResponse,
                      ServiceRequestCreate, ServiceRequestStatus, MediaType, MediaResponse)
 from models import Category, Service, ServiceRequest, Business, Media
 from geoalchemy2.functions import ST_Distance, ST_DWithin, ST_GeogFromText
@@ -17,7 +18,8 @@ async def create_service(service_data: ServiceCreate, db: AsyncSession = Depends
     result = await db.execute(
         select(Business).where(
             Business.id == service_data.business_id,
-            Business.owner_id == current_user.id
+            Business.owner_id == current_user.id,
+            Business.is_deleted == False,
         )
     )
 
@@ -75,16 +77,17 @@ async def create_service(service_data: ServiceCreate, db: AsyncSession = Depends
     return new_service
 
 
-@router.get("", response_model=list[ServiceResponse])
+@router.get("", response_model=list[ServiceDetailResponse])
 async def get_services(
     q: str | None = None,
     category_id: int | None = None,
     kind: ListingKind | None = None,
+    business_id: int | None = None,
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
     db: AsyncSession = Depends(get_db),
 ):
-    query = select(Service).where(Service.status == ServiceStatus.ACTIVE)
+    query = select(Service).options(selectinload(Service.media)).where(Service.status == ServiceStatus.ACTIVE)
 
     needle = (q or "").strip()
     if needle:
@@ -103,6 +106,9 @@ async def get_services(
     if kind is not None:
         query = query.where(Service.kind == kind)
 
+    if business_id is not None:
+        query = query.where(Service.business_id == business_id)
+
     query = query.order_by(Service.created_at.desc()).offset(offset).limit(limit)
 
     result = await db.execute(query)
@@ -112,20 +118,29 @@ async def get_services(
     return services
 
 
-@router.get("/me", response_model=list[ServiceResponse])
+@router.get("/me", response_model=list[ServiceDetailResponse])
 async def get_my_services(db: AsyncSession = Depends(get_db), current_user=Depends(get_current_user)):
 
-    result = await db.execute(select(Service).join(Business).where(Business.owner_id == current_user.id,Service.status != ServiceStatus.ARCHIVED))
+    result = await db.execute(
+        select(Service)
+        .options(selectinload(Service.media))
+        .join(Business)
+        .where(
+            Business.owner_id == current_user.id,
+            Business.is_deleted == False,
+            Service.status != ServiceStatus.ARCHIVED,
+        )
+    )
 
     services = result.scalars().all()
 
     return services
 
-@router.get("/nearby", response_model=list[ServiceResponse])
+@router.get("/nearby", response_model=list[ServiceDetailResponse])
 async def get_services_nearby(data:NearbyServiceQuery=Depends(), db:AsyncSession=Depends(get_db)):
     search_point = ST_GeogFromText(f"POINT({data.longitude} {data.latitude})")
 
-    query = select(Service).where(
+    query = select(Service).options(selectinload(Service.media)).where(
         Service.status == ServiceStatus.ACTIVE,
         ST_DWithin(Service.location, search_point, data.radius * 1000),
     )
@@ -160,9 +175,13 @@ async def get_services_nearby(data:NearbyServiceQuery=Depends(), db:AsyncSession
     return services
 
 
-@router.get("/{service_id}", response_model=ServiceResponse)
+@router.get("/{service_id}", response_model=ServiceDetailResponse)
 async def get_service(service_id: int, db:AsyncSession=Depends(get_db)):
-    result = await db.execute(select(Service).where(Service.id == service_id, Service.status != ServiceStatus.ARCHIVED))
+    result = await db.execute(
+        select(Service)
+        .options(selectinload(Service.media))
+        .where(Service.id == service_id, Service.status != ServiceStatus.ARCHIVED)
+    )
     service = result.scalar_one_or_none()
 
     if not service:
@@ -201,6 +220,14 @@ async def update_service(service_id: int, data: ServiceUpdate, db: AsyncSession 
 
     #Get only fields that were provided
     update_data = data.model_dump(exclude_unset=True)
+
+    if service.kind == ListingKind.SERVICE:
+        update_data.pop("stock", None)
+    elif "stock" in update_data and update_data["stock"] is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="stock cannot be empty for goods",
+        )
 
     # Check coordinates
     has_lat = "latitude" in update_data
@@ -291,6 +318,12 @@ async def upload_service_image(service_id: int, file: UploadFile = File(...), db
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You can only upload images to your own service"
+        )
+
+    if not file.content_type or not file.content_type.startswith("image/"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only image files are allowed",
         )
 
     #Upload to Cloudinary

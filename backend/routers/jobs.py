@@ -4,6 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from solders.pubkey import Pubkey
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, true, or_
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import selectinload
 from core import settings
 from core.relayer import RelayerNotConfigured
 from models import Category, Job, JobApplication, Media, User
@@ -11,6 +13,7 @@ from utils import upload_image
 from dependencies import get_db, get_current_user
 from schemas import (JobCreate, JobUpdate, JobResponse, JobApplicationCreate,
                      JobApplicationStatusUpdate, JobApplicationUpdate, JobAppplicationResponse,
+                       JobApplicantResponse,
                        JobOnchainPrepareResponse, JobOnchainSubmitRequest,
                        JobOnchainFundRequest, JobOnchainStateResponse,
                        JobStatus, UrgencyLevel, ApplicationStatus, NearbyJobQuery, MediaType,
@@ -60,6 +63,21 @@ def _compute_expiry(urgency, scheduled_for=None):
     if scheduled_for is not None:
         return scheduled_for
     return datetime.now(timezone.utc) + _URGENCY_WINDOW[urgency]
+
+
+def _is_duplicate_job_application_error(exc: IntegrityError) -> bool:
+    constraint_name = getattr(
+        getattr(exc.orig, "diag", None), "constraint_name", None
+    )
+    sqlite_unique_error = (
+        "UNIQUE constraint failed: "
+        "job_applications.job_id, job_applications.applicant_id"
+    )
+    return (
+        constraint_name == "uq_job_applications_job_applicant"
+        or sqlite_unique_error in str(exc.orig)
+    )
+
 
 def _not_expired():
     return Job.expires_at > func.now()
@@ -245,6 +263,12 @@ async def update_job(job_id:int, job_data:JobUpdate, db:AsyncSession=Depends(get
     if job.owner_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You are not allowed to update this job")
 
+    if job.status not in (JobStatus.OPEN, JobStatus.PENDING_FUNDING):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only open or pending-funding jobs can be updated",
+        )
+
     data = job_data.model_dump(exclude_unset=True)
 
     if "urgency" in data or "scheduled_for" in data:
@@ -355,7 +379,12 @@ async def delete_job(job_id:int, db:AsyncSession=Depends(get_db), current_user=D
     if job.owner_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="you are not allowed to delete this job")
 
-    await db.delete(job)
+    if job.status not in (JobStatus.OPEN, JobStatus.PENDING_FUNDING):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only open jobs can be deleted",
+        )
+    job.status = JobStatus.CANCELLED
 
     try:
         await db.commit()
@@ -447,6 +476,14 @@ async def create_job_application(job_id:int, data: JobApplicationCreate, db:Asyn
         await db.commit()
         await db.refresh(application)
 
+    except IntegrityError as exc:
+        await db.rollback()
+        if _is_duplicate_job_application_error(exc):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="you already applied",
+            ) from exc
+        raise
     except Exception:
         await db.rollback()
         raise
@@ -532,6 +569,14 @@ async def prepare_onchain_application(
         try:
             await db.commit()
             await db.refresh(application)
+        except IntegrityError as exc:
+            await db.rollback()
+            if _is_duplicate_job_application_error(exc):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="you already applied",
+                ) from exc
+            raise
         except Exception:
             await db.rollback()
             raise
@@ -1003,7 +1048,7 @@ async def get_onchain_task(
     )
 
 
-@router.get("/{job_id}/applications", response_model=list[JobAppplicationResponse])
+@router.get("/{job_id}/applications", response_model=list[JobApplicantResponse])
 async def get_job_applications(job_id:int, db:AsyncSession=Depends(get_db),
                                current_user=Depends(get_current_user)):
 
@@ -1017,7 +1062,11 @@ async def get_job_applications(job_id:int, db:AsyncSession=Depends(get_db),
     if job.owner_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only job owner can see applicants")
 
-    result = await db.execute(select(JobApplication).where(JobApplication.job_id == job_id))
+    result = await db.execute(
+        select(JobApplication)
+        .options(selectinload(JobApplication.applicant))
+        .where(JobApplication.job_id == job_id)
+    )
 
     applications = result.scalars().all()
 
@@ -1046,6 +1095,12 @@ async def update_application(id:int, data: JobApplicationUpdate,
 
     if application.applicant_id  != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="only applied users can edit their application")
+
+    if application.status != ApplicationStatus.PENDING:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only pending applications can be changed",
+        )
 
     update_data = data.model_dump(exclude_unset=True)
 
@@ -1076,6 +1131,11 @@ async def delete(id:int, db:AsyncSession=Depends(get_db), current_user=Depends(g
     if application.applicant_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="you are not authorized to delete this application")
 
+    if application.status != ApplicationStatus.PENDING:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only pending applications can be changed",
+        )
 
     await db.delete(application)
 
@@ -1195,6 +1255,11 @@ async def update_application_status(id: int,data: JobApplicationStatusUpdate,
 
     # Rejecting an applicant
     elif data.status == ApplicationStatus.REJECTED:
+        if application.status != ApplicationStatus.PENDING:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Only pending applications can be rejected",
+            )
         application.status = ApplicationStatus.REJECTED
 
     else:
